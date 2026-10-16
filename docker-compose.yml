@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: escom-postgres
+    environment:
+      POSTGRES_USER: escom
+      POSTGRES_PASSWORD: escom
+      POSTGRES_DB: escom
+    ports:
+      - "54329:5432"
+    volumes:
+      - escom_pg:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+
+volumes:
+  escom_pg:
