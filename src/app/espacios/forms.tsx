@@ -8,7 +8,7 @@ type FormState = { error?: string; ok?: string };
 
 function Feedback({ state }: { state: FormState }) {
   if (state.error) return <p className="text-sm text-[#8C1D18]">{state.error}</p>;
-  if (state.ok) return <p className="text-sm text-[#1C1416]">{state.ok}</p>;
+  if (state.ok) return <p className="text-sm text-[#123044]">{state.ok}</p>;
   return null;
 }
 
@@ -92,10 +92,10 @@ export function BookingForm({
         </label>
       </div>
       <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="is_public" defaultChecked className="accent-[#6B1D2A]" />
+        <input type="checkbox" name="is_public" defaultChecked className="accent-[#006699]" />
         Pública en el itinerario
       </label>
-      <p className="text-sm text-[#5C4A45]">
+      <p className="text-sm text-[#667085]">
         Si desmarcas «Pública», la reserva se guarda y no se muestra en el itinerario.
       </p>
       <Feedback state={state} />

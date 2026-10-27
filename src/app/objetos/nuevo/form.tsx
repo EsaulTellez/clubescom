@@ -45,7 +45,7 @@ export function ReportForm() {
       <label className={label}>
         Respuesta
         <input className={`${input} mt-1`} name="security_answer" required minLength={2} maxLength={120} autoComplete="off" />
-        <span className="mt-1 block text-xs font-normal text-[#5C4A45]">
+        <span className="mt-1 block text-xs font-normal text-[#667085]">
           Solo guardamos un hash. Quien reclame el objeto tiene que responder esta pregunta.
         </span>
       </label>

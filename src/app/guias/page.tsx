@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Cover } from "@/components/cover";
+import { PageIntro } from "@/components/page-intro";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btn, btnGhost, card } from "@/lib/ui";
@@ -39,19 +41,18 @@ export default async function GuiasPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Guías</h1>
-          <p className="mt-1 max-w-2xl text-sm text-[#667085]">
-            Pasos para trámites de la escuela. Si un paso está incompleto, puedes sugerir una mejora.
-          </p>
-        </div>
-        {user && isStaff(user.role) && (
-          <Link href="/guias/nueva" className={btn}>
-            Nueva guía
-          </Link>
-        )}
-      </header>
+      <PageIntro
+        kicker="Trámites"
+        title="Guías"
+        text="Pasos para trámites de la escuela. Si un paso está incompleto, puedes sugerir una mejora."
+        action={
+          user && isStaff(user.role) ? (
+            <Link href="/guias/nueva" className={btn}>
+              Nueva guía
+            </Link>
+          ) : undefined
+        }
+      />
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         <Link href="/guias" className={area ? btnGhost : btn}>
@@ -74,16 +75,16 @@ export default async function GuiasPage({
 
       <div className="grid gap-3 md:grid-cols-2">
         {guides.map((guide) => (
-          <article key={guide.id} className={card}>
-            <p className="text-xs uppercase tracking-wide text-[#006699]">
-              {areaLabel(guide.area)}
-            </p>
-            <h2 className="mt-1 text-lg font-semibold">
-              <Link href={`/guias/${guide.id}`} className="hover:underline">
-                {guide.title}
-              </Link>
-            </h2>
-            <p className="mt-2 text-sm text-[#667085]">{guide.summary}</p>
+          <article key={guide.id} className={`${card} overflow-hidden p-0`}>
+            <Link href={`/guias/${guide.id}`}>
+              <Cover tone={guide.area} kicker={areaLabel(guide.area)} title={guide.title} className="h-36" />
+            </Link>
+            <div className="p-4">
+              <h2 className="font-serif text-2xl">
+                <Link href={`/guias/${guide.id}`}>{guide.title}</Link>
+              </h2>
+              <p className="mt-2 text-sm text-[#667085]">{guide.summary}</p>
+            </div>
           </article>
         ))}
       </div>

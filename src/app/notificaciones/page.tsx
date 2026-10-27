@@ -1,3 +1,4 @@
+import { PageIntro } from "@/components/page-intro";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
@@ -60,13 +61,11 @@ export default async function NotificacionesPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-sm uppercase tracking-[0.16em] text-[#6B1D2A]">ESCOM</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Notificaciones</h1>
-          <p className="mt-1 text-sm text-[#5C4A45]">
-            {unread === 0 ? "No tienes avisos sin leer." : `${unread} sin leer.`}
-          </p>
-        </div>
+        <PageIntro
+          kicker="Tu cuenta"
+          title="Notificaciones"
+          text={unread === 0 ? "No tienes avisos sin leer." : `${unread} sin leer.`}
+        />
         {unread > 0 && (
           <form action={markAllRead}>
             <button className={btnGhost}>Marcar todas como leídas</button>
@@ -81,23 +80,23 @@ export default async function NotificacionesPage() {
           {notices.rows.map((notice) => (
             <li
               key={notice.id}
-              className={`${card} space-y-2 ${notice.read ? "" : "border-l-4 border-l-[#6B1D2A]"}`}
+              className={`${card} space-y-2 ${notice.read ? "" : "border-l-4 border-l-[#006699]"}`}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <h2 className="font-semibold">{notice.title}</h2>
-                <time className="text-xs text-[#5C4A45]" dateTime={notice.created_at.toISOString()}>
+                <time className="text-xs text-[#667085]" dateTime={notice.created_at.toISOString()}>
                   {formatWhen(notice.created_at)}
                 </time>
               </div>
-              <p className="text-sm text-[#5C4A45]">{notice.body}</p>
+              <p className="text-sm text-[#667085]">{notice.body}</p>
               <div className="flex flex-wrap items-center gap-2">
                 {notice.href && (
-                  <a href={notice.href} className="text-sm text-[#6B1D2A] underline">
+                  <a href={notice.href} className="text-sm text-[#006699] underline">
                     Ver
                   </a>
                 )}
                 {notice.read ? (
-                  <span className="text-sm text-[#5C4A45]">Leída</span>
+                  <span className="text-sm text-[#667085]">Leída</span>
                 ) : (
                   <form action={markRead}>
                     <input type="hidden" name="id" value={notice.id} />

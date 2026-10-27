@@ -5,6 +5,12 @@ const tones: Record<string, string> = {
   cultural: "from-[#01293b] via-[#006699] to-[#5aafd0]",
   deportivo: "from-[#001e2e] via-[#005580] to-[#8ec6dc]",
   club: "from-[#003049] via-[#006699] to-[#6eb6d2]",
+  perdido: "from-[#3a2208] via-[#8a5a12] to-[#e6c27a]",
+  encontrado: "from-[#013047] via-[#006699] to-[#9fd0e6]",
+  gestion_escolar: "from-[#00324d] via-[#006699] to-[#4aa3c7]",
+  becas: "from-[#01425f] via-[#0a7eaa] to-[#9fd0e6]",
+  catt: "from-[#01293b] via-[#006699] to-[#5aafd0]",
+  general: "from-[#001e2e] via-[#005580] to-[#8ec6dc]",
 };
 
 export function coverTone(kind: string) {

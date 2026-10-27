@@ -95,7 +95,7 @@ export default async function AvisosPage({
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Destacados</h2>
         {featured.length === 0 ? (
-          <p className="text-sm text-[#5C4A45]">
+          <p className="text-sm text-[#667085]">
             {filtering
               ? "Ningún aviso destacado coincide con esta búsqueda."
               : "Todavía no hay avisos destacados."}
@@ -130,21 +130,21 @@ export default async function AvisosPage({
               <Link
                 key={aviso.id}
                 href={`/avisos/${aviso.id}`}
-                className={`${card} hover:border-[#6B1D2A]`}
+                className={`${card} hover:border-[#006699]`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs uppercase tracking-wide text-[#6B1D2A]">
+                  <p className="text-xs uppercase tracking-wide text-[#006699]">
                     {categoryLabel(aviso.category)}
                   </p>
                   {aviso.featured && (
-                    <span className="rounded-full bg-[#F6F1EA] px-2 py-0.5 text-xs text-[#6B1D2A]">
+                    <span className="rounded-full bg-[#e6f3fa] px-2 py-0.5 text-xs text-[#006699]">
                       Destacado
                     </span>
                   )}
                 </div>
                 <h3 className="mt-1 font-semibold">{aviso.title}</h3>
-                <p className="mt-2 line-clamp-3 text-sm text-[#5C4A45]">{aviso.body}</p>
-                <p className="mt-3 text-xs text-[#5C4A45]">{formatWhen(aviso.publish_at)}</p>
+                <p className="mt-2 line-clamp-3 text-sm text-[#667085]">{aviso.body}</p>
+                <p className="mt-3 text-xs text-[#667085]">{formatWhen(aviso.publish_at)}</p>
               </Link>
             ))}
           </div>

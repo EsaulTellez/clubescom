@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Cover } from "@/components/cover";
+import { FlowRail } from "@/components/flow-rail";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btn, btnGhost, card, input, label } from "@/lib/ui";
@@ -48,7 +50,7 @@ export default async function ObjetoPage({
     return (
       <section className={`${card} mx-auto max-w-xl space-y-3`}>
         <h1 className="text-xl font-semibold">No encontramos ese reporte</h1>
-        <p className="text-sm text-[#5C4A45]">Puede que el enlace esté mal o que el reporte ya no exista.</p>
+        <p className="text-sm text-[#667085]">Puede que el enlace esté mal o que el reporte ya no exista.</p>
         <Link className={btnGhost} href="/objetos">
           Volver a objetos
         </Link>
@@ -67,34 +69,46 @@ export default async function ObjetoPage({
   const owner = user?.id === item.reporter_id;
   const when = new Date(item.created_at).toLocaleDateString("es-MX", { dateStyle: "medium" });
 
+  const stage =
+    item.status === "entregado" ? 3 : item.claim_code ? 2 : match ? 1 : 0;
+
   return (
-    <article className="mx-auto max-w-2xl space-y-4">
-      <p className="text-sm text-[#5C4A45]">
-        <Link href="/objetos" className="underline">
-          Objetos
-        </Link>
-      </p>
+    <article className="mx-auto max-w-3xl space-y-4">
+      <Link href="/objetos" className="text-sm text-[#006699]">
+        Objetos
+      </Link>
+      {item.photo_url ? (
+        <div className="relative aspect-[16/7] w-full overflow-hidden rounded-3xl">
+          <Image src={item.photo_url} alt={item.title} fill className="object-cover" sizes="48rem" />
+        </div>
+      ) : (
+        <Cover tone={item.kind} kicker={kindLabel[item.kind]} title={item.title} className="h-44 rounded-3xl sm:h-56" />
+      )}
+      <FlowRail
+        current={item.status === "cerrado" ? 0 : stage}
+        steps={[
+          { title: "Reporte", detail: "Alguien publica perdido o encontrado." },
+          { title: "Coincidencia", detail: "Si el texto se parece, avisamos a los dos." },
+          { title: "Reclamo", detail: "La otra persona responde la pregunta." },
+          { title: "Entrega", detail: "El código confirma que ya se devolvió." },
+        ]}
+      />
       <header className={card}>
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full bg-[#6B1D2A] px-2 py-1 font-medium text-white">
+          <span className="rounded-full bg-[#006699] px-2 py-1 font-medium text-white">
             {kindLabel[item.kind]}
           </span>
-          <span className="rounded-full bg-[#F6F1EA] px-2 py-1">{statusLabel[item.status]}</span>
-          <span className="text-[#5C4A45]">{when}</span>
-          {owner && <span className="text-[#6B1D2A]">Tu reporte</span>}
+          <span className="rounded-full bg-[#e6f3fa] px-2 py-1">{statusLabel[item.status]}</span>
+          <span className="text-[#667085]">{when}</span>
+          {owner && <span className="text-[#006699]">Tu reporte</span>}
         </div>
-        <h1 className="mt-3 text-2xl font-semibold">{item.title}</h1>
-        {item.photo_url && (
-          <div className="relative mt-4 aspect-[4/3] w-full overflow-hidden rounded-lg">
-            <Image src={item.photo_url} alt={item.title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 42rem" />
-          </div>
-        )}
-        <p className="mt-4 whitespace-pre-wrap text-sm">{item.description}</p>
-        <p className="mt-3 text-sm text-[#5C4A45]">Lugar: {item.place}</p>
+        <h1 className="mt-3 font-serif text-4xl tracking-tight">{item.title}</h1>
+        <p className="mt-4 whitespace-pre-wrap text-sm leading-6">{item.description}</p>
+        <p className="mt-3 text-sm text-[#667085]">Lugar: {item.place}</p>
         {match && (
           <p className="mt-3 text-sm">
             Posible coincidencia ({kindLabel[match.kind]}):{" "}
-            <Link href={`/objetos/${match.id}`} className="font-medium text-[#6B1D2A] underline">
+            <Link href={`/objetos/${match.id}`} className="font-medium text-[#006699] underline">
               {match.title}
             </Link>
           </p>
@@ -113,9 +127,9 @@ export default async function ObjetoPage({
           <h2 className="font-semibold">Entrega</h2>
           {item.claim_code ? (
             <>
-              <div className="rounded-xl bg-[#F6F1EA] px-4 py-5 text-center">
-                <p className="text-xs uppercase tracking-wide text-[#5C4A45]">Código de entrega</p>
-                <p className="mt-2 text-4xl font-semibold tracking-[0.28em] text-[#6B1D2A] sm:text-5xl">
+              <div className="rounded-xl bg-[#e6f3fa] px-4 py-5 text-center">
+                <p className="text-xs uppercase tracking-wide text-[#667085]">Código de entrega</p>
+                <p className="mt-2 text-4xl font-semibold tracking-[0.28em] text-[#006699] sm:text-5xl">
                   {item.claim_code}
                 </p>
               </div>
@@ -140,7 +154,7 @@ export default async function ObjetoPage({
               </form>
             </>
           ) : (
-            <p className="text-sm text-[#5C4A45]">
+            <p className="text-sm text-[#667085]">
               Cuando alguien responda la pregunta de seguridad, aquí aparecerá el código para confirmar la entrega.
             </p>
           )}
@@ -157,10 +171,10 @@ export default async function ObjetoPage({
           {user && item.security_question ? (
             <ClaimForm id={item.id} question={item.security_question} />
           ) : user ? (
-            <p className="text-sm text-[#5C4A45]">Este reporte no tiene pregunta de seguridad.</p>
+            <p className="text-sm text-[#667085]">Este reporte no tiene pregunta de seguridad.</p>
           ) : (
-            <p className="text-sm text-[#5C4A45]">
-              <Link href="/entrar" className="font-medium text-[#6B1D2A] underline">
+            <p className="text-sm text-[#667085]">
+              <Link href="/entrar" className="font-medium text-[#006699] underline">
                 Inicia sesión
               </Link>{" "}
               para responder la pregunta de seguridad y reclamar el objeto.

@@ -71,7 +71,7 @@ export default async function QuestionPage({
         <p className="text-xs uppercase tracking-wide text-[#006699]">
           {areaLabel(question.area)}
         </p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{question.title}</h1>
+        <h1 className="mt-1 font-serif text-4xl tracking-tight">{question.title}</h1>
         <p className="mt-1 text-sm text-[#667085]">
           {question.author_name} · {formatDate(question.created_at)}
         </p>
@@ -105,9 +105,12 @@ export default async function QuestionPage({
         {answers.rows.map((answer) => (
           <article
             key={answer.id}
-            className={`${card} ${answer.official ? "border-l-4 border-l-[#006699]" : ""}`}
+            className={`${card} ${answer.official ? "bg-[#e6f3fa]" : ""}`}
           >
             <div className="flex flex-wrap items-center gap-2">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-[#006699] text-sm font-semibold text-white">
+                {answer.author_name.slice(0, 1)}
+              </span>
               <p className="text-sm font-medium">{answer.author_name}</p>
               {answer.official && (
                 <span className="rounded-full bg-[#006699] px-2 py-0.5 text-xs font-medium text-white">

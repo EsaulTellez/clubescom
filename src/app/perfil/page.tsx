@@ -18,12 +18,12 @@ export default async function PerfilPage() {
   return (
     <section className={`${card} max-w-xl space-y-3`}>
       <h1 className="text-xl font-semibold">{user.name}</h1>
-      <p className="text-sm text-[#5C4A45]">{user.email}</p>
+      <p className="text-sm text-[#667085]">{user.email}</p>
       <p className="text-sm">Rol: {user.role}{user.area ? ` · ${user.area}` : ""}</p>
       <p className="text-sm">Boleta: {user.boleta ?? "—"}</p>
       <div className="flex flex-wrap gap-2">
         {badges.rows.map((badge) => (
-          <span key={badge.label} className="rounded-full bg-[#F6F1EA] px-3 py-1 text-xs">
+          <span key={badge.label} className="rounded-full bg-[#e6f3fa] px-3 py-1 text-xs">
             {badge.label}
           </span>
         ))}

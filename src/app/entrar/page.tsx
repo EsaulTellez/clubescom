@@ -13,7 +13,7 @@ export default function EntrarPage() {
           Olvidé mi contraseña
         </Link>
       </p>
-      <p className="text-sm text-[#5C4A45]">
+      <p className="text-sm text-[#667085]">
         Cuentas de prueba: <code>admin@ipn.mx</code>, <code>daniel.alumno@alumno.ipn.mx</code>. Contraseña <code>Escom2026!</code>
       </p>
     </div>

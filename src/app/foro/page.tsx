@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PageIntro } from "@/components/page-intro";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btn, btnGhost, card } from "@/lib/ui";
@@ -49,12 +50,11 @@ export default async function ForoPage({
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Foro</h1>
-        <p className="mt-1 max-w-2xl text-sm text-[#667085]">
-          Dudas de gestión escolar, becas, el CATT y temas generales. Las más votadas aparecen primero.
-        </p>
-      </header>
+      <PageIntro
+        kicker="Trámites"
+        title="Foro"
+        text="Dudas de gestión escolar, becas, el CATT y temas generales. Las más votadas aparecen primero."
+      />
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         <Link href="/foro" className={area ? btnGhost : btn}>
@@ -80,14 +80,17 @@ export default async function ForoPage({
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-3">
           {questions.map((question) => (
-            <article key={question.id} className={card}>
+            <article key={question.id} className={`${card} flex gap-4`}>
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#e6f3fa] text-center">
+                <span className="font-serif text-xl leading-none text-[#006699]">{question.votes}</span>
+                <span className="text-[10px] uppercase tracking-wide text-[#667085]">votos</span>
+              </div>
+              <div className="min-w-0 flex-1">
               <p className="text-xs uppercase tracking-wide text-[#006699]">
                 {areaLabel(question.area)}
               </p>
-              <h2 className="mt-1 text-lg font-semibold">
-                <Link href={`/foro/${question.id}`} className="hover:underline">
-                  {question.title}
-                </Link>
+              <h2 className="mt-1 font-serif text-2xl leading-tight">
+                <Link href={`/foro/${question.id}`}>{question.title}</Link>
               </h2>
               <p className="mt-1 text-sm text-[#667085]">
                 {question.author_name} · {formatDate(question.created_at)}
@@ -102,6 +105,7 @@ export default async function ForoPage({
                     </button>
                   </form>
                 )}
+              </div>
               </div>
             </article>
           ))}

@@ -34,7 +34,7 @@ export function AvisoForm({
     <form action={formAction} className="space-y-4">
       {initial.id && <input type="hidden" name="id" value={initial.id} />}
       {state.error && (
-        <p className="rounded-lg bg-[#F6F1EA] px-3 py-2 text-sm text-[#6B1D2A]">{state.error}</p>
+        <p className="rounded-lg bg-[#e6f3fa] px-3 py-2 text-sm text-[#006699]">{state.error}</p>
       )}
 
       <div>

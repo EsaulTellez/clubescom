@@ -37,11 +37,11 @@ export default async function NuevoAvisoPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <div>
-        <Link href="/avisos" className="text-sm text-[#6B1D2A] hover:underline">
+        <Link href="/avisos" className="text-sm text-[#006699] hover:underline">
           Volver a avisos
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">Nuevo aviso</h1>
-        <p className="mt-1 text-sm text-[#5C4A45]">
+        <p className="mt-1 text-sm text-[#667085]">
           Publican administración y moderación de comunicación.
         </p>
       </div>
@@ -89,20 +89,20 @@ export default async function NuevoAvisoPage() {
             <ul className="space-y-3">
               {historial.map((aviso) => (
                 <li key={aviso.id} className={`${card} space-y-2`}>
-                  <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-[#6B1D2A]">
+                  <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-[#006699]">
                     <span>{categoryLabel(aviso.category)}</span>
                     {aviso.featured && <span>· Destacado</span>}
                     {!aviso.is_public && <span>· Oculto</span>}
                   </div>
                   <h3 className="font-semibold">{aviso.title}</h3>
-                  <p className="text-sm text-[#5C4A45]">{formatWhen(aviso.publish_at)}</p>
+                  <p className="text-sm text-[#667085]">{formatWhen(aviso.publish_at)}</p>
                   <div className="flex flex-wrap gap-2">
-                    <Link href={`/avisos/${aviso.id}`} className="text-sm text-[#6B1D2A] hover:underline">
+                    <Link href={`/avisos/${aviso.id}`} className="text-sm text-[#006699] hover:underline">
                       Ver
                     </Link>
                     <Link
                       href={`/avisos/${aviso.id}/editar`}
-                      className="text-sm text-[#6B1D2A] hover:underline"
+                      className="text-sm text-[#006699] hover:underline"
                     >
                       Editar
                     </Link>

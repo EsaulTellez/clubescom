@@ -16,7 +16,7 @@ const ROLES: { value: Role; label: string }[] = [
 
 function Feedback({ state }: { state: FormState }) {
   if (state.error) return <p className="text-sm text-[#8C1D18]">{state.error}</p>;
-  if (state.ok) return <p className="text-sm text-[#1C1416]">{state.ok}</p>;
+  if (state.ok) return <p className="text-sm text-[#123044]">{state.ok}</p>;
   return null;
 }
 

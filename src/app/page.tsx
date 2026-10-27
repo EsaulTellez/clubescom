@@ -54,6 +54,22 @@ export default async function HomePage() {
     dbDown = true;
   }
 
+  let paths = { propuesta: "/clubes", pregunta: "/foro", guia: "/guias", objeto: "/objetos" };
+  try {
+    const [propuesta, pregunta, guia, objeto] = await Promise.all([
+      pool.query<{ id: string }>("select id from club_proposals order by created_at desc limit 1"),
+      pool.query<{ id: string }>("select id from questions order by created_at desc limit 1"),
+      pool.query<{ id: string }>("select id from guides order by created_at desc limit 1"),
+      pool.query<{ id: string }>("select id from lost_items order by created_at desc limit 1"),
+    ]);
+    if (propuesta.rows[0]) paths.propuesta = `/clubes/propuestas/${propuesta.rows[0].id}`;
+    if (pregunta.rows[0]) paths.pregunta = `/foro/${pregunta.rows[0].id}`;
+    if (guia.rows[0]) paths.guia = `/guias/${guia.rows[0].id}`;
+    if (objeto.rows[0]) paths.objeto = `/objetos/${objeto.rows[0].id}`;
+  } catch {
+    dbDown = true;
+  }
+
   const stories: StoryCard[] = avisos.slice(0, 4).map((aviso) => ({
     href: `/avisos/${aviso.id}`,
     title: aviso.title,
@@ -70,6 +86,24 @@ export default async function HomePage() {
             Postgres no responde. Levanta el contenedor con <code>docker compose up -d</code> y corre <code>npm run db:seed</code>.
           </p>
         )}
+
+        <section className="rounded-3xl bg-[#006699] p-5 text-white sm:p-6">
+          <p className="text-xs uppercase tracking-[0.18em] text-white/70">Entra al trámite</p>
+          <h2 className="mt-1 font-serif text-3xl">No te quedes en la portada</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {[
+              [paths.propuesta, "Propuesta de club", "Cuatro pasos hasta el registro."],
+              [paths.pregunta, "Duda con respuesta oficial", "Gestión Escolar ya contestó."],
+              [paths.guia, "Guía de reinscripción", "Pasos numerados, no un párrafo."],
+              [paths.objeto, "Objeto reportado", "Del aviso a la entrega."],
+            ].map(([href, title, text]) => (
+              <Link key={href} href={href} className="rounded-2xl bg-white/10 p-4 hover:bg-white/20">
+                <p className="font-medium">{title}</p>
+                <p className="mt-1 text-sm text-white/80">{text}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
 
         <StoryCarousel items={stories} />
 

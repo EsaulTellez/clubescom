@@ -30,7 +30,7 @@ export default async function EditarAvisoPage({ params }: { params: Promise<{ id
   if (!user || !canManageAvisos(user)) {
     return (
       <div className="mx-auto max-w-3xl space-y-3">
-        <Link href="/avisos" className="text-sm text-[#6B1D2A] hover:underline">
+        <Link href="/avisos" className="text-sm text-[#006699] hover:underline">
           Volver a avisos
         </Link>
         <p className={card}>No tienes permiso para editar avisos.</p>
@@ -48,7 +48,7 @@ export default async function EditarAvisoPage({ params }: { params: Promise<{ id
   if (aviso.author_id !== user.id || !isCategory(aviso.category)) {
     return (
       <div className="mx-auto max-w-3xl space-y-3">
-        <Link href={`/avisos/${id}`} className="text-sm text-[#6B1D2A] hover:underline">
+        <Link href={`/avisos/${id}`} className="text-sm text-[#006699] hover:underline">
           Volver al aviso
         </Link>
         <p className={card}>Solo puedes editar avisos que publicaste tú.</p>
@@ -58,7 +58,7 @@ export default async function EditarAvisoPage({ params }: { params: Promise<{ id
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <Link href={`/avisos/${aviso.id}`} className="text-sm text-[#6B1D2A] hover:underline">
+      <Link href={`/avisos/${aviso.id}`} className="text-sm text-[#006699] hover:underline">
         Volver al aviso
       </Link>
       <h1 className="text-2xl font-semibold tracking-tight">Editar aviso</h1>

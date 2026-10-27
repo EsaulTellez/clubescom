@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Cover } from "@/components/cover";
+import { FlowRail } from "@/components/flow-rail";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { card } from "@/lib/ui";
@@ -76,17 +78,29 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
     Boolean(proposal.advisor_id) &&
     Boolean(user && (user.role === "admin" || (user.role === "moderador" && user.area === "clubes_academicos")));
 
+  const stage = ["abierta", "en_seguimiento", "con_asesor", "registrado"].indexOf(proposal.status);
+
   return (
     <div className="space-y-6">
-      <Link href="/clubes" className="text-sm text-[#006699] underline">
+      <Link href="/clubes" className="text-sm text-[#006699]">
         Clubes
       </Link>
+      <Cover tone={proposal.kind} kicker={kindLabel(proposal.kind)} title={proposal.name} className="h-44 rounded-3xl sm:h-56" />
+      <FlowRail
+        current={stage < 0 ? 0 : stage}
+        steps={[
+          { title: "Propuesta", detail: "La comunidad marca interés." },
+          { title: "20 personas", detail: "Se genera el código del asesor." },
+          { title: "Asesor", detail: "Un profesor confirma el código." },
+          { title: "Registro", detail: "Clubes académicos abre el club." },
+        ]}
+      />
       <article className={`${card} space-y-4`}>
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs uppercase tracking-wide text-[#006699]">{kindLabel(proposal.kind)}</p>
           <span className="rounded-full bg-[#e6f3fa] px-2 py-0.5 text-xs text-[#006699]">{statusLabel(proposal.status)}</span>
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight">{proposal.name}</h1>
+        <h1 className="font-serif text-4xl tracking-tight">{proposal.name}</h1>
         <p className="whitespace-pre-wrap text-sm leading-6">{proposal.description}</p>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>

@@ -1,3 +1,4 @@
+import { PageIntro } from "@/components/page-intro";
 import type { Role } from "@/lib/auth";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
@@ -68,7 +69,7 @@ export default async function AdminPage() {
     return (
       <section className={`${card} max-w-lg space-y-2`}>
         <h1 className="text-xl font-semibold">Panel</h1>
-        <p className="text-sm text-[#5C4A45]">No tienes permiso para ver esta sección.</p>
+        <p className="text-sm text-[#667085]">No tienes permiso para ver esta sección.</p>
       </section>
     );
   }
@@ -109,17 +110,13 @@ export default async function AdminPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <p className="text-sm uppercase tracking-[0.16em] text-[#6B1D2A]">ESCOM</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Panel</h1>
-        <p className="mt-1 text-sm text-[#5C4A45]">Resumen de la plataforma.</p>
-      </div>
+      <PageIntro kicker="Administración" title="Panel" text="Cuentas, contenido y el registro de lo que hace el personal." />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {stats.map(([label, value]) => (
           <article key={label} className={card}>
-            <p className="text-sm text-[#5C4A45]">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-[#6B1D2A]">
+            <p className="text-sm text-[#667085]">{label}</p>
+            <p className="mt-1 text-2xl font-semibold text-[#006699]">
               {value.toLocaleString("es-MX")}
             </p>
           </article>
@@ -135,7 +132,7 @@ export default async function AdminPage() {
             <div className={`${card} overflow-x-auto`}>
               <table className="w-full min-w-[760px] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-[#E4D9CC] text-[#5C4A45]">
+                  <tr className="border-b border-[#d5e4ee] text-[#667085]">
                     <th className="py-2 pr-3 font-medium">Persona</th>
                     <th className="py-2 pr-3 font-medium">Estado</th>
                     <th className="py-2 font-medium">Acciones</th>
@@ -143,11 +140,11 @@ export default async function AdminPage() {
                 </thead>
                 <tbody>
                   {people.rows.map((person) => (
-                    <tr key={person.id} className="border-b border-[#E4D9CC] align-top last:border-0">
+                    <tr key={person.id} className="border-b border-[#d5e4ee] align-top last:border-0">
                       <td className="py-3 pr-3">
                         <p className="font-medium">{person.name}</p>
-                        <p className="text-[#5C4A45]">{person.email}</p>
-                        <p className="text-[#5C4A45]">
+                        <p className="text-[#667085]">{person.email}</p>
+                        <p className="text-[#667085]">
                           {ROLE_LABEL[person.role]}
                           {person.area ? ` · ${person.area}` : ""}
                         </p>
@@ -172,14 +169,14 @@ export default async function AdminPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Auditoría</h2>
-        <p className="text-sm text-[#5C4A45]">Últimos 50 movimientos.</p>
+        <p className="text-sm text-[#667085]">Últimos 50 movimientos.</p>
         {logs.rows.length === 0 ? (
           <p className={card}>Todavía no hay registros de auditoría.</p>
         ) : (
           <div className={`${card} overflow-x-auto`}>
             <table className="w-full min-w-[680px] text-left text-sm">
               <thead>
-                <tr className="border-b border-[#E4D9CC] text-[#5C4A45]">
+                <tr className="border-b border-[#d5e4ee] text-[#667085]">
                   <th className="py-2 pr-3 font-medium">Fecha</th>
                   <th className="py-2 pr-3 font-medium">Quién</th>
                   <th className="py-2 pr-3 font-medium">Acción</th>
@@ -188,12 +185,12 @@ export default async function AdminPage() {
               </thead>
               <tbody>
                 {logs.rows.map((log) => (
-                  <tr key={log.id} className="border-b border-[#E4D9CC] align-top last:border-0">
+                  <tr key={log.id} className="border-b border-[#d5e4ee] align-top last:border-0">
                     <td className="py-3 pr-3 whitespace-nowrap">{formatWhen(log.created_at)}</td>
                     <td className="py-3 pr-3">{log.actor_name ?? "Sistema"}</td>
                     <td className="py-3 pr-3">
                       {ACTION_LABEL[log.action] ?? log.action}
-                      <span className="block text-[#5C4A45]">{log.entity}</span>
+                      <span className="block text-[#667085]">{log.entity}</span>
                     </td>
                     <td className="py-3">{log.detail ?? log.entity_id ?? "—"}</td>
                   </tr>

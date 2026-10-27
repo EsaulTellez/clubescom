@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Cover } from "@/components/cover";
+import { PageIntro } from "@/components/page-intro";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btn, btnGhost, card } from "@/lib/ui";
@@ -40,23 +42,16 @@ export default async function ObjetosPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Objetos perdidos y encontrados</h1>
-          <p className="mt-1 max-w-2xl text-sm text-[#5C4A45]">
-            Reportes abiertos de la comunidad. Si un perdido y un encontrado se parecen, avisamos a las dos personas.
-          </p>
-        </div>
-        {user ? (
-          <Link className={btn} href="/objetos/nuevo">
-            Reportar objeto
+      <PageIntro
+        kicker="Comunidad"
+        title="Objetos"
+        text="Reportes abiertos de la comunidad. Si un perdido y un encontrado se parecen, avisamos a las dos personas."
+        action={
+          <Link className={btn} href={user ? "/objetos/nuevo" : "/entrar"}>
+            {user ? "Reportar objeto" : "Inicia sesión para reportar"}
           </Link>
-        ) : (
-          <Link className={btn} href="/entrar">
-            Inicia sesión para reportar
-          </Link>
-        )}
-      </div>
+        }
+      />
 
       <div className="flex flex-wrap gap-2">
         {filters.map((filter) => (
@@ -76,15 +71,12 @@ export default async function ObjetosPage({
         <ul className="grid gap-3 sm:grid-cols-2">
           {rows.map((item) => (
             <li key={item.id}>
-              <Link href={`/objetos/${item.id}`} className={`${card} block h-full hover:border-[#6B1D2A]`}>
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="rounded-full bg-[#6B1D2A] px-2 py-1 font-medium text-white">
-                    {kindLabel[item.kind]}
-                  </span>
-                  <span className="rounded-full bg-[#F6F1EA] px-2 py-1">{statusLabel[item.status]}</span>
+              <Link href={`/objetos/${item.id}`} className={`${card} block h-full overflow-hidden p-0 hover:border-[#006699]`}>
+                <Cover tone={item.kind} kicker={kindLabel[item.kind]} title={item.title} className="h-32" />
+                <div className="p-4">
+                  <span className="rounded-full bg-[#e6f3fa] px-2 py-1 text-xs text-[#006699]">{statusLabel[item.status]}</span>
+                  <p className="mt-2 text-sm text-[#667085]">{item.place}</p>
                 </div>
-                <h2 className="mt-2 font-semibold">{item.title}</h2>
-                <p className="mt-1 text-sm text-[#5C4A45]">{item.place}</p>
               </Link>
             </li>
           ))}

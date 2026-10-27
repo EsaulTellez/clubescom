@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Cover } from "@/components/cover";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btn, btnGhost, card } from "@/lib/ui";
@@ -75,15 +76,15 @@ export default async function GuidePage({
         Volver a guías
       </Link>
 
-      <header className={card}>
-        <p className="text-xs uppercase tracking-wide text-[#006699]">
-          {areaLabel(guide.area)}
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{guide.title}</h1>
+      <header className={`${card} overflow-hidden p-0`}>
+        <Cover tone={guide.area} kicker={areaLabel(guide.area)} title={guide.title} className="h-44" />
+        <div className="space-y-2 p-5">
+        <h1 className="font-serif text-3xl tracking-tight">{guide.title}</h1>
         <p className="mt-2 text-sm leading-6">{guide.summary}</p>
         <p className="mt-3 text-xs text-[#667085]">
           {guide.author_name} · {formatDate(guide.created_at)}
         </p>
+        </div>
       </header>
 
       <section className="space-y-3">
@@ -91,15 +92,15 @@ export default async function GuidePage({
         {steps.length === 0 && (
           <p className={card}>Esta guía todavía no tiene pasos.</p>
         )}
-        <ol className="space-y-3">
+        <ol className="relative space-y-3 before:absolute before:top-3 before:bottom-3 before:left-5 before:w-px before:bg-[#b7d4e4]">
           {steps.map((step, index) => {
             const related = suggestions.rows.filter((item) => item.step_index === index);
             return (
-              <li key={`${step.title}-${index}`} className={card}>
-                <p className="text-xs font-medium uppercase tracking-wide text-[#006699]">
-                  Paso {index + 1}
-                </p>
-                <h3 className="mt-1 font-semibold">{step.title}</h3>
+              <li key={`${step.title}-${index}`} className={`${card} relative ml-0 pl-14`}>
+                <span className="absolute top-5 left-3 grid h-8 w-8 place-items-center rounded-full bg-[#006699] text-sm font-semibold text-white">
+                  {index + 1}
+                </span>
+                <h3 className="font-serif text-2xl">{step.title}</h3>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{step.body}</p>
 
                 <div className="mt-4 space-y-3 border-t border-[#d5e4ee] pt-4">
