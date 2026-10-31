@@ -401,3 +401,39 @@ export async function decideMembership(_prev: ClubState, form: FormData): Promis
   refresh(undefined, clubId);
   redirect(`/clubes/${clubId}`);
 }
+
+
+export async function createClubPost(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user) return { error: "Entra con tu cuenta para publicar en este club." };
+
+  const clubId = String(form.get("club_id") ?? "");
+  const title = String(form.get("title") ?? "").trim();
+  const body = String(form.get("body") ?? "").trim();
+  if (!isUuid(clubId)) return { error: "No encontramos ese club." };
+  if (title.length < 4 || title.length > 120) return { error: "El título debe tener entre 4 y 120 caracteres." };
+  if (body.length < 10 || body.length > 3000) return { error: "La publicación debe tener entre 10 y 3000 caracteres." };
+
+  const access = await pool.query<{ can_post: boolean }>(
+    `select c.active and (
+       c.leader_id = $2 or c.advisor_id = $2 or exists (
+         select 1 from memberships m where m.club_id = c.id and m.user_id = $2 and m.status = 'aceptada'
+       )
+     ) as can_post
+     from clubs c where c.id = $1`,
+    [clubId, user.id],
+  );
+  if (!access.rows[0]?.can_post) return { error: "Solo integrantes aceptados pueden publicar en el feed del club." };
+
+  const inserted = await pool.query<{ id: string }>(
+    `insert into club_posts (club_id, author_id, title, body)
+     values ($1, $2, $3, $4) returning id`,
+    [clubId, user.id, title, body],
+  );
+  const postId = inserted.rows[0]?.id;
+  if (!postId) return { error: "No se pudo publicar. Inténtalo de nuevo." };
+
+  await audit(user.id, "publicar", "club_posts", postId, clubId);
+  revalidatePath(`/clubes/${clubId}`);
+  redirect(`/clubes/${clubId}#publicaciones`);
+}

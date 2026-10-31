@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Cover } from "@/components/cover";
+import { demoNoticeArt } from "@/lib/demo-art";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btnGhost, card } from "@/lib/ui";
@@ -18,6 +19,8 @@ type Aviso = {
   featured: boolean;
   is_public: boolean;
   publish_at: Date;
+  is_published: boolean;
+  is_scheduled: boolean;
   social_copy: string | null;
   created_at: Date;
 };
@@ -29,7 +32,9 @@ export default async function AvisoPage({ params }: { params: Promise<{ id: stri
   const [user, result] = await Promise.all([
     getSession(),
     pool.query<Aviso>(
-      `select id, author_id, title, body, category, featured, is_public, publish_at, social_copy, created_at
+      `select id, author_id, title, body, category, featured, is_public, publish_at, social_copy, created_at,
+              (is_public and publish_at <= now()) as is_published,
+              (publish_at > now()) as is_scheduled
        from avisos where id = $1`,
       [id],
     ),
@@ -38,8 +43,7 @@ export default async function AvisoPage({ params }: { params: Promise<{ id: stri
   if (!aviso) notFound();
 
   const owner = user?.id === aviso.author_id;
-  const published = aviso.is_public && aviso.publish_at.getTime() <= Date.now();
-  if (!published && !owner) notFound();
+  if (!aviso.is_published && !owner) notFound();
   const manage = owner && canManageAvisos(user);
 
   return (
@@ -47,13 +51,17 @@ export default async function AvisoPage({ params }: { params: Promise<{ id: stri
       <Link href="/avisos" className="text-sm text-[#006699]">
         Volver a avisos
       </Link>
-      <Cover tone={aviso.category} kicker={categoryLabel(aviso.category)} title={aviso.title} className="h-56 rounded-3xl sm:h-72" />
+      {demoNoticeArt(aviso.title) ? (
+        <img src={demoNoticeArt(aviso.title)!} alt={`Cartel: ${aviso.title}`} className="mx-auto max-h-[44rem] w-full rounded-3xl bg-[#f4f3f0] object-contain" />
+      ) : (
+        <Cover tone={aviso.category} kicker={categoryLabel(aviso.category)} title={aviso.title} className="h-56 rounded-3xl sm:h-72" />
+      )}
       <div className={`${card} space-y-3`}>
         <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-[#006699]">
           <span>{categoryLabel(aviso.category)}</span>
           {aviso.featured && <span>· Destacado</span>}
           {!aviso.is_public && <span>· Oculto del feed</span>}
-          {aviso.publish_at.getTime() > Date.now() && <span>· Programado</span>}
+          {aviso.is_scheduled && <span>· Programado</span>}
         </div>
         <h1 className="font-serif text-4xl tracking-tight">{aviso.title}</h1>
         <p className="text-sm text-[#667085]">

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageIntro } from "@/components/page-intro";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
@@ -91,9 +92,9 @@ export default async function NotificacionesPage() {
               <p className="text-sm text-[#667085]">{notice.body}</p>
               <div className="flex flex-wrap items-center gap-2">
                 {notice.href && (
-                  <a href={notice.href} className="text-sm text-[#006699] underline">
+                  <Link href={`/notificaciones/${notice.id}`} className="text-sm font-semibold text-[#006699] hover:underline">
                     Ver
-                  </a>
+                  </Link>
                 )}
                 {notice.read ? (
                   <span className="text-sm text-[#667085]">Leída</span>

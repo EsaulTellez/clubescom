@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360">
+  <rect width="800" height="360" fill="#d7eef6"/>
+  <rect x="40" y="30" width="720" height="300" rx="8" fill="#f4f7f8"/>
+  <rect x="40" y="30" width="720" height="36" fill="#006699"/>
+  <rect x="70" y="90" width="400" height="200" rx="8" fill="#12384c"/>
+  <text x="100" y="190" fill="#9fd0e6" font-family="Georgia, serif" font-size="32">f(n) = n + 1</text>
+  <rect x="500" y="100" width="90" height="180" rx="6" fill="#c5d5de"/>
+  <rect x="610" y="100" width="90" height="180" rx="6" fill="#d5e4ec"/>
+</svg>

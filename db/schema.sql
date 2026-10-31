@@ -137,6 +137,28 @@ create table memberships (
   primary key (club_id, user_id)
 );
 
+create table club_posts (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references clubs(id) on delete cascade,
+  author_id uuid not null references users(id),
+  title text not null,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+create index club_posts_feed on club_posts (club_id, created_at desc);
+
+create table club_events (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references clubs(id) on delete cascade,
+  created_by uuid not null references users(id),
+  title text not null,
+  description text not null default '',
+  starts_at timestamptz not null,
+  location text not null default 'Por confirmar',
+  created_at timestamptz not null default now()
+);
+create index club_events_upcoming on club_events (club_id, starts_at);
+
 create table lost_items (
   id uuid primary key default gen_random_uuid(),
   reporter_id uuid not null references users(id),

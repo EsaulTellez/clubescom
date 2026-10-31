@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480">
+  <rect width="800" height="480" fill="#12384c"/>
+  <rect x="90" y="150" width="280" height="200" rx="12" fill="#0b2433" stroke="#7ec4e0" stroke-width="4"/>
+  <text x="120" y="250" fill="#9fd0e6" font-family="ui-monospace, monospace" font-size="22">&lt;/&gt; algoritmos</text>
+  <rect x="430" y="180" width="250" height="150" rx="16" fill="#e6f3fa"/>
+  <circle cx="500" cy="255" r="28" fill="#006699"/>
+  <circle cx="570" cy="255" r="28" fill="#0a7eaa"/>
+  <circle cx="640" cy="255" r="28" fill="#01425f"/>
+</svg>

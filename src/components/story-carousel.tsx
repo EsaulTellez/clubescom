@@ -9,6 +9,7 @@ export type StoryCard = {
   title: string;
   kicker: string;
   tone: string;
+  image?: string | null;
 };
 
 export function StoryCarousel({ items }: { items: StoryCard[] }) {
@@ -28,14 +29,21 @@ export function StoryCarousel({ items }: { items: StoryCard[] }) {
           <Link
             key={item.href + item.title}
             href={item.href}
-            className="w-[17.5rem] shrink-0 snap-start"
+            className="w-48 shrink-0 snap-start sm:w-56"
           >
-            <Cover
-              tone={item.tone}
-              kicker={item.kicker}
-              title={item.title}
-              className="h-52 rounded-2xl shadow-[0_12px_30px_rgba(17,24,39,0.12)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(17,24,39,0.16)]"
-            />
+            {item.image ? (
+              <div className="group relative grid h-56 place-items-center overflow-hidden rounded-[26px] border border-white/80 bg-white p-2 shadow-[0_12px_30px_rgba(40,38,80,0.12)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(40,38,80,0.18)]">
+                <img src={item.image} alt={`Cartel: ${item.title}`} className="h-full w-full rounded-[19px] object-contain" />
+                <span className="absolute bottom-3 left-3 rounded-full bg-[#202235]/85 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white backdrop-blur">{item.kicker}</span>
+              </div>
+            ) : (
+              <Cover
+                tone={item.tone}
+                kicker={item.kicker}
+                title={item.title}
+                className="h-56 rounded-[26px] shadow-[0_12px_30px_rgba(40,38,80,0.12)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(40,38,80,0.18)]"
+              />
+            )}
           </Link>
         ))}
       </div>

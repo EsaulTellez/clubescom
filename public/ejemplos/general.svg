@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480">
+  <rect width="800" height="480" fill="#d9e8f0"/>
+  <rect x="120" y="140" width="560" height="200" rx="12" fill="#006699"/>
+  <text x="160" y="250" fill="#fff" font-family="Georgia, serif" font-size="40">Sala 14</text>
+</svg>

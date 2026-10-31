@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480">
+  <rect width="800" height="480" fill="#e7f4ea"/>
+  <rect x="220" y="80" width="360" height="220" rx="16" fill="#fff" stroke="#0a7eaa" stroke-width="4"/>
+  <text x="260" y="160" fill="#01425f" font-family="Georgia, serif" font-size="42">Beca</text>
+  <text x="260" y="210" fill="#667085" font-family="Georgia, serif" font-size="22">expediente en revisión</text>
+  <rect x="260" y="250" width="200" height="18" rx="6" fill="#0a7eaa"/>
+</svg>

@@ -1,0 +1,16 @@
+---
+description: Cómo trabajar el Trabajo Terminal de la ESCOM y dónde está el avance
+alwaysApply: true
+---
+
+Antes de cambiar el comportamiento del producto, lee `docs/proyecto.md`, `docs/casos-de-uso.md` y `docs/estado.md`.
+
+La especificación fuente es `docs/fuente/TT.docx` (Trabajo Terminal 2026-B155).
+
+Cuando termines o cambies un caso de uso, actualiza `docs/estado.md` en el mismo cambio: estado (`hecho`, `parcial` o `pendiente`), fecha y una línea de qué cambió.
+
+No construyas lo que `docs/proyecto.md` lista como limitaciones: SAES, otras escuelas del IPN, ejecución legal de trámites, validación presencial con un prefecto, control del auditorio solo para el director, clubes informales.
+
+La contraseña de demostración y las cuentas viven en `scripts/seed.mjs`. Contraseña: `Escom2026!`.
+
+No copies aquí los 35 casos. El detalle está en `docs/casos-de-uso.md`.

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360">
+  <rect width="800" height="360" fill="#8fbf7a"/>
+  <rect x="40" y="70" width="160" height="220" fill="#006699"/>
+  <rect x="230" y="40" width="180" height="250" fill="#01425f"/>
+  <rect x="450" y="90" width="180" height="200" fill="#0a7eaa"/>
+  <rect x="660" y="120" width="110" height="170" fill="#12384c"/>
+  <circle cx="120" cy="200" r="26" fill="#f3d2b3"/>
+  <circle cx="320" cy="180" r="26" fill="#e8c4a4"/>
+  <circle cx="540" cy="190" r="26" fill="#f3d2b3"/>
+  <text x="40" y="40" fill="#01425f" font-family="Georgia, serif" font-size="22">Explanada ESCOM</text>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480">
+  <rect width="800" height="480" fill="#e8eef6"/>
+  <rect x="160" y="70" width="200" height="280" rx="8" fill="#fff" stroke="#12384c"/>
+  <rect x="390" y="110" width="200" height="280" rx="8" fill="#fff" stroke="#006699"/>
+  <text x="190" y="200" fill="#12384c" font-family="Georgia, serif" font-size="28">Protocolo</text>
+  <text x="420" y="250" fill="#006699" font-family="Georgia, serif" font-size="28">TT</text>
+</svg>

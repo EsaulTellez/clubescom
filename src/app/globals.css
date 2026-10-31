@@ -2,12 +2,64 @@
 @source "../";
 
 @theme inline {
-  --font-sans: var(--font-outfit);
-  --font-serif: var(--font-fraunces);
+  --font-sans: var(--font-dm-sans);
+  --font-serif: var(--font-plus-jakarta);
+}
+
+:root {
+  color-scheme: light;
+  --accent: #006699;
+  --accent-dark: #004d73;
+  --ink: #222337;
+  --muted: #777c8d;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
 }
 
 body {
-  background: #f3f7fa;
-  color: #17191e;
-  font-family: var(--font-outfit), sans-serif;
+  min-height: 100%;
+  color: var(--ink);
+  font-family: var(--font-dm-sans), sans-serif;
+  background-color: #f7f7fb;
+  background-image:
+    radial-gradient(ellipse at 12% 0%, rgba(196, 185, 255, .22), transparent 35rem),
+    radial-gradient(ellipse at 100% 24%, rgba(166, 226, 231, .18), transparent 34rem);
+  background-attachment: fixed;
+}
+
+::selection {
+  color: #fff;
+  background: #006699;
+}
+
+button, a, input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid rgba(109, 93, 252, .34);
+  outline-offset: 3px;
+}
+
+.campus-building {
+  cursor: default;
+  transition: filter .18s ease, transform .18s ease;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.campus-building:hover {
+  filter: brightness(1.06) drop-shadow(0 5px 4px rgba(45, 37, 91, .15));
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+  }
 }

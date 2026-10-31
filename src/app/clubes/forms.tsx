@@ -6,6 +6,7 @@ import {
   approveProposal,
   claimAdvisor,
   createProposal,
+  createClubPost,
   decideMembership,
   markInterest,
   requestMembership,
@@ -132,6 +133,23 @@ export function AdvisorCodeForm({ proposalId }: { proposalId: string }) {
       <button className={btn} disabled={pending}>
         {pending ? "Comprobando…" : "Asumir asesoría"}
       </button>
+    </form>
+  );
+}
+
+
+export function ClubPostForm({ clubId }: { clubId: string }) {
+  const [state, action, pending] = useActionState(createClubPost, {});
+  return (
+    <form action={action} className="space-y-3 rounded-[24px] border border-[#dce9f1] bg-white p-4 shadow-[0_8px_28px_rgba(0,45,75,0.05)] sm:p-5">
+      <input type="hidden" name="club_id" value={clubId} />
+      <p className="text-sm font-bold text-[#19435b]">Comparte algo con el club</p>
+      <input className={input} name="title" required minLength={4} maxLength={120} placeholder="Título de la publicación" />
+      <textarea className={`${input} min-h-24 resize-y`} name="body" required minLength={10} maxLength={3000} placeholder="Una pregunta, idea o actualización…" />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <FieldError state={state} />
+        <button className={btn} disabled={pending}>{pending ? "Publicando…" : "Publicar"}</button>
+      </div>
     </form>
   );
 }

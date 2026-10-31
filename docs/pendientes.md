@@ -1,3 +1,5 @@
+El tablero de casos de uso está en `docs/estado.md`. El detalle de cada caso está en `docs/casos-de-uso.md`. Quien implemente, cambie o cierre un caso actualiza `docs/estado.md` en el mismo cambio.
+
 # Lo que el frente ya muestra y el sistema todavía no cierra
 
 La interfaz de demostración corre en local con Postgres. Estas piezas se ven en pantalla, pero no están listas para la escuela.

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Cover } from "@/components/cover";
+import { demoNoticeArt } from "@/lib/demo-art";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btn, btnGhost, card, input } from "@/lib/ui";
@@ -104,12 +105,18 @@ export default async function AvisosPage({
           <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 snap-x snap-mandatory">
             {featured.map((aviso) => (
               <Link key={aviso.id} href={`/avisos/${aviso.id}`} className="w-[min(100%,18rem)] shrink-0 snap-start">
-                <Cover
-                  tone={aviso.category}
-                  kicker={categoryLabel(aviso.category)}
-                  title={aviso.title}
-                  className="h-52 rounded-2xl"
-                />
+                {demoNoticeArt(aviso.title) ? (
+                  <div className="flex h-52 items-center justify-center overflow-hidden rounded-2xl bg-[#f4f3f0] p-1">
+                    <img src={demoNoticeArt(aviso.title)!} alt={`Cartel: ${aviso.title}`} className="h-full w-full object-contain" />
+                  </div>
+                ) : (
+                  <Cover
+                    tone={aviso.category}
+                    kicker={categoryLabel(aviso.category)}
+                    title={aviso.title}
+                    className="h-52 rounded-2xl"
+                  />
+                )}
               </Link>
             ))}
           </div>
@@ -130,8 +137,12 @@ export default async function AvisosPage({
               <Link
                 key={aviso.id}
                 href={`/avisos/${aviso.id}`}
-                className={`${card} hover:border-[#006699]`}
+                className={`${card} overflow-hidden p-0 hover:border-[#006699]`}
               >
+                {demoNoticeArt(aviso.title) ? (
+                  <img src={demoNoticeArt(aviso.title)!} alt={`Cartel: ${aviso.title}`} className="max-h-80 w-full bg-[#f4f3f0] object-contain" />
+                ) : null}
+                <div className="p-5">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs uppercase tracking-wide text-[#006699]">
                     {categoryLabel(aviso.category)}
@@ -145,6 +156,7 @@ export default async function AvisosPage({
                 <h3 className="mt-1 font-semibold">{aviso.title}</h3>
                 <p className="mt-2 line-clamp-3 text-sm text-[#667085]">{aviso.body}</p>
                 <p className="mt-3 text-xs text-[#667085]">{formatWhen(aviso.publish_at)}</p>
+                </div>
               </Link>
             ))}
           </div>

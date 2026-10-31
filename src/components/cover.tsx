@@ -13,6 +13,21 @@ const tones: Record<string, string> = {
   general: "from-[#001e2e] via-[#005580] to-[#8ec6dc]",
 };
 
+const art: Record<string, string> = {
+  academico: "/ejemplos/academico.svg",
+  social: "/ejemplos/social.svg",
+  tramites: "/ejemplos/tramites.svg",
+  cultural: "/ejemplos/cultural.svg",
+  deportivo: "/ejemplos/deportivo.svg",
+  club: "/ejemplos/club.svg",
+  perdido: "/ejemplos/perdido.svg",
+  encontrado: "/ejemplos/encontrado.svg",
+  gestion_escolar: "/ejemplos/tramites.svg",
+  becas: "/ejemplos/becas.svg",
+  catt: "/ejemplos/catt.svg",
+  general: "/ejemplos/general.svg",
+};
+
 export function coverTone(kind: string) {
   if (kind in tones) return kind;
   return "club";
@@ -22,25 +37,26 @@ export function Cover({
   tone,
   title,
   kicker,
+  image,
   className = "",
 }: {
   tone: string;
   title?: string;
   kicker?: string;
+  image?: string | null;
   className?: string;
 }) {
   const wash = tones[coverTone(tone)] ?? tones.club;
+  const src = image || art[coverTone(tone)] || art.club;
   return (
     <div className={`relative overflow-hidden bg-gradient-to-br ${wash} ${className}`}>
-      <div className="absolute inset-0 opacity-25 [background-image:linear-gradient(rgba(255,255,255,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.2)_1px,transparent_1px)] [background-size:28px_28px]" />
-      <div className="absolute -right-10 -top-16 h-56 w-56 rounded-full bg-white/15" />
-      <div className="absolute bottom-[-20%] left-[-8%] h-48 w-48 rounded-full bg-black/15" />
+      <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover" />
       <img
         src="/brand/escudo-escom.png"
         alt=""
-        className="pointer-events-none absolute right-4 top-4 h-16 w-auto drop-shadow-[0_8px_16px_rgba(0,24,40,0.35)] brightness-0 invert"
+        className="pointer-events-none absolute right-4 top-4 h-12 w-auto drop-shadow-[0_8px_16px_rgba(0,24,40,0.35)] brightness-0 invert"
       />
-      <div className="absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-[#001820]/85 via-[#001820]/25 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[#001820]/75 to-transparent" />
       {(kicker || title) && (
         <div className="absolute inset-x-0 bottom-0 p-4 pr-6 text-white">
           {kicker && (

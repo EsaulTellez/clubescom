@@ -15,6 +15,7 @@ import {
   statusLabel,
 } from "../shared";
 import { SuggestForm } from "./suggest-form";
+import { GuideSteps } from "./guide-steps";
 
 export const dynamic = "force-dynamic";
 
@@ -87,76 +88,46 @@ export default async function GuidePage({
         </div>
       </header>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Pasos</h2>
-        {steps.length === 0 && (
-          <p className={card}>Esta guía todavía no tiene pasos.</p>
-        )}
-        <ol className="relative space-y-3 before:absolute before:top-3 before:bottom-3 before:left-5 before:w-px before:bg-[#b7d4e4]">
+      <section className="space-y-4">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">En corto</p>
+          <h2 className="mt-1 text-2xl font-extrabold tracking-tight">Sigue la guía a tu ritmo</h2>
+        </div>
+        <GuideSteps steps={steps} />
+      </section>
+
+      {steps.length > 0 && <section className="space-y-4">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">Comunidad</p>
+          <h2 className="mt-1 text-2xl font-extrabold tracking-tight">Sugerencias por paso</h2>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
           {steps.map((step, index) => {
             const related = suggestions.rows.filter((item) => item.step_index === index);
-            return (
-              <li key={`${step.title}-${index}`} className={`${card} relative ml-0 pl-14`}>
-                <span className="absolute top-5 left-3 grid h-8 w-8 place-items-center rounded-full bg-[#006699] text-sm font-semibold text-white">
-                  {index + 1}
-                </span>
-                <h3 className="font-serif text-2xl">{step.title}</h3>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{step.body}</p>
-
-                <div className="mt-4 space-y-3 border-t border-[#d5e4ee] pt-4">
-                  <h4 className="text-sm font-medium">Sugerencias</h4>
-                  {related.length === 0 && (
-                    <p className="text-sm text-[#667085]">Nadie ha sugerido cambios en este paso.</p>
-                  )}
-                  {related.map((suggestion) => (
-                    <div key={suggestion.id} className="rounded-lg bg-[#e6f3fa] p-3">
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="font-medium">{suggestion.author_name}</span>
-                        <span
-                          className={
-                            suggestion.status === "aceptada"
-                              ? "rounded-full bg-[#006699] px-2 py-0.5 text-white"
-                              : "rounded-full border border-[#d5e4ee] bg-white px-2 py-0.5"
-                          }
-                        >
-                          {statusLabel(suggestion.status)}
-                        </span>
-                        <span className="text-[#667085]">{formatDate(suggestion.created_at)}</span>
-                      </div>
-                      <p className="mt-2 whitespace-pre-wrap text-sm">{suggestion.body}</p>
-                      {staff && suggestion.status === "pendiente" && (
-                        <form action={reviewSuggestion} className="mt-3 flex flex-wrap gap-2">
-                          <input type="hidden" name="id" value={suggestion.id} />
-                          <button className={btn} name="decision" value="aceptar">
-                            Aceptar
-                          </button>
-                          <button className={btnGhost} name="decision" value="rechazar">
-                            Rechazar
-                          </button>
-                        </form>
-                      )}
-                    </div>
-                  ))}
-                  {user ? (
-                    <SuggestForm
-                      action={suggestImprovement}
-                      guideId={guide.id}
-                      stepIndex={index}
-                    />
-                  ) : (
-                    <p className="text-sm text-[#667085]">
-                      <Link href="/entrar" className="font-medium text-[#006699] underline">
-                        Entra
-                      </Link>{" "}
-                      para sugerir una mejora de este paso.
-                    </p>
-                  )}
-                </div>
-              </li>
-            );
+            return <article key={`${step.title}-${index}`} className="rounded-3xl border border-white bg-white/85 p-5 shadow-[0_8px_28px_rgba(0,64,96,0.06)]">
+              <p className="text-xs font-bold uppercase tracking-wide text-[#006699]">Paso {index + 1}</p>
+              <h3 className="mt-1 font-bold">{step.title}</h3>
+              <div className="mt-4 space-y-3">
+                {related.length === 0 && <p className="text-sm text-[#667085]">Aún no hay sugerencias para este paso.</p>}
+                {related.map((suggestion) => <div key={suggestion.id} className="rounded-2xl bg-[#edf6fa] p-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="font-semibold">{suggestion.author_name}</span>
+                    <span className={suggestion.status === "aceptada" ? "rounded-full bg-[#006699] px-2 py-0.5 text-white" : "rounded-full border border-[#b7d4e4] bg-white px-2 py-0.5"}>{statusLabel(suggestion.status)}</span>
+                    <span className="text-[#667085]">{formatDate(suggestion.created_at)}</span>
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap text-sm">{suggestion.body}</p>
+                  {staff && suggestion.status === "pendiente" && <form action={reviewSuggestion} className="mt-3 flex flex-wrap gap-2">
+                    <input type="hidden" name="id" value={suggestion.id} />
+                    <button className={btn} name="decision" value="aceptar">Aceptar</button>
+                    <button className={btnGhost} name="decision" value="rechazar">Rechazar</button>
+                  </form>}
+                </div>)}
+                {user ? <SuggestForm action={suggestImprovement} guideId={guide.id} stepIndex={index} /> : <p className="text-sm text-[#667085]"><Link href="/entrar" className="font-semibold text-[#006699] underline">Inicia sesión</Link> para sugerir una mejora.</p>}
+              </div>
+            </article>;
           })}
-        </ol>
-      </section>
+        </div>
+      </section>}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Preguntas frecuentes</h2>
