@@ -4,9 +4,9 @@ Cualquier agente que implemente, cambie o cierre un caso de uso actualiza este a
 
 Pase inicial: 2026-10-29. Se contrastó `docs/fuente/TT.docx` con esta app local. No se tocó el código.
 
-Conteos del índice (tablas 3.4 a 3.38, 35 casos): **hecho 1**, **parcial 28**, **pendiente 6**.
+Conteos del índice (tablas 3.4 a 3.38, 35 casos): **hecho 1**, **parcial 32**, **pendiente 2**.
 
-El cuerpo trae 2 casos más, sin número de tabla. Los dos están en parcial. Tablero completo: **hecho 1**, **parcial 30**, **pendiente 6**.
+El cuerpo trae 2 casos más, sin número de tabla. Los dos están en parcial. Tablero completo: **hecho 1**, **parcial 34**, **pendiente 2**.
 
 Un caso del índice no trae pasos en el texto extraído: CU-33.
 
