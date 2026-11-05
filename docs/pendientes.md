@@ -25,14 +25,14 @@ Estado al 2026-11-04, comparado con `docs/fuente/TT.docx` y las decisiones del p
 
 ### Avisos y guías
 
-- La generación actual de texto/formato sigue sin conectarse a Google GenAI.
+- El formato social ya llama Google GenAI en servidor si hay `GOOGLE_GENERATIVE_AI_API_KEY`; falta recorrerlo con una clave válida. La generación de formatos y extracción de guías requiere revisión humana.
 - Avisos programados y feed en tiempo real requieren acciones/Realtime; las tablas ya existen pero el flujo no está verificado.
 - Falta carga privada de fuentes, extracción de documentos soportados, edición humana de pasos, historial, preguntas/respuestas por paso, sugerencias y métricas de guía.
 - La interfaz de preferencias aún contiene banderas `email_*` heredadas aunque no se enviarán correos de producto; debe quedar en preferencias de notificación dentro de la app.
 
 ### Foro y moderación
 
-- Falta revisar sugerencias en vivo y la ventana de 20 minutos entre preguntas contra RLS y el esquema.
+- El formulario ya muestra preguntas parecidas en la misma área y aplica la ventana de 20 minutos; falta recorrerlo con varios roles/áreas en el navegador.
 - La respuesta oficial debe depender del moderador del área correspondiente; las áreas no deberían poder cruzarse desde formulario ni URL.
 - La interfaz de infracciones, sanciones y apelaciones no está completa.
 
@@ -45,7 +45,7 @@ Estado al 2026-11-04, comparado con `docs/fuente/TT.docx` y las decisiones del p
 
 ### Objetos y espacios
 
-- Las tablas separan respuestas y códigos de entrega de los datos públicos, pero falta alinear las acciones actuales. El umbral de coincidencia acordado es 80 %; QR verifica a quien entrega/recibe.
+- Las acciones ya usan RPCs privados, Supabase Storage, coincidencia de 80 %, reclamo, aprobación y código/QR de entrega. Falta recorrer manualmente el flujo completo con dos cuentas y verificar el escaneo desde un teléfono/cámara real.
 - Espacios se usa para localizar profesores y publicar eventos autorizados. No implementa reservas. Las consultas anteriores de `bookings` deben migrar a `space_events`.
 - El plano actual es ilustrativo hasta que llegue el real.
 

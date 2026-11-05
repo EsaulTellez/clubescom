@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RealtimeRefresh } from "@/components/realtime-refresh";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btn, btnGhost, card } from "@/lib/ui";
@@ -49,6 +50,7 @@ export default async function ForoPage({
 
   return (
     <div className="board-page">
+      <RealtimeRefresh tables={["questions", "answers", "question_votes"]} />
       <header className="board-masthead">
         <div>
           <p className="board-eyebrow">Preguntas y respuestas · comunidad ESCOM</p>

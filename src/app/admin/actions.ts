@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { audit, getSession, type Role } from "@/lib/auth";
 import { pool } from "@/lib/db";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type FormState = { error?: string; ok?: string };
 
@@ -31,15 +32,14 @@ export async function setBanned(_prev: FormState, form: FormData): Promise<FormS
     return { error: "No se pudo actualizar el veto." };
   }
   const next = banned === "true";
-  const current = await pool.query<{ name: string; banned: boolean }>(
-    "select name, banned from users where id = $1",
-    [id],
-  );
-  const row = current.rows[0];
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("admin_set_user_banned", {
+    p_user_id: id,
+    p_banned: next,
+  });
+  if (error) return { error: error.message.includes("Solo administración") ? error.message : "No se pudo actualizar el veto." };
+  const row = data?.[0];
   if (!row) return { error: "Usuario no encontrado." };
-  if (row.banned === next) return { ok: "Sin cambios." };
-
-  await pool.query("update users set banned = $2 where id = $1", [id, next]);
   await audit(
     actor.id,
     next ? "vetar" : "habilitar",
@@ -72,7 +72,13 @@ export async function setRole(_prev: FormState, form: FormData): Promise<FormSta
   if (!row) return { error: "Usuario no encontrado." };
   if (row.role === role && (row.area ?? null) === nextArea) return { ok: "Sin cambios." };
 
-  await pool.query("update users set role = $2, area = $3 where id = $1", [id, role, nextArea]);
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("admin_set_user_role", {
+    p_user_id: id,
+    p_role: role,
+    p_area: nextArea,
+  });
+  if (error) return { error: error.message.includes("Solo administración") ? error.message : "No se pudo actualizar el rol." };
   await audit(
     actor.id,
     "cambiar_rol",

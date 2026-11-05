@@ -1,5 +1,6 @@
 import pg from "pg";
 import { createClient } from "@supabase/supabase-js";
+import { createHash } from "node:crypto";
 
 const { Pool } = pg;
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -130,6 +131,15 @@ await pool.query(`
   ) v(kind, title, description, place, photo, question)
   where not exists (select 1 from public.lost_items i where i.title = v.title)
 `, [student]);
+const foundItem = await pool.query("select id from public.lost_items where title = 'Calculadora científica'");
+if (foundItem.rows[0]) {
+  const answerHash = createHash("sha256").update("casio").digest("hex");
+  await pool.query(
+    `insert into private.lost_item_secrets (lost_item_id, security_answer_hash)
+     values ($1, $2) on conflict (lost_item_id) do update set security_answer_hash = excluded.security_answer_hash`,
+    [foundItem.rows[0].id, answerHash],
+  );
+}
 
 await pool.query(`
   insert into public.club_proposals (proposer_id, name, kind, description)

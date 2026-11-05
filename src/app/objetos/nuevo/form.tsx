@@ -35,16 +35,16 @@ export function ReportForm() {
         <input className={`${input} mt-1`} name="place" required minLength={2} maxLength={160} placeholder="Edificio, salón o zona" />
       </label>
       <label className={label}>
-        Foto (opcional, máx. 900 KB)
-        <input className={`${input} mt-1`} name="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+        Foto (opcional, JPG, PNG o WEBP · máx. 5 MB)
+        <input className={`${input} mt-1`} name="photo" type="file" accept="image/jpeg,image/png,image/webp" />
       </label>
       <label className={label}>
-        Pregunta de seguridad
-        <input className={`${input} mt-1`} name="security_question" required minLength={5} maxLength={200} placeholder="¿De qué color es la funda?" />
+        Pregunta de seguridad (obligatoria si encontraste el objeto)
+        <input className={`${input} mt-1`} name="security_question" minLength={5} maxLength={200} placeholder="¿De qué color es la funda?" />
       </label>
       <label className={label}>
-        Respuesta
-        <input className={`${input} mt-1`} name="security_answer" required minLength={2} maxLength={120} autoComplete="off" />
+        Respuesta (obligatoria si encontraste el objeto)
+        <input className={`${input} mt-1`} name="security_answer" minLength={2} maxLength={120} autoComplete="off" />
         <span className="mt-1 block text-xs font-normal text-[#667085]">
           Solo guardamos un hash. Quien reclame el objeto tiene que responder esta pregunta.
         </span>

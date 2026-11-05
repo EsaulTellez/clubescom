@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { btn, input, label } from "@/lib/ui";
-import { addBooking, saveCubicle } from "./actions";
+import { addSpaceEvent, saveCubicle } from "./actions";
 
 type FormState = { error?: string; ok?: string };
 
@@ -56,12 +56,12 @@ export function CubicleForm({
   );
 }
 
-export function BookingForm({
+export function SpaceEventForm({
   spaces,
 }: {
   spaces: { id: string; name: string }[];
 }) {
-  const [state, action, pending] = useActionState(addBooking, {});
+  const [state, action, pending] = useActionState(addSpaceEvent, {});
   return (
     <form action={action} className="space-y-3">
       <label className={label}>
@@ -79,7 +79,11 @@ export function BookingForm({
       </label>
       <label className={label}>
         Título
-        <input className={input} name="title" required maxLength={160} placeholder="Consejo técnico" />
+        <input className={input} name="title" required maxLength={160} placeholder="Actividad autorizada por ESCOM" />
+      </label>
+      <label className={label}>
+        Descripción
+        <textarea className={input} name="description" rows={3} maxLength={2000} placeholder="Detalles que la comunidad necesita conocer" />
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={label}>
@@ -88,19 +92,13 @@ export function BookingForm({
         </label>
         <label className={label}>
           Fin
-          <input className={input} name="ends_at" type="datetime-local" required />
+          <input className={input} name="ends_at" type="datetime-local" />
         </label>
       </div>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="is_public" defaultChecked className="accent-[#006699]" />
-        Pública en el itinerario
-      </label>
-      <p className="text-sm text-[#667085]">
-        Si desmarcas «Pública», la reserva se guarda y no se muestra en el itinerario.
-      </p>
+      <p className="text-sm text-[#667085]">Publica solo actividades que ya fueron autorizadas fuera de la plataforma. Este registro no reserva ni autoriza el espacio.</p>
       <Feedback state={state} />
       <button className={btn} disabled={pending}>
-        Agregar reserva
+        Publicar evento autorizado
       </button>
     </form>
   );

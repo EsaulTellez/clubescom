@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { btn, btnGhost, input, label } from "@/lib/ui";
-import { CATEGORIES, categoryLabel, socialTemplate, type Category, type FormState } from "./shared";
+import { CATEGORIES, categoryLabel, type Category, type FormState } from "./shared";
+import { generateSocialCopy } from "./actions";
 
 type Initial = {
   id?: string;
@@ -29,6 +30,17 @@ export function AvisoForm({
   const [body, setBody] = useState(initial.body);
   const [category, setCategory] = useState<Category>(initial.category);
   const [socialCopy, setSocialCopy] = useState(initial.socialCopy);
+  const [aiError, setAiError] = useState("");
+  const [generating, startGenerating] = useTransition();
+
+  function generateWithAi() {
+    setAiError("");
+    startGenerating(async () => {
+      const result = await generateSocialCopy({ title, body, category });
+      if (result.error) setAiError(result.error);
+      if (result.text) setSocialCopy(result.text);
+    });
+  }
 
   return (
     <form action={formAction} className="space-y-4">
@@ -120,11 +132,12 @@ export function AvisoForm({
           <button
             type="button"
             className={btnGhost}
-            onClick={() => setSocialCopy(socialTemplate(category, title, body))}
+            onClick={generateWithAi}
           >
-            Generar formato
+            {generating ? "Redactando…" : "Generar con IA"}
           </button>
         </div>
+        {aiError && <p className="mb-2 text-xs text-[#8C1D18]" role="alert">{aiError}</p>}
         <textarea
           id="social_copy"
           name="social_copy"

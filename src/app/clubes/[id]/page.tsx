@@ -85,7 +85,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
         ),
         pool.query<Event>(
           `select id, title, description, location, starts_at
-           from club_events where club_id = $1 and starts_at >= now()
+           from club_events where club_id = $1 and starts_at >= now() and approval_status = 'aprobado'
            order by starts_at asc limit 5`,
           [id],
         ),

@@ -436,10 +436,178 @@ create table public.lost_item_handoffs (
 create table private.lost_item_handoff_secrets (
   handoff_id uuid primary key references public.lost_item_handoffs(id) on delete cascade,
   token_hash text not null,
+  token text not null,
   created_at timestamptz not null default now()
 );
 alter table private.lost_item_handoff_secrets enable row level security;
 revoke all on private.lost_item_handoff_secrets from public, anon, authenticated;
+
+-- Mutations keep answer hashes and handoff credentials out of public tables.
+create or replace function public.create_lost_item(
+  p_kind text, p_title text, p_description text, p_place text,
+  p_photo_url text, p_security_question text, p_answer_hash text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor_id uuid := (select auth.uid());
+  item_id uuid;
+begin
+  if not private.is_active_actor() then raise exception 'Se requiere una cuenta activa'; end if;
+  if p_kind not in ('perdido', 'encontrado') then raise exception 'Tipo de reporte inválido'; end if;
+  if length(trim(coalesce(p_title, ''))) not between 3 and 120
+     or length(trim(coalesce(p_description, ''))) not between 10 and 2000
+     or length(trim(coalesce(p_place, ''))) not between 2 and 160 then
+    raise exception 'Completa título, descripción y lugar';
+  end if;
+  if p_kind = 'encontrado' and (length(trim(coalesce(p_security_question, ''))) < 5 or length(coalesce(p_answer_hash, '')) <> 64) then
+    raise exception 'Los objetos encontrados necesitan pregunta y respuesta de seguridad';
+  end if;
+
+  insert into public.lost_items (reporter_id, kind, title, description, place, photo_url, security_question)
+  values (actor_id, p_kind, trim(p_title), trim(p_description), trim(p_place), p_photo_url,
+          case when p_kind = 'encontrado' then trim(p_security_question) else null end)
+  returning id into item_id;
+
+  if p_kind = 'encontrado' then
+    insert into private.lost_item_secrets (lost_item_id, security_answer_hash)
+    values (item_id, lower(p_answer_hash));
+  end if;
+  return item_id;
+end;
+$$;
+
+create or replace function public.submit_lost_item_claim(p_item_id uuid, p_answer_hash text, p_note text default null)
+returns table (claim_id uuid, status text)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor_id uuid := (select auth.uid());
+  expected_hash text;
+  item_owner uuid;
+  item_status text;
+  new_claim_id uuid;
+begin
+  if not private.is_active_actor() then raise exception 'Se requiere una cuenta activa'; end if;
+  select li.reporter_id, li.status, s.security_answer_hash
+    into item_owner, item_status, expected_hash
+    from public.lost_items li
+    left join private.lost_item_secrets s on s.lost_item_id = li.id
+   where li.id = p_item_id and li.kind = 'encontrado';
+  if not found or item_status <> 'abierto' or item_owner = actor_id then
+    raise exception 'No se puede reclamar este reporte';
+  end if;
+  if expected_hash is null or expected_hash <> lower(coalesce(p_answer_hash, '')) then
+    return;
+  end if;
+  insert into public.lost_item_claims (lost_item_id, claimant_id, status, claimant_note)
+  values (p_item_id, actor_id, 'respuesta_correcta', nullif(trim(p_note), ''))
+  returning id into new_claim_id;
+  insert into private.lost_item_claim_answers (claim_id, answer_hash)
+  values (new_claim_id, lower(p_answer_hash));
+  return query select new_claim_id, 'respuesta_correcta'::text;
+end;
+$$;
+
+create or replace function public.review_lost_item_claim(
+  p_claim_id uuid, p_approve boolean, p_review_note text, p_token text, p_token_hash text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  claim_row public.lost_item_claims%rowtype;
+  item_owner uuid;
+  handoff_id uuid;
+begin
+  select c.* into claim_row from public.lost_item_claims c where c.id = p_claim_id for update;
+  if not found then raise exception 'No encontramos el reclamo'; end if;
+  select li.reporter_id into item_owner from public.lost_items li where li.id = claim_row.lost_item_id;
+  if item_owner <> (select auth.uid()) or claim_row.status <> 'respuesta_correcta' then
+    raise exception 'Solo quien publicó el hallazgo puede revisar este reclamo';
+  end if;
+  if p_approve then
+    if length(coalesce(p_token, '')) < 6 or length(coalesce(p_token_hash, '')) <> 64 then
+      raise exception 'No se generó el código de entrega';
+    end if;
+    update public.lost_item_claims
+       set status = 'aprobada', review_note = nullif(trim(p_review_note), ''), reviewed_by = (select auth.uid()), reviewed_at = now(), updated_at = now()
+     where id = p_claim_id;
+    insert into public.lost_item_handoffs (claim_id, finder_id, recipient_id)
+    values (p_claim_id, item_owner, claim_row.claimant_id)
+    returning id into handoff_id;
+    insert into private.lost_item_handoff_secrets (handoff_id, token_hash, token)
+    values (handoff_id, lower(p_token_hash), upper(p_token));
+    insert into public.notifications (user_id, title, body, href)
+    values (claim_row.claimant_id, 'Tu reclamo fue aprobado', 'Presenta tu código de entrega al momento de recibir el objeto.', '/objetos/' || claim_row.lost_item_id::text);
+  else
+    update public.lost_item_claims
+       set status = 'rechazada', review_note = nullif(trim(p_review_note), ''), reviewed_by = (select auth.uid()), reviewed_at = now(), updated_at = now()
+     where id = p_claim_id;
+    insert into public.notifications (user_id, title, body, href)
+    values (claim_row.claimant_id, 'Actualización de tu reclamo', coalesce(nullif(trim(p_review_note), ''), 'Quien publicó el hallazgo no pudo confirmar el reclamo.'), '/objetos/' || claim_row.lost_item_id::text);
+  end if;
+  return handoff_id;
+end;
+$$;
+
+create or replace function public.get_my_lost_item_handoff(p_item_id uuid)
+returns table (handoff_id uuid, token text, expires_at timestamptz)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select h.id, s.token, h.expires_at
+    from public.lost_item_handoffs h
+    join public.lost_item_claims c on c.id = h.claim_id
+    join private.lost_item_handoff_secrets s on s.handoff_id = h.id
+   where c.lost_item_id = p_item_id and h.recipient_id = (select auth.uid())
+     and h.status = 'pendiente' and h.expires_at > now();
+$$;
+
+create or replace function public.complete_lost_item_handoff(p_handoff_id uuid, p_token_hash text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  handoff public.lost_item_handoffs%rowtype;
+  expected_hash text;
+begin
+  select h.* into handoff from public.lost_item_handoffs h where h.id = p_handoff_id for update;
+  if not found or handoff.finder_id <> (select auth.uid()) or handoff.status <> 'pendiente' or handoff.expires_at <= now() then
+    return false;
+  end if;
+  select s.token_hash into expected_hash from private.lost_item_handoff_secrets s where s.handoff_id = p_handoff_id;
+  if expected_hash is null or expected_hash <> lower(coalesce(p_token_hash, '')) then return false; end if;
+  update public.lost_item_handoffs set status = 'completado', verified_by = handoff.recipient_id, verified_at = now(), completed_at = now() where id = p_handoff_id;
+  update public.lost_item_claims set status = 'entregada', updated_at = now() where id = handoff.claim_id;
+  update public.lost_items set status = 'entregado' where id = (select c.lost_item_id from public.lost_item_claims c where c.id = handoff.claim_id);
+  insert into public.notifications (user_id, title, body, href)
+  values (handoff.recipient_id, 'Entrega confirmada', 'El objeto se marcó como entregado.', '/objetos/' || (select c.lost_item_id::text from public.lost_item_claims c where c.id = handoff.claim_id));
+  return true;
+end;
+$$;
+
+revoke all on function public.create_lost_item(text, text, text, text, text, text, text) from public, anon;
+revoke all on function public.submit_lost_item_claim(uuid, text, text) from public, anon;
+revoke all on function public.review_lost_item_claim(uuid, boolean, text, text, text) from public, anon;
+revoke all on function public.get_my_lost_item_handoff(uuid) from public, anon;
+revoke all on function public.complete_lost_item_handoff(uuid, text) from public, anon;
+grant execute on function public.create_lost_item(text, text, text, text, text, text, text) to authenticated;
+grant execute on function public.submit_lost_item_claim(uuid, text, text) to authenticated;
+grant execute on function public.review_lost_item_claim(uuid, boolean, text, text, text) to authenticated;
+grant execute on function public.get_my_lost_item_handoff(uuid) to authenticated;
+grant execute on function public.complete_lost_item_handoff(uuid, text) to authenticated;
 
 create or replace function private.match_lost_item_after_insert()
 returns trigger
@@ -474,6 +642,11 @@ begin
       if new.matched_id is null then
         update public.lost_items set matched_id = candidate.id where id = new.id;
       end if;
+      insert into public.notifications (user_id, title, body, href)
+      select li.reporter_id, 'Posible coincidencia', 'Hay un reporte del tipo contrario que comparte detalles con el tuyo.', '/objetos/' || li.id::text
+        from public.lost_items li
+       where li.id in (candidate.id, new.id)
+      on conflict do nothing;
     end if;
   end loop;
   return new;
@@ -947,6 +1120,27 @@ begin
 end;
 $$;
 
+create or replace function public.admin_set_user_banned(p_user_id uuid, p_banned boolean)
+returns table (name text, banned boolean)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not private.is_admin_actor() then
+    raise exception 'Solo administración puede cambiar el veto';
+  end if;
+  update public.users u
+     set banned = p_banned
+   where u.id = p_user_id
+   returning u.name, u.banned into name, banned;
+  if not found then
+    return;
+  end if;
+  return next;
+end;
+$$;
+
 create or replace function public.issue_club_advisor_code(p_proposal_id uuid, p_code text)
 returns timestamptz
 language plpgsql
@@ -1027,12 +1221,14 @@ revoke all on function public.get_my_private_data() from public, anon;
 revoke all on function public.admin_get_user_private_data(uuid) from public, anon;
 revoke all on function public.admin_list_user_profiles() from public, anon;
 revoke all on function public.admin_set_user_role(uuid, public.user_role, text) from public, anon;
+revoke all on function public.admin_set_user_banned(uuid, boolean) from public, anon;
 revoke all on function public.issue_club_advisor_code(uuid, text) from public, anon;
 revoke all on function public.verify_club_advisor_code(uuid, text) from public, anon;
 grant execute on function public.get_my_private_data() to authenticated;
 grant execute on function public.admin_get_user_private_data(uuid) to authenticated;
 grant execute on function public.admin_list_user_profiles() to authenticated;
 grant execute on function public.admin_set_user_role(uuid, public.user_role, text) to authenticated;
+grant execute on function public.admin_set_user_banned(uuid, boolean) to authenticated;
 grant execute on function public.issue_club_advisor_code(uuid, text) to authenticated;
 grant execute on function public.verify_club_advisor_code(uuid, text) to authenticated;
 
@@ -1325,7 +1521,23 @@ create policy club_docs_interested_owner_insert on public.club_proposal_document
 for insert to authenticated with check (
   user_id = (select auth.uid()) and status = 'recibido' and exists (
     select 1 from public.club_interests i join public.club_proposals p on p.id = i.proposal_id
-     where i.proposal_id = proposal_id and i.user_id = (select auth.uid())
+     where i.proposal_id = public.club_proposal_documents.proposal_id and i.user_id = (select auth.uid())
+       and p.status in ('en_documentacion', 'en_validacion', 'cita_pendiente')
+  )
+);
+create policy club_docs_owner_resubmit on public.club_proposal_documents
+for update to authenticated using (
+  user_id = (select auth.uid()) and status = 'requiere_correccion' and exists (
+    select 1 from public.club_interests i join public.club_proposals p on p.id = i.proposal_id
+     where i.proposal_id = public.club_proposal_documents.proposal_id and i.user_id = (select auth.uid())
+       and p.status in ('en_documentacion', 'en_validacion', 'cita_pendiente')
+  )
+) with check (
+  user_id = (select auth.uid()) and status = 'recibido'
+  and storage_path like proposal_id::text || '/' || (select auth.uid())::text || '/%'
+  and exists (
+    select 1 from public.club_interests i join public.club_proposals p on p.id = i.proposal_id
+     where i.proposal_id = public.club_proposal_documents.proposal_id and i.user_id = (select auth.uid())
        and p.status in ('en_documentacion', 'en_validacion', 'cita_pendiente')
   )
 );
@@ -1603,6 +1815,31 @@ create policy lost_evidence_owner_delete on storage.objects
 for delete to authenticated using (
   bucket_id = 'lost-evidence' and (storage.foldername(name))[2] = (select auth.uid())::text
 );
+
+-- Realtime updates are limited to public app rows; each subscription still obeys RLS.
+do $$
+declare
+  table_name text;
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    foreach table_name in array array[
+      'avisos', 'questions', 'answers', 'question_votes', 'clubs',
+      'club_proposals', 'club_interests', 'club_events', 'lost_items',
+      'lost_item_matches', 'lost_item_claims', 'lost_item_handoffs',
+      'notifications', 'space_events'
+    ] loop
+      if not exists (
+        select 1 from pg_publication_tables
+         where pubname = 'supabase_realtime'
+           and schemaname = 'public'
+           and tablename = table_name
+      ) then
+        execute format('alter publication supabase_realtime add table public.%I', table_name);
+      end if;
+    end loop;
+  end if;
+end;
+$$;
 
 -- Add demo-facing seed users through Supabase Auth. Credentials and keys do not
 -- belong in this migration; supabase/seed.sql or the application seed owns them.

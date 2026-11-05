@@ -4,19 +4,26 @@ import { useActionState } from "react";
 import { btn, btnGhost, input, label } from "@/lib/ui";
 import {
   approveProposal,
-  claimAdvisor,
+  completeClubAppointment,
   createProposal,
   createClubPost,
+  decideClubAppointment,
   decideMembership,
+  issueAdvisorCode,
   markInterest,
   requestMembership,
-  simulateThreshold,
+  requestClubAppointment,
+  reviewProposalDocument,
+  uploadProposalDocument,
+  verifyAdvisorCode,
 } from "./actions";
 import type { ClubState } from "./format";
 
 function FieldError({ state }: { state: ClubState }) {
-  if (!state.error) return null;
-  return <p className="text-sm text-[#8C1D18]">{state.error}</p>;
+  return <>
+    {state.error && <p className="text-sm text-[#8C1D18]" role="alert">{state.error}</p>}
+    {state.success && <p className="text-sm font-semibold text-[#17634a]" role="status">{state.success}</p>}
+  </>;
 }
 
 export function ProposalForm() {
@@ -80,12 +87,6 @@ export function InterestButton({ proposalId }: { proposalId: string }) {
   return <ActionForm action={markInterest} fields={{ proposal_id: proposalId }} label="Me interesa" />;
 }
 
-export function SimulateButton({ proposalId }: { proposalId: string }) {
-  return (
-    <ActionForm action={simulateThreshold} fields={{ proposal_id: proposalId }} label="Simular 20 interesados" variant="ghost" />
-  );
-}
-
 export function ApproveButton({ proposalId }: { proposalId: string }) {
   return <ActionForm action={approveProposal} fields={{ proposal_id: proposalId }} label="Registrar club" />;
 }
@@ -112,13 +113,13 @@ export function DecisionButtons({ clubId, userId }: { clubId: string; userId: st
   );
 }
 
-export function AdvisorCodeForm({ proposalId }: { proposalId: string }) {
-  const [state, action, pending] = useActionState(claimAdvisor, {});
+export function IssueAdvisorCodeForm({ proposalId }: { proposalId: string }) {
+  const [state, action, pending] = useActionState(issueAdvisorCode, {});
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="proposal_id" value={proposalId} />
       <label className={label}>
-        Código de asesor
+        Código de seis caracteres para compartir con quien propone
         <input
           className={`${input} font-mono uppercase tracking-widest`}
           name="advisor_code"
@@ -127,14 +128,101 @@ export function AdvisorCodeForm({ proposalId }: { proposalId: string }) {
           maxLength={6}
           autoComplete="off"
           autoCapitalize="characters"
+          pattern="[A-Za-z0-9]{6}"
         />
       </label>
       <FieldError state={state} />
       <button className={btn} disabled={pending}>
-        {pending ? "Comprobando…" : "Asumir asesoría"}
+        {pending ? "Emitiendo…" : "Emitir código de asesoría"}
       </button>
     </form>
   );
+}
+
+export function VerifyAdvisorCodeForm({ proposalId }: { proposalId: string }) {
+  const [state, action, pending] = useActionState(verifyAdvisorCode, {});
+  return <form action={action} className="space-y-3">
+    <input type="hidden" name="proposal_id" value={proposalId} />
+    <label className={label}>Código que compartió el profesor
+      <input className={`${input} font-mono uppercase tracking-widest`} name="advisor_code" required minLength={6} maxLength={6} pattern="[A-Za-z0-9]{6}" autoComplete="off" />
+    </label>
+    <FieldError state={state} />
+    <button className={btn} disabled={pending}>{pending ? "Validando…" : "Confirmar asesoría"}</button>
+  </form>;
+}
+
+export function ProposalDocumentForm({ proposalId }: { proposalId: string }) {
+  const [state, action, pending] = useActionState(uploadProposalDocument, {});
+  return <form action={action} className="space-y-3">
+    <input type="hidden" name="proposal_id" value={proposalId} />
+    <label className={label}>Documento
+      <select className={input} name="document_type" required defaultValue="credencial_ipn">
+        <option value="credencial_ipn">Credencial IPN</option>
+        <option value="boleta">Boleta</option>
+        <option value="firma">Firma</option>
+        <option value="vigencia_ims">Vigencia de derechos IMSS</option>
+      </select>
+    </label>
+    <label className={label}>Archivo PDF, JPG o PNG (máximo 10 MB)
+      <input className={input} name="document" type="file" accept="application/pdf,image/jpeg,image/png" required />
+    </label>
+    <FieldError state={state} />
+    <button className={btn} disabled={pending}>{pending ? "Subiendo…" : "Subir documento privado"}</button>
+  </form>;
+}
+
+export function ProposalDocumentReviewForm({ proposalId, documentId }: { proposalId: string; documentId: string }) {
+  const [state, action, pending] = useActionState(reviewProposalDocument, {});
+  return <form action={action} className="mt-3 space-y-2 border-t border-[#d5e4ee] pt-3">
+    <input type="hidden" name="proposal_id" value={proposalId} />
+    <input type="hidden" name="document_id" value={documentId} />
+    <label className={label}>Observación (si requiere corrección)
+      <input className={input} name="review_note" maxLength={500} />
+    </label>
+    <FieldError state={state} />
+    <div className="flex flex-wrap gap-2">
+      <button className={btn} name="status" value="recibido" disabled={pending}>Marcar correcto</button>
+      <button className={btnGhost} name="status" value="requiere_correccion" disabled={pending}>Solicitar corrección</button>
+    </div>
+  </form>;
+}
+
+export function AppointmentRequestForm({ proposalId }: { proposalId: string }) {
+  const [state, action, pending] = useActionState(requestClubAppointment, {});
+  return <form action={action} className="space-y-3">
+    <input type="hidden" name="proposal_id" value={proposalId} />
+    <label className={label}>Opción de fecha y hora
+      <input className={input} type="datetime-local" name="slot1" required />
+    </label>
+    <label className={label}>Otra opción (opcional)
+      <input className={input} type="datetime-local" name="slot2" />
+    </label>
+    <FieldError state={state} />
+    <button className={btn} disabled={pending}>{pending ? "Enviando…" : "Solicitar cita en Sala 14"}</button>
+  </form>;
+}
+
+export function AppointmentReviewForm({ proposalId, appointmentId }: { proposalId: string; appointmentId: string }) {
+  const [state, action, pending] = useActionState(decideClubAppointment, {});
+  return <form action={action} className="space-y-3">
+    <input type="hidden" name="proposal_id" value={proposalId} />
+    <input type="hidden" name="appointment_id" value={appointmentId} />
+    <label className={label}>Fecha confirmada
+      <input className={input} type="datetime-local" name="scheduled_at" required />
+    </label>
+    <FieldError state={state} />
+    <button className={btn} disabled={pending}>{pending ? "Guardando…" : "Confirmar cita"}</button>
+  </form>;
+}
+
+export function CompleteAppointmentButton({ proposalId, appointmentId }: { proposalId: string; appointmentId: string }) {
+  const [state, action, pending] = useActionState(completeClubAppointment, {});
+  return <form action={action} className="space-y-2">
+    <input type="hidden" name="proposal_id" value={proposalId} />
+    <input type="hidden" name="appointment_id" value={appointmentId} />
+    <FieldError state={state} />
+    <button className={btnGhost} disabled={pending}>{pending ? "Guardando…" : "Marcar cita completada"}</button>
+  </form>;
 }
 
 

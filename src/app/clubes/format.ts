@@ -1,4 +1,4 @@
-export type ClubState = { error?: string };
+export type ClubState = { error?: string; success?: string };
 
 export const KINDS = ["academico", "cultural", "deportivo"] as const;
 export type ClubKind = (typeof KINDS)[number];
@@ -11,6 +11,11 @@ const KIND_LABEL: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
   abierta: "Abierta",
+  en_documentacion: "Documentación",
+  en_validacion: "Asesor confirmado",
+  cita_pendiente: "Cita solicitada",
+  cita_confirmada: "Cita confirmada",
+  incompleta: "Requiere corrección",
   en_seguimiento: "En seguimiento",
   con_asesor: "Con asesor",
   registrado: "Registrado",

@@ -15,6 +15,7 @@ export type ItemStatus = keyof typeof statusLabel;
 export type FormState = {
   error?: string;
   code?: string;
+  ok?: string;
 };
 
 export function isKind(value: string): value is ItemKind {

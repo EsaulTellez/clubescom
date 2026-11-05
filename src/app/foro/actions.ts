@@ -13,6 +13,20 @@ export type QuestionState = {
 
 export type AnswerState = { error?: string };
 
+export async function suggestSimilarQuestions(titleRaw: string, areaRaw: string) {
+  const title = titleRaw.trim().slice(0, 180);
+  if (title.length < 8 || !isArea(areaRaw)) return [];
+  const result = await pool.query<{ id: string; title: string; area: string; similarity: number }>(
+    `select id, title, area, similarity(title, $1) as similarity
+     from questions
+     where area = $2 and similarity(title, $1) >= 0.32
+     order by similarity(title, $1) desc, created_at desc
+     limit 3`,
+    [title, areaRaw],
+  );
+  return result.rows;
+}
+
 async function withTx<T>(fn: (client: SecureClient) => Promise<T>) {
   const client = await pool.connect();
   try {
@@ -52,6 +66,15 @@ export async function publishQuestion(
   }
 
   const outcome = await withTx(async (client) => {
+    await client.query("select pg_advisory_xact_lock(hashtextextended($1::text, 0))", [user.id]);
+    const cooldown = await client.query<{ seconds: number }>(
+      `select ceil(extract(epoch from (max(created_at) + interval '20 minutes' - now())))::int as seconds
+       from questions where author_id = $1
+       having max(created_at) > now() - interval '20 minutes'`,
+      [user.id],
+    );
+    if (cooldown.rows[0]) return { cooldownSeconds: cooldown.rows[0].seconds };
+
     await client.query(
       "select set_config('pg_trgm.similarity_threshold', '0.2', true)",
     );
@@ -75,6 +98,10 @@ export async function publishQuestion(
     return { id: inserted.rows[0].id };
   });
 
+  if ("cooldownSeconds" in outcome && outcome.cooldownSeconds !== undefined) {
+    const minutes = Math.max(1, Math.ceil(outcome.cooldownSeconds / 60));
+    return { error: `Espera ${minutes} minuto${minutes === 1 ? "" : "s"} antes de publicar otra pregunta.` };
+  }
   if ("duplicate" in outcome) return { duplicate: outcome.duplicate };
 
   await audit(user.id, "question.create", "questions", outcome.id, title);
@@ -96,15 +123,16 @@ export async function publishAnswer(
     return { error: "Escribe una respuesta de al menos 10 caracteres." };
   }
 
-  const official = user.role === "moderador" || user.role === "admin";
   const saved = await withTx(async (client) => {
     const question = await client.query<{
       id: string;
       author_id: string;
       title: string;
-    }>("select id, author_id, title from questions where id = $1", [questionId]);
+      area: string;
+    }>("select id, author_id, title, area from questions where id = $1", [questionId]);
     const row = question.rows[0];
     if (!row) return null;
+    const official = user.role === "admin" || (user.role === "moderador" && user.area === row.area);
 
     await client.query(
       `insert into answers (question_id, author_id, body, official)

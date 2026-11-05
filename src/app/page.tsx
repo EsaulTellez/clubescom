@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Cover } from "@/components/cover";
+import { RealtimeRefresh } from "@/components/realtime-refresh";
 import { StoryCarousel, type StoryCard } from "@/components/story-carousel";
 import { pool } from "@/lib/db";
 import { card } from "@/lib/ui";
@@ -69,6 +70,7 @@ export default async function HomePage() {
 
   return (
     <div className="board-page">
+      <RealtimeRefresh tables={["avisos", "clubs", "club_proposals"]} />
       <header className="board-masthead">
         <div>
           <p className="board-eyebrow">Comunidad ESCOM · tablero abierto</p>

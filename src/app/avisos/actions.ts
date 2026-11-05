@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { GoogleGenAI } from "@google/genai";
 import { audit, getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import {
@@ -15,6 +16,36 @@ async function publisher() {
   const user = await getSession();
   if (!user || !canManageAvisos(user)) return null;
   return user;
+}
+
+export async function generateSocialCopy(input: {
+  title: string;
+  body: string;
+  category: string;
+}): Promise<{ text?: string; error?: string }> {
+  const user = await publisher();
+  if (!user) return { error: "No tienes permiso para generar formatos de avisos." };
+  const title = input.title.trim().slice(0, 180);
+  const body = input.body.trim().slice(0, 8000);
+  if (title.length < 3 || body.length < 1 || !isCategory(input.category)) {
+    return { error: "Completa título, cuerpo y categoría antes de generar el formato." };
+  }
+  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (!apiKey) return { error: "Configura GOOGLE_GENERATIVE_AI_API_KEY en .env.local para usar Google GenAI." };
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.interactions.create({
+      model: "gemini-3.8-flash",
+      input: `Redacta un formato breve para redes sociales en español de México para la comunidad de ESCOM del IPN. Conserva solo datos presentes; no inventes fecha, lugar, requisitos o enlaces. Máximo 500 caracteres. Devuelve solo el texto.\nCategoría: ${input.category}\nTítulo: ${title}\nAviso: ${body}`,
+      generation_config: { thinking_level: "low", max_output_tokens: 300 },
+    });
+    const text = response.output_text?.trim();
+    if (!text) return { error: "Google GenAI no devolvió un texto. Intenta de nuevo." };
+    return { text: text.slice(0, 600) };
+  } catch {
+    return { error: "Google GenAI no respondió. Revisa la API key, el modelo y tu conexión local." };
+  }
 }
 
 function readAviso(form: FormData) {

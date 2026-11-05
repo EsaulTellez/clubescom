@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RealtimeRefresh } from "@/components/realtime-refresh";
 import { PageIntro } from "@/components/page-intro";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
@@ -61,6 +62,7 @@ export default async function NotificacionesPage() {
 
   return (
     <div className="space-y-8">
+      <RealtimeRefresh tables={["notifications"]} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <PageIntro
           kicker="Tu cuenta"

@@ -15,16 +15,12 @@ export function ClaimForm({ id, question }: { id: string; question: string }) {
         Tu respuesta
         <input className={`${input} mt-1`} name="answer" required autoComplete="off" />
       </label>
+      <label className={label}>
+        Detalle para quien publicó el hallazgo (opcional)
+        <textarea className={`${input} mt-1 min-h-20`} name="note" maxLength={500} />
+      </label>
       {state.error && <p className="text-sm text-[#8C1D18]">{state.error}</p>}
-      {state.code && (
-        <div className="rounded-xl bg-[#e6f3fa] px-4 py-5 text-center">
-          <p className="text-xs uppercase tracking-wide text-[#667085]">Código de entrega</p>
-          <p className="mt-2 text-4xl font-semibold tracking-[0.28em] text-[#006699] sm:text-5xl">
-            {state.code}
-          </p>
-          <p className="mt-2 text-sm text-[#667085]">Muéstralo a quien publicó el reporte para confirmar la entrega.</p>
-        </div>
-      )}
+      {state.ok && <p className="rounded-xl bg-[#e8f2e8] p-3 text-sm text-[#28452d]">{state.ok}</p>}
       <button className={btn} disabled={pending}>
         {pending ? "Comprobando…" : "Reclamar"}
       </button>

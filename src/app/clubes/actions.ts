@@ -1,67 +1,29 @@
 "use server";
 
-import { randomBytes, timingSafeEqual } from "crypto";
+import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { audit, getSession, type SessionUser } from "@/lib/auth";
-import { pool, type SecureClient } from "@/lib/db";
+import { pool } from "@/lib/db";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuid, KINDS, safeHttpUrl, type ClubKind, type ClubState } from "./format";
 
 function pgCode(error: unknown) {
   return typeof error === "object" && error && "code" in error ? String(error.code) : "";
 }
 
-function makeAdvisorCode() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = randomBytes(6);
-  let code = "";
-  for (const byte of bytes) code += alphabet[byte % alphabet.length];
-  return code;
-}
-
-function sameCode(given: string, stored: string) {
-  const left = Buffer.from(given);
-  const right = Buffer.from(stored.trim().toUpperCase());
-  return left.length > 0 && left.length === right.length && timingSafeEqual(left, right);
-}
-
 function canModerate(user: SessionUser) {
   return user.role === "admin" || (user.role === "moderador" && user.area === "clubes_academicos");
+}
+
+function canManageAppointments(user: SessionUser) {
+  return user.role === "admin" || (user.role === "moderador" && user.area === "subdireccion_academica");
 }
 
 function refresh(proposalId?: string, clubId?: string) {
   revalidatePath("/clubes");
   if (proposalId) revalidatePath(`/clubes/propuestas/${proposalId}`);
   if (clubId) revalidatePath(`/clubes/${clubId}`);
-}
-
-async function notifyProposer(client: SecureClient, proposerId: string, proposalId: string, name: string, code: string) {
-  await client.query(
-    `insert into notifications (user_id, title, body, href)
-     values ($1, $2, $3, $4)`,
-    [
-      proposerId,
-      "Tu propuesta alcanzó 20 interesados",
-      `La propuesta «${name}» ya puede buscar asesor. Comparte este código con un profesor: ${code}.`,
-      `/clubes/propuestas/${proposalId}`,
-    ],
-  );
-}
-
-async function promoteIfReady(client: SecureClient, proposalId: string, status: string, name: string, proposerId: string, count: number) {
-  if (count < 20 || status !== "abierta") return;
-  const updated = await client.query<{ advisor_code: string }>(
-    `update club_proposals
-     set status = 'en_seguimiento',
-         advisor_code = coalesce(advisor_code, $2)
-     where id = $1 and status = 'abierta'
-     returning advisor_code`,
-    [proposalId, makeAdvisorCode()],
-  );
-  const code = updated.rows[0]?.advisor_code;
-  if (!code) return;
-  await notifyProposer(client, proposerId, proposalId, name, code);
-  return true;
 }
 
 export async function createProposal(_prev: ClubState, form: FormData): Promise<ClubState> {
@@ -107,158 +69,207 @@ export async function markInterest(_prev: ClubState, form: FormData): Promise<Cl
   if (!user) return { error: "Entra con tu cuenta para marcar interés." };
   const proposalId = String(form.get("proposal_id") ?? "");
   if (!isUuid(proposalId)) return { error: "No encontramos esa propuesta." };
-
-  const client = await pool.connect();
-  let promoted = false;
   try {
-    await client.query("begin");
-    const locked = await client.query<{ status: string; name: string; proposer_id: string }>(
-      `select status, name, proposer_id from club_proposals where id = $1 for update`,
-      [proposalId],
-    );
-    const proposal = locked.rows[0];
-    if (!proposal) {
-      await client.query("rollback");
-      return { error: "No encontramos esa propuesta." };
-    }
-
-    const inserted = await client.query(
+    const inserted = await pool.query(
       `insert into club_interests (proposal_id, user_id)
-       values ($1, $2)
-       on conflict do nothing
-       returning proposal_id`,
+       values ($1, $2) on conflict do nothing returning proposal_id`,
       [proposalId, user.id],
     );
-    if (!inserted.rowCount) {
-      await client.query("rollback");
-      return { error: "Ya marcaste interés en esta propuesta." };
-    }
-
-    const count = await client.query<{ n: number }>(
-      `select count(*)::int as n from club_interests where proposal_id = $1`,
-      [proposalId],
-    );
-    promoted = Boolean(
-      await promoteIfReady(client, proposalId, proposal.status, proposal.name, proposal.proposer_id, count.rows[0]?.n ?? 0),
-    );
-    await client.query("commit");
+    if (!inserted.rowCount) return { error: "Ya marcaste interés o esta propuesta ya cerró la votación." };
   } catch (error) {
-    await client.query("rollback");
     if (pgCode(error) === "23503") return { error: "No encontramos esa propuesta." };
+    if (pgCode(error) === "42501") return { error: "Solo puedes votar en propuestas abiertas de otras personas." };
     throw error;
-  } finally {
-    client.release();
   }
 
-  await audit(user.id, "interesar", "club_proposals", proposalId, promoted ? "umbral" : undefined);
+  await audit(user.id, "interesar", "club_proposals", proposalId);
   refresh(proposalId);
   redirect(`/clubes/propuestas/${proposalId}`);
 }
 
-export async function simulateThreshold(_prev: ClubState, form: FormData): Promise<ClubState> {
+export async function issueAdvisorCode(_prev: ClubState, form: FormData): Promise<ClubState> {
   const user = await getSession();
-  if (!user) return { error: "Entra con tu cuenta para continuar." };
+  if (!user || user.role !== "profesor") return { error: "Solo un profesor activo puede emitir el código de asesoría." };
   const proposalId = String(form.get("proposal_id") ?? "");
+  const code = String(form.get("advisor_code") ?? "").trim().toUpperCase();
   if (!isUuid(proposalId)) return { error: "No encontramos esa propuesta." };
+  if (!/^[A-Z0-9]{6}$/.test(code)) return { error: "El código debe tener seis letras o números." };
 
-  const client = await pool.connect();
-  try {
-    await client.query("begin");
-    const locked = await client.query<{
-      proposer_id: string;
-      name: string;
-      status: string;
-    }>(
-      `select proposer_id, name, status from club_proposals where id = $1 for update`,
-      [proposalId],
-    );
-    const proposal = locked.rows[0];
-    if (!proposal) {
-      await client.query("rollback");
-      return { error: "No encontramos esa propuesta." };
-    }
-    if (user.id !== proposal.proposer_id && user.role !== "admin") {
-      await client.query("rollback");
-      return { error: "Solo quien propone o un administrador puede simular el umbral." };
-    }
-    if (proposal.status !== "abierta") {
-      await client.query("rollback");
-      return { error: "La propuesta ya no está abierta." };
-    }
-
-    const updated = await client.query<{ advisor_code: string }>(
-      `update club_proposals
-       set status = 'en_seguimiento',
-           advisor_code = coalesce(advisor_code, $2)
-       where id = $1 and status = 'abierta'
-       returning advisor_code`,
-      [proposalId, makeAdvisorCode()],
-    );
-    const code = updated.rows[0]?.advisor_code;
-    if (!code) {
-      await client.query("rollback");
-      return { error: "No se pudo pasar la propuesta a seguimiento." };
-    }
-    await notifyProposer(client, proposal.proposer_id, proposalId, proposal.name, code);
-    await client.query("commit");
-  } catch (error) {
-    await client.query("rollback");
-    throw error;
-  } finally {
-    client.release();
-  }
-
-  await audit(user.id, "seguimiento", "club_proposals", proposalId, "simulado");
-  refresh(proposalId);
-  redirect(`/clubes/propuestas/${proposalId}`);
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("issue_club_advisor_code", { p_proposal_id: proposalId, p_code: code });
+  if (error) return { error: "No se pudo emitir el código. Verifica que la propuesta ya tenga 20 interesados y documentos completos." };
+  await audit(user.id, "emitir_codigo_asesor", "club_proposals", proposalId);
+  revalidatePath(`/clubes/propuestas/${proposalId}`);
+  return { success: "Código emitido. Compártelo con quien propuso la iniciativa; vence en 15 minutos." };
 }
 
-export async function claimAdvisor(_prev: ClubState, form: FormData): Promise<ClubState> {
+export async function verifyAdvisorCode(_prev: ClubState, form: FormData): Promise<ClubState> {
   const user = await getSession();
-  if (!user || user.role !== "profesor") return { error: "Solo un profesor puede asesorar un club." };
+  if (!user || (user.role !== "alumno" && user.role !== "profesor")) return { error: "Inicia sesión con una cuenta institucional." };
   const proposalId = String(form.get("proposal_id") ?? "");
-  const given = String(form.get("advisor_code") ?? "").trim().toUpperCase();
+  const code = String(form.get("advisor_code") ?? "").trim().toUpperCase();
   if (!isUuid(proposalId)) return { error: "No encontramos esa propuesta." };
-  if (!/^[A-Z0-9]{6}$/.test(given)) return { error: "El código de asesor tiene 6 caracteres." };
+  if (!/^[A-Z0-9]{6}$/.test(code)) return { error: "El código debe tener seis letras o números." };
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("verify_club_advisor_code", { p_proposal_id: proposalId, p_code: code });
+  if (error || data !== true) return { error: "El código no coincide, venció o ya se usó." };
+  await audit(user.id, "confirmar_asesoria", "club_proposals", proposalId);
+  revalidatePath(`/clubes/propuestas/${proposalId}`);
+  return { success: "Asesoría confirmada. Continúa con la solicitud de cita a Sala 14." };
+}
+
+const DOCUMENT_TYPES = ["credencial_ipn", "boleta", "firma", "vigencia_ims"] as const;
+type ProposalDocumentType = (typeof DOCUMENT_TYPES)[number];
+const DOCUMENT_EXTENSIONS: Record<string, string> = {
+  "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png",
+};
+
+export async function uploadProposalDocument(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user) return { error: "Inicia sesión para subir tus documentos." };
+  const proposalId = String(form.get("proposal_id") ?? "");
+  const documentType = String(form.get("document_type") ?? "") as ProposalDocumentType;
+  const file = form.get("document");
+  if (!isUuid(proposalId) || !DOCUMENT_TYPES.includes(documentType)) return { error: "La propuesta o el tipo de documento no es válido." };
+  if (!(file instanceof File) || file.size === 0) return { error: "Selecciona un archivo PDF, JPG o PNG." };
+  if (!DOCUMENT_EXTENSIONS[file.type]) return { error: "Por ahora acepta PDF, JPG o PNG." };
+  if (file.size > 10 * 1024 * 1024) return { error: "El archivo debe pesar 10 MB o menos." };
+
+  const path = `${proposalId}/${user.id}/${documentType}-${randomBytes(8).toString("hex")}.${DOCUMENT_EXTENSIONS[file.type]}`;
+  const supabase = await createSupabaseServerClient();
+  const uploaded = await supabase.storage.from("club-documents").upload(path, file, { contentType: file.type, upsert: false });
+  if (uploaded.error) return { error: "No se pudo subir el archivo. Confirma que ya marcaste interés y que la propuesta llegó a 20." };
+  try {
+    const existing = await pool.query<{ id: string; storage_path: string; status: string }>(
+      `select id, storage_path, status from club_proposal_documents
+       where proposal_id = $1 and user_id = $2 and document_type = $3`,
+      [proposalId, user.id, documentType],
+    );
+    const oldDocument = existing.rows[0];
+    if (oldDocument) {
+      if (oldDocument.status !== "requiere_correccion") {
+        await supabase.storage.from("club-documents").remove([path]);
+        return { error: "Este documento ya fue recibido. Solo puedes reemplazarlo si Subdirección solicita una corrección." };
+      }
+      const updated = await pool.query(
+        `update club_proposal_documents
+         set storage_path = $2, status = 'recibido', review_note = null,
+             reviewed_by = null, reviewed_at = null, updated_at = now()
+         where id = $1 and status = 'requiere_correccion' returning id`,
+        [oldDocument.id, path],
+      );
+      if (!updated.rowCount) {
+        await supabase.storage.from("club-documents").remove([path]);
+        return { error: "La revisión cambió mientras reemplazabas el documento. Recarga la propuesta." };
+      }
+      await supabase.storage.from("club-documents").remove([oldDocument.storage_path]);
+    } else {
+      await pool.query(
+        `insert into club_proposal_documents (proposal_id, user_id, document_type, storage_path)
+         values ($1, $2, $3, $4)`,
+        [proposalId, user.id, documentType, path],
+      );
+    }
+  } catch {
+    await supabase.storage.from("club-documents").remove([path]);
+    return { error: "Se subió el archivo pero no se pudo registrar; inténtalo de nuevo." };
+  }
+  await audit(user.id, "subir_documento_club", "club_proposal_documents", proposalId, documentType);
+  revalidatePath(`/clubes/propuestas/${proposalId}`);
+  return { success: "Documento recibido; la revisión queda a cargo de Subdirección Académica." };
+}
+
+export async function reviewProposalDocument(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user || !canManageAppointments(user)) return { error: "Solo Subdirección Académica puede revisar estos documentos." };
+  const proposalId = String(form.get("proposal_id") ?? "");
+  const documentId = String(form.get("document_id") ?? "");
+  const status = String(form.get("status") ?? "");
+  const note = String(form.get("review_note") ?? "").trim().slice(0, 500);
+  if (!isUuid(proposalId) || !isUuid(documentId) || !["recibido", "requiere_correccion"].includes(status)) return { error: "La revisión no es válida." };
+  const updated = await pool.query(
+    `update club_proposal_documents set status = $1, review_note = $2, reviewed_by = $3, reviewed_at = now(), updated_at = now()
+     where id = $4 and proposal_id = $5 returning id`,
+    [status, note || null, user.id, documentId, proposalId],
+  );
+  if (!updated.rowCount) return { error: "No se pudo guardar la revisión." };
+  await audit(user.id, "revisar_documento_club", "club_proposal_documents", documentId, status);
+  revalidatePath(`/clubes/propuestas/${proposalId}`);
+  return { success: status === "recibido" ? "Documento marcado como correcto." : "Se registró que el documento requiere corrección." };
+}
+
+export async function requestClubAppointment(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user) return { error: "Inicia sesión para solicitar la cita." };
+  const proposalId = String(form.get("proposal_id") ?? "");
+  const slots = [String(form.get("slot1") ?? ""), String(form.get("slot2") ?? "")]
+    .map((value) => new Date(value))
+    .filter((value) => Number.isFinite(value.getTime()) && value.getTime() > Date.now());
+  if (!isUuid(proposalId)) return { error: "No encontramos esa propuesta." };
+  if (slots.length < 1) return { error: "Elige al menos una fecha futura para la cita." };
 
   const client = await pool.connect();
   try {
     await client.query("begin");
-    const locked = await client.query<{ status: string; advisor_code: string | null }>(
-      `select status, advisor_code from club_proposals where id = $1 for update`,
-      [proposalId],
+    const appointment = await client.query(
+      `insert into club_appointments (proposal_id, requested_by, requested_slots)
+       values ($1, $2, $3::jsonb) returning id`,
+      [proposalId, user.id, JSON.stringify(slots.map((slot) => slot.toISOString()))],
     );
-    const proposal = locked.rows[0];
-    if (!proposal || proposal.status !== "en_seguimiento" || !proposal.advisor_code) {
-      await client.query("rollback");
-      return { error: "Esta propuesta no está esperando asesor." };
-    }
-    if (!sameCode(given, proposal.advisor_code)) {
-      await client.query("rollback");
-      return { error: "El código no coincide." };
-    }
-    const updated = await client.query(
-      `update club_proposals
-       set advisor_id = $1, status = 'con_asesor'
-       where id = $2 and status = 'en_seguimiento' and advisor_code = $3
-       returning id`,
-      [user.id, proposalId, proposal.advisor_code],
+    await client.query(
+      `update club_proposals set status = 'cita_pendiente', updated_at = now()
+       where id = $1 and proposer_id = $2 and status = 'en_validacion'`,
+      [proposalId, user.id],
     );
-    if (!updated.rowCount) {
-      await client.query("rollback");
-      return { error: "No se pudo asignar el asesor." };
-    }
+    if (!appointment.rowCount) throw new Error("No se pudo crear la solicitud de cita.");
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
-    throw error;
+    if (pgCode(error) === "42501" || pgCode(error) === "23505") return { error: "La propuesta aún necesita 20 interesados, asesor confirmado y los cuatro documentos completos; o ya tiene una cita pendiente." };
+    return { error: "No se pudo solicitar la cita." };
   } finally {
     client.release();
   }
-
-  await audit(user.id, "asesorar", "club_proposals", proposalId);
+  await audit(user.id, "solicitar_cita_club", "club_appointments", proposalId);
   refresh(proposalId);
-  redirect(`/clubes/propuestas/${proposalId}`);
+  return { success: "Solicitud enviada a Subdirección Académica / Sala 14." };
+}
+
+export async function decideClubAppointment(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user || !canManageAppointments(user)) return { error: "Solo Subdirección Académica puede resolver las citas." };
+  const appointmentId = String(form.get("appointment_id") ?? "");
+  const proposalId = String(form.get("proposal_id") ?? "");
+  const scheduledAt = new Date(String(form.get("scheduled_at") ?? ""));
+  if (!isUuid(appointmentId) || !isUuid(proposalId) || !Number.isFinite(scheduledAt.getTime())) return { error: "Completa la fecha y la solicitud." };
+  const updated = await pool.query(
+    `update club_appointments
+     set status = 'confirmada', scheduled_at = $1, reviewed_by = $2, reviewed_at = now()
+     where id = $3 and proposal_id = $4 and status = 'pendiente' returning id`,
+    [scheduledAt.toISOString(), user.id, appointmentId, proposalId],
+  );
+  if (!updated.rowCount) return { error: "No pudimos confirmar esta cita." };
+  await pool.query(`update club_proposals set status = 'cita_confirmada', updated_at = now() where id = $1`, [proposalId]);
+  await audit(user.id, "confirmar_cita_club", "club_appointments", appointmentId);
+  refresh(proposalId);
+  return { success: "Cita confirmada. Después de realizarla, Subdirección puede marcarla como completada." };
+}
+
+export async function completeClubAppointment(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user || !canManageAppointments(user)) return { error: "Solo Subdirección Académica puede cerrar la cita." };
+  const appointmentId = String(form.get("appointment_id") ?? "");
+  const proposalId = String(form.get("proposal_id") ?? "");
+  if (!isUuid(appointmentId) || !isUuid(proposalId)) return { error: "No encontramos la solicitud." };
+  const updated = await pool.query(
+    `update club_appointments set status = 'completada', reviewed_by = $1, reviewed_at = now()
+     where id = $2 and proposal_id = $3 and status = 'confirmada' returning id`,
+    [user.id, appointmentId, proposalId],
+  );
+  if (!updated.rowCount) return { error: "La cita debe estar confirmada antes de marcarla como completada." };
+  await audit(user.id, "completar_cita_club", "club_appointments", appointmentId);
+  refresh(proposalId);
+  return { success: "Cita completada; la propuesta queda lista para que moderación de clubes la registre." };
 }
 
 export async function approveProposal(_prev: ClubState, form: FormData): Promise<ClubState> {
@@ -286,9 +297,19 @@ export async function approveProposal(_prev: ClubState, form: FormData): Promise
       [proposalId],
     );
     const proposal = locked.rows[0];
-    if (!proposal || proposal.status !== "con_asesor" || !proposal.advisor_id) {
+    if (!proposal || proposal.status !== "cita_confirmada" || !proposal.advisor_id) {
       await client.query("rollback");
-      return { error: "La propuesta necesita un asesor antes de registrarse." };
+      return { error: "La propuesta requiere asesor confirmado y una cita completada por Subdirección Académica." };
+    }
+
+    const appointment = await client.query<{ n: number }>(
+      `select count(*)::int as n from club_appointments
+       where proposal_id = $1 and status = 'completada'`,
+      [proposalId],
+    );
+    if ((appointment.rows[0]?.n ?? 0) < 1) {
+      await client.query("rollback");
+      return { error: "Subdirección debe marcar la cita como completada antes del registro." };
     }
 
     const existing = await client.query<{ id: string }>(
