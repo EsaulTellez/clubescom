@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { card } from "@/lib/ui";
 import { UserControls } from "./forms";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -74,15 +75,16 @@ export default async function AdminPage() {
     );
   }
 
-  const [counts, logs, people] = await Promise.all([
-    pool.query<Counts>(
+  const supabase = user.role === "admin" ? await createSupabaseServerClient() : null;
+  const [countsResult, logs, peopleResult] = await Promise.all([
+    user.role === "admin" ? pool.query<Counts>(
       `select
          (select count(*)::int from users) as users,
          (select count(*)::int from avisos) as avisos,
          (select count(*)::int from clubs) as clubs,
          (select count(*)::int from lost_items) as lost_items,
          (select count(*)::int from questions) as questions`,
-    ),
+    ) : Promise.resolve({ rows: [] as Counts[] }),
     pool.query<Log>(
       `select l.id, l.action, l.entity, l.entity_id, l.detail, l.created_at, u.name as actor_name
        from audit_logs l
@@ -90,16 +92,13 @@ export default async function AdminPage() {
        order by l.created_at desc
        limit 50`,
     ),
-    user.role === "admin"
-      ? pool.query<Person>(
-          `select id, name, email, role, area, banned
-           from users
-           order by name`,
-        )
-      : Promise.resolve({ rows: [] as Person[] }),
+    supabase
+      ? supabase.rpc("admin_list_user_profiles")
+      : Promise.resolve({ data: [] as Person[], error: null }),
   ]);
+  const people = { rows: (peopleResult.data ?? []) as Person[] };
 
-  const summary = counts.rows[0];
+  const summary = countsResult.rows[0];
   const stats = [
     ["Usuarios", summary?.users ?? 0],
     ["Avisos", summary?.avisos ?? 0],
@@ -112,16 +111,18 @@ export default async function AdminPage() {
     <div className="space-y-8">
       <PageIntro kicker="Administración" title="Panel" text="Cuentas, contenido y el registro de lo que hace el personal." />
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {stats.map(([label, value]) => (
-          <article key={label} className={card}>
-            <p className="text-sm text-[#667085]">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-[#006699]">
-              {value.toLocaleString("es-MX")}
-            </p>
-          </article>
-        ))}
-      </section>
+      {user.role === "admin" && (
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {stats.map(([label, value]) => (
+            <article key={label} className={card}>
+              <p className="text-sm text-[#667085]">{label}</p>
+              <p className="mt-1 text-2xl font-semibold text-[#006699]">
+                {value.toLocaleString("es-MX")}
+              </p>
+            </article>
+          ))}
+        </section>
+      )}
 
       {user.role === "admin" && (
         <section className="space-y-3">

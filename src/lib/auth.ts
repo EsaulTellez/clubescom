@@ -1,6 +1,6 @@
-import { createHash, randomBytes, timingSafeEqual } from "crypto";
-import { cookies } from "next/headers";
+import { createHash, timingSafeEqual } from "crypto";
 import { pool } from "./db";
+import { createSupabaseServerClient } from "./supabase/server";
 
 export type Role = "alumno" | "profesor" | "moderador" | "admin";
 
@@ -12,9 +12,6 @@ export type SessionUser = {
   role: Role;
   area: string | null;
 };
-
-const COOKIE = "escom_session";
-const EIGHT_HOURS = 60 * 60 * 8;
 
 export function roleFromEmail(email: string): "alumno" | "profesor" | null {
   const value = email.trim().toLowerCase();
@@ -29,45 +26,57 @@ export function hashAnswer(value: string) {
 
 export function answersMatch(plain: string, hashed: string) {
   const next = Buffer.from(hashAnswer(plain));
-  const prev = Buffer.from(hashed);
-  return next.length === prev.length && timingSafeEqual(next, prev);
-}
-
-export async function createSession(userId: string) {
-  const token = randomBytes(32).toString("hex");
-  const expires = new Date(Date.now() + EIGHT_HOURS * 1000);
-  await pool.query(
-    "insert into sessions (token, user_id, expires_at) values ($1, $2, $3)",
-    [token, userId, expires],
-  );
-  const jar = await cookies();
-  jar.set(COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    expires,
-  });
-}
-
-export async function destroySession() {
-  const jar = await cookies();
-  const token = jar.get(COOKIE)?.value;
-  if (token) await pool.query("delete from sessions where token = $1", [token]);
-  jar.delete(COOKIE);
+  const previous = Buffer.from(hashed);
+  return next.length === previous.length && timingSafeEqual(next, previous);
 }
 
 export async function getSession(): Promise<SessionUser | null> {
-  const jar = await cookies();
-  const token = jar.get(COOKIE)?.value;
-  if (!token) return null;
-  const { rows } = await pool.query<SessionUser>(
-    `select u.id, u.email, u.name, u.boleta, u.role, u.area
-     from sessions s
-     join users u on u.id = s.user_id
-     where s.token = $1 and s.expires_at > now() and u.banned = false`,
-    [token],
+  const supabase = await createSupabaseServerClient();
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims?.sub;
+  if (claimsError || typeof userId !== "string") return null;
+
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const authUser = authData.user;
+  if (authError || !authUser || authUser.id !== userId || !authUser.email) return null;
+
+  const [{ data: profile, error: profileError }, { data: privateRows, error: privateError }, { data: suspensions, error: suspensionError }] =
+    await Promise.all([
+      supabase
+        .from("users")
+        .select("id, name, role, area, is_active")
+        .eq("id", userId)
+        .maybeSingle(),
+      supabase.rpc("get_my_private_data"),
+      supabase
+        .from("moderation_suspensions")
+        .select("ends_at, is_permanent")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
+
+  if (profileError || privateError || suspensionError || !profile?.is_active) return null;
+  const suspended = (suspensions ?? []).some(
+    (suspension) =>
+      suspension.is_permanent ||
+      (suspension.ends_at !== null && Date.parse(suspension.ends_at) > Date.now()),
   );
-  return rows[0] ?? null;
+  if (suspended) return null;
+
+  if (!isRole(profile.role)) return null;
+  return {
+    id: profile.id,
+    email: authUser.email.toLowerCase(),
+    name: profile.name,
+    boleta: privateRows?.[0]?.boleta ?? null,
+    role: profile.role,
+    area: profile.area,
+  };
+}
+
+export function isRole(value: unknown): value is Role {
+  return value === "alumno" || value === "profesor" || value === "moderador" || value === "admin";
 }
 
 export async function audit(

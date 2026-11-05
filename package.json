@@ -9,6 +9,7 @@
     "lint": "eslint",
     "db:up": "supabase start",
     "db:down": "supabase stop",
+    "env:local": "node scripts/sync-supabase-env.mjs",
     "db:seed": "node --env-file=.env.local scripts/seed.mjs",
     "db:reset": "supabase db reset"
   },

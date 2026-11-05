@@ -1,11 +1,10 @@
 "use server";
 
 import { randomBytes, timingSafeEqual } from "crypto";
-import type { PoolClient } from "pg";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { audit, getSession, type SessionUser } from "@/lib/auth";
-import { pool } from "@/lib/db";
+import { pool, type SecureClient } from "@/lib/db";
 import { isUuid, KINDS, safeHttpUrl, type ClubKind, type ClubState } from "./format";
 
 function pgCode(error: unknown) {
@@ -36,7 +35,7 @@ function refresh(proposalId?: string, clubId?: string) {
   if (clubId) revalidatePath(`/clubes/${clubId}`);
 }
 
-async function notifyProposer(client: PoolClient, proposerId: string, proposalId: string, name: string, code: string) {
+async function notifyProposer(client: SecureClient, proposerId: string, proposalId: string, name: string, code: string) {
   await client.query(
     `insert into notifications (user_id, title, body, href)
      values ($1, $2, $3, $4)`,
@@ -49,7 +48,7 @@ async function notifyProposer(client: PoolClient, proposerId: string, proposalId
   );
 }
 
-async function promoteIfReady(client: PoolClient, proposalId: string, status: string, name: string, proposerId: string, count: number) {
+async function promoteIfReady(client: SecureClient, proposalId: string, status: string, name: string, proposerId: string, count: number) {
   if (count < 20 || status !== "abierta") return;
   const updated = await client.query<{ advisor_code: string }>(
     `update club_proposals

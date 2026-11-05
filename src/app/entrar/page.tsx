@@ -3,10 +3,16 @@ import { LoginForm } from "@/components/auth-forms";
 import { login } from "@/lib/auth-actions";
 import { card } from "@/lib/ui";
 
-export default function EntrarPage() {
+export default async function EntrarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ actualizada?: string }>;
+}) {
+  const { actualizada } = await searchParams;
   return (
     <div className={`${card} mx-auto max-w-md space-y-4`}>
       <h1 className="text-xl font-semibold">Entrar</h1>
+      {actualizada === "1" && <p className="text-sm text-[#1C1416]">Contraseña actualizada. Ya puedes iniciar sesión.</p>}
       <LoginForm action={login} />
       <p className="text-sm">
         <Link href="/recuperar" className="underline">

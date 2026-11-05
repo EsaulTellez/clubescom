@@ -12,9 +12,9 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 | id | nombre | estado | evidencia |
 | --- | --- | --- | --- |
-| CU-01 | Registro y autenticación | parcial | `src/lib/auth-actions.ts` |
-| CU-02 | Recuperación de credenciales | parcial | `src/app/recuperar/page.tsx` |
-| CU-03 | Restricción de acceso (baneo) | parcial | `src/app/admin/actions.ts` |
+| CU-01 | Registro y autenticación | parcial | `src/lib/auth-actions.ts`, `supabase/migrations/20261104000100_initial.sql` |
+| CU-02 | Recuperación de credenciales | parcial | `src/app/recuperar/page.tsx`, `src/app/auth/callback/route.ts` |
+| CU-03 | Restricción de acceso (baneo) | parcial | `src/app/admin/actions.ts`, `supabase/migrations/20261104000100_initial.sql` |
 | CU-04 | Otorgamiento automático de insignias | parcial | `src/app/perfil/page.tsx` |
 | CU-05 | Gestión de contenido por área | parcial | `src/app/guias/actions.ts` |
 | CU-06 | Generación inteligente de formatos | parcial | `src/app/avisos/aviso-form.tsx` |
@@ -52,6 +52,12 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 ## Cambios
 
+- 2026-11-04. CU-01 sigue parcial: Supabase Auth administra registro, login y perfiles; las cuentas demo ya inician sesión en local como alumno, profesor, moderador y admin. Registro con OTP y baja de cuenta siguen pendientes de recorrido en navegador.
+- 2026-11-04. CU-02 sigue parcial: la recuperación usa el enlace de Supabase Auth y callback local; falta recorrer el correo de recuperación y cambio de contraseña con Mailpit.
+- 2026-11-04. CU-03 sigue parcial: RLS y el esquema local incluyen suspensiones graduadas y apelaciones; falta completar y recorrer toda la interfaz de infracciones y apelaciones.
+- 2026-11-04. CU-32 sigue parcial: el admin consulta directorio, conteos y auditoría; los moderadores quedan limitados a su área y no ven los conteos globales. Faltan importación CSV y reportes descargables.
+- 2026-11-04. CU-17, CU-18, CU-19, CU-20, CU-22, CU-23, CU-25, CU-27 y CU-28 siguen parciales: la migración Supabase ya define sus datos y permisos, pero varias pantallas/acciones aún llaman columnas o tablas del esquema anterior y necesitan adaptarse antes de dar esos flujos por funcionales.
+
 - 2026-10-29. CU-10 hecho: el catálogo busca título y resumen, sugiere hasta tres guías similares y ofrece ir al foro del área cuando no encuentra una coincidencia.
 - 2026-10-29. CU-08 sigue parcial: el inicio presenta avisos en una portada tipo feed y usa tipografías DM Sans y Plus Jakarta Sans; cuatro publicaciones de demo muestran los carteles compartidos. No hay actualización en tiempo real por WebSocket.
 - 2026-10-29. CU-25 sigue parcial: se añadió una vista isométrica ilustrativa reconstruida a partir del croquis de ESCOM y alternancia al plano original; faltan mapas por nivel y búsqueda de aulas.
@@ -62,3 +68,5 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 - 2026-11-04. CU-08, CU-17, CU-20, CU-13 y CU-14 siguen con el mismo estado funcional; inicio, clubes y foro adoptan patrones de tablero ESCOM con feed más legible, propuestas con avance y navegación visible en móvil y escritorio.
 - 2026-10-29. Pase inicial. Estados comparan el código local con el Word; CU-10 sí queda `hecho`, mientras los demás casos aún omiten partes de su flujo.
 - 2026-11-04. Decisiones del propietario registradas en `docs/decisiones-producto.md`: Supabase para Auth, base, Storage y Realtime; no R2. CU-16 (alertas 24/48 h) y CU-30 (correo de notificaciones del producto) quedan fuera del alcance acordado; el correo de autenticación sí se conserva. Cambian los requisitos de CU-20, CU-22 y CU-28; no se marca ningún caso como completado solo por estas decisiones.
+- 2026-11-04. CU-01 sigue parcial: registro, verificación por código de correo y contraseña usan Supabase Auth; consulta de rol y estado toma los datos del perfil y suspensiones, y la baja elimina la cuenta de Auth. Falta integrar y verificar los flujos con el esquema final y las cuentas de demo.
+- 2026-11-04. CU-02 sigue parcial: recuperación envía un enlace de Supabase Auth por correo y permite cambiar contraseña desde la sesión de recuperación; falta verificar entrega y callback con Mailpit en el entorno local.

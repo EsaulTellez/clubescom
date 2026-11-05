@@ -1,57 +1,62 @@
 # Pendientes del proyecto
 
-Este archivo contrasta el demo actual con los requisitos del Trabajo Terminal y las decisiones confirmadas por el propietario en `docs/decisiones-producto.md`. Es una fotografía del estado inicial al 2026-11-04; actualizarlo junto con `docs/estado.md` cuando cambie un caso de uso.
+Estado al 2026-11-04, comparado con `docs/fuente/TT.docx` y las decisiones del propietario en `docs/decisiones-producto.md`. La app corre como demo local con Supabase y ya hay cuentas de prueba para los roles. La migración cubre el modelo y RLS; las pantallas todavía no consumen de forma uniforme el modelo nuevo.
 
-## Arquitectura y seguridad
+## Lo siguiente para llegar a una demo funcional
 
-- El demo actual usa PostgreSQL local y consultas directas con `pg`, autenticación y sesiones propias, y archivos en `public/uploads`. Migrar a Supabase local para Auth, PostgreSQL, Storage y Realtime. No usar Cloudflare R2.
-- Reemplazar el acceso a datos que omite RLS. Aplicar políticas por operación y reflejar los permisos por área en servidor y base de datos.
-- Restringir moderadores a su área. El moderador alumno de un club solo administra ese club. Solo el admin general puede asignar roles institucionales.
-- Usar verificación y recuperación por correo de Supabase Auth. No enviar por email avisos o notificaciones del producto.
-- Añadir apelaciones y sanciones escalonadas por cada bloque de tres infracciones: un mes, tres meses, seis meses y luego suspensión permanente. El demo actual solo tiene un booleano de baneo.
-- Resolver eliminación de cuentas y archivos personales relacionados sin conservar información del usuario que solicitó borrado.
+1. Adaptar acciones/páginas que aún esperan el esquema anterior: moderación y apelaciones, clubes y propuestas, objetos y entrega QR, guía con archivos, espacios/eventos aprobados, preferencias y auditoría.
+2. Recorrer y corregir cada flujo con cuentas por rol. El login se comprobó para alumno, profesor, moderador y administrador; el alta/OTP y la recuperación con Mailpit aún necesitan recorrido.
+3. Integrar Google GenAI para borradores de formatos y extracción de guías en pasos editables, con confirmación humana. La clave de API se configurará localmente; aceptar archivos significa los tipos que soporte el procesador y con límite de tamaño, no cualquier archivo arbitrario.
+4. Implementar Realtime/publicación programada de avisos, preguntas por paso y métricas de uso de guías.
+5. Construir el flujo CU-33 de importación CSV con vista previa, validación, duplicados y reporte descargable. El documento solo enuncia este caso; el CSV de demostración no representa un padrón oficial del IPN.
+6. Completar exportación de métricas/auditoría a CSV y PDF y validar resultados con datos representativos.
+7. Cambiar el mapa ilustrativo por el plano real cuando el propietario lo comparta.
 
-## Avisos y guías
+## Gaps por área
 
-- La generación de formatos sociales actual es una plantilla. Integrar la API de Google con clave local por ambiente y edición humana previa a publicar.
-- Los avisos programados no tienen un proceso que los publique a su hora ni actualización del feed en tiempo real.
-- Las guías se redactan manualmente. Admitir archivos compatibles con el procesador y convertirlos a pasos editables con revisión humana; no prometer formatos literalmente ilimitados.
-- Faltan preguntas por paso, analíticas útiles para una comunidad cercana a 3,000 personas, historial de versiones y flujo completo de sugerencias.
+### Acceso, datos y permisos
 
-## Foro
+- Supabase local ya provee Auth, Postgres y Storage; el código conecta Postgres bajo roles `anon`/`authenticated` para aplicar RLS. No hay proyecto Supabase alojado conectado.
+- Los datos privados viven en el esquema `private` y se consultan por RPC. Conviene revisar por pantalla que no queden rutas al modelo anterior ni accesos sin sesión/área.
+- El administrador general asigna roles. Los moderadores institucionales se limitan al área; el moderador alumno, a su club.
+- Supabase Auth verifica correo y recupera contraseña. Los correos de avisos/notificaciones del producto y las alertas de preguntas a 24/48 horas se excluyen.
+- Existe el modelo de sanciones (cada tres infracciones: 1, 3 y 6 meses; el siguiente bloque, permanente) y apelaciones. Falta interfaz completa para registrar, revisar y resolverlas. No quedó definido si las infracciones se acumulan para siempre o tienen ventana temporal; la migración actual las acumula históricamente.
+- La baja de cuenta debe comprobar que borre archivos personales asociados además del usuario Auth.
 
-- Faltan sugerencias de preguntas similares mientras se escribe y límite de 20 minutos entre publicaciones.
-- La respuesta oficial no comprueba que el moderador corresponda al área de la pregunta.
-- No construir alertas de preguntas desatendidas a las 24/48 horas (CU-16), por decisión del propietario.
-- Implementar las infracciones del foro con apelación y escalamiento; el propietario definió sanción permanente después de cuatro bloques de tres infracciones.
+### Avisos y guías
 
-## Clubes
+- La generación actual de texto/formato sigue sin conectarse a Google GenAI.
+- Avisos programados y feed en tiempo real requieren acciones/Realtime; las tablas ya existen pero el flujo no está verificado.
+- Falta carga privada de fuentes, extracción de documentos soportados, edición humana de pasos, historial, preguntas/respuestas por paso, sugerencias y métricas de guía.
+- La interfaz de preferencias aún contiene banderas `email_*` heredadas aunque no se enviarán correos de producto; debe quedar en preferencias de notificación dentro de la app.
 
-- La propuesta actual permite simular el umbral de 20; quitar el atajo y requerir interés real de cuentas distintas.
-- Tras alcanzar 20 interesados, cada uno debe subir credencial IPN, boleta y vigencia de derechos IMSS a almacenamiento privado.
-- Falta la confirmación del profesor por código, el envío del formulario, la gestión de cita por Subdirección Académica/Sala 14 y los estados de revisión.
-- El presidente debe ser un alumno moderador limitado a su club. Faltan comunidad privada y flujo completo de solicitudes de ingreso.
+### Foro y moderación
 
-## Objetos perdidos
+- Falta revisar sugerencias en vivo y la ventana de 20 minutos entre preguntas contra RLS y el esquema.
+- La respuesta oficial debe depender del moderador del área correspondiente; las áreas no deberían poder cruzarse desde formulario ni URL.
+- La interfaz de infracciones, sanciones y apelaciones no está completa.
 
-- Los archivos hoy se guardan localmente. Moverlos a Supabase Storage con acceso privado cuando sean sensibles.
-- Cambiar el matching actual por comparación con umbral de 80 % y notificaciones internas.
-- Completar el reclamo para que el QR verifique a la persona correcta durante la entrega; añadir confirmación e historial para ambas partes.
+### Clubes
 
-## Espacios y reportes
+- El modelo de propuesta, interés, expediente, profesor asesor y cita está definido en Supabase. Varias acciones actuales conservan nombres/estados de la versión anterior y necesitan migración.
+- Deben ser 20 personas distintas; después cada una carga credencial IPN, boleta, firma y vigencia de derechos IMSS.
+- Falta recorrer el código de confirmación del asesor, el envío de formulario y la cita confirmada por Subdirección Académica/Sala 14.
+- No se reservan salas; se publica un evento cuando los alumnos ya tienen autorización. El moderador de club solo gestiona su club.
 
-- Espacios no debe reservar ni autorizar salas. Los alumnos solo publican eventos ya autorizados y se confía en las publicaciones de moderadores institucionales.
-- El propietario entregará el plano real del campus; hasta entonces, el mapa es ilustrativo.
-- Completar métricas del panel, auditoría filtrable y reportes útiles con exportación CSV/PDF.
+### Objetos y espacios
 
-## Importación de padrón (CU-33)
+- Las tablas separan respuestas y códigos de entrega de los datos públicos, pero falta alinear las acciones actuales. El umbral de coincidencia acordado es 80 %; QR verifica a quien entrega/recibe.
+- Espacios se usa para localizar profesores y publicar eventos autorizados. No implementa reservas. Las consultas anteriores de `bookings` deben migrar a `space_events`.
+- El plano actual es ilustrativo hasta que llegue el real.
 
-El documento fuente solo nombra el caso, sin actor ni pasos. Para la demo se diseñará una importación CSV con vista previa, validación de campos y dominios institucionales, detección de duplicados, descarga de errores y confirmación antes de crear o invitar cuentas. El CSV no asignará roles de moderador/admin ni contendrá contraseñas; los usuarios crearán acceso con Supabase Auth. La plantilla será de ejemplo, no un formato oficial del IPN.
+### Reportes e importación
 
-## Fuera del trabajo actual
+- El panel global corresponde solo al admin general. Faltan las métricas acordadas para comunidad cercana a 3,000 personas, filtros y exportación CSV/PDF.
+- La importación de padrón será CSV de demostración, con vista previa, validación de columnas/dominios, detección de duplicados y descarga de errores. Nunca asignará roles de moderador/admin ni contraseñas.
 
-- No desplegar ni conectar con un proyecto Supabase alojado en esta etapa.
-- No conectar con SAES u otros sistemas externos del IPN.
-- No enviar correos de avisos o notificaciones del producto.
-- No implementar seguimiento 24/48 horas del foro, reservas de espacio ni aprobación exclusiva del director para el auditorio.
-- No se requiere actualizar diagramas ni automatizar pruebas como entregables adicionales; la prioridad es que funcione el demo local y se puedan recorrer sus flujos.
+## Decisiones de alcance
+
+- Mantener demo local. No desplegar ni conectar un Supabase alojado ahora.
+- No Cloudflare R2; Supabase Storage para todo archivo que sí esté dentro del alcance.
+- Fuera del producto: SAES, otras escuelas IPN, ejecutar legalmente trámites, validar presencialmente con prefecto, reservas de espacios, control del auditorio solo por dirección y clubes informales.
+- No añadir entregables de diagramas ni automatización de pruebas; la prioridad es que los flujos de la demo funcionen.

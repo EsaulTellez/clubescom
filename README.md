@@ -44,14 +44,17 @@ No entrega un objeto en persona ni exige que un prefecto esté presente. Tampoco
 
 ## Cómo correrla en local
 
-Hace falta Docker, Node.js y un archivo `.env.local` con `DATABASE_URL` apuntando al Postgres del compose.
+Hace falta Docker, Node.js y una vez instalar las dependencias. Supabase CLI inicia localmente PostgreSQL, Auth, Storage, Realtime y Mailpit.
 
 ```bash
-docker compose up -d
 npm install
+npm run db:up
+npm run env:local
 npm run db:seed
-npm run dev
+npm run dev -- --hostname 127.0.0.1 --port 3001
 ```
+
+Abre `http://127.0.0.1:3001`. Mailpit local está disponible en `http://127.0.0.1:54324` para verificar los correos de Auth. La clave de Google para funciones de IA es opcional durante la configuración; guárdala solo en `.env.local` como `GOOGLE_GENERATIVE_AI_API_KEY`.
 
 La contraseña de las cuentas de demostración es `Escom2026!`. Esas cuentas están en `scripts/seed.mjs`.
 

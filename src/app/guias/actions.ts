@@ -2,15 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { PoolClient } from "pg";
 import { audit, getSession } from "@/lib/auth";
-import { pool } from "@/lib/db";
+import { pool, type SecureClient } from "@/lib/db";
 import { asSteps, isArea, isStaff, isUuid, type GuideFaq, type GuideStep } from "./shared";
 
 export type GuideState = { error?: string };
 export type SuggestState = { error?: string };
 
-async function withTx<T>(fn: (client: PoolClient) => Promise<T>) {
+async function withTx<T>(fn: (client: SecureClient) => Promise<T>) {
   const client = await pool.connect();
   try {
     await client.query("begin");

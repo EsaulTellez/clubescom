@@ -4,8 +4,6 @@ import { useActionState } from "react";
 import { btn, label } from "@/lib/ui";
 import { savePrefs } from "./actions";
 
-type FormState = { error?: string; ok?: string };
-
 export function PrefsForm({
   prefs,
 }: {
