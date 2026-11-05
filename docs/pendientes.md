@@ -1,46 +1,57 @@
-El tablero de casos de uso está en `docs/estado.md`. El detalle de cada caso está en `docs/casos-de-uso.md`. Quien implemente, cambie o cierre un caso actualiza `docs/estado.md` en el mismo cambio.
+# Pendientes del proyecto
 
-# Lo que el frente ya muestra y el sistema todavía no cierra
+Este archivo contrasta el demo actual con los requisitos del Trabajo Terminal y las decisiones confirmadas por el propietario en `docs/decisiones-producto.md`. Es una fotografía del estado inicial al 2026-11-04; actualizarlo junto con `docs/estado.md` cuando cambie un caso de uso.
 
-La interfaz de demostración corre en local con Postgres. Estas piezas se ven en pantalla, pero no están listas para la escuela.
+## Arquitectura y seguridad
 
-## Correo y acceso
+- El demo actual usa PostgreSQL local y consultas directas con `pg`, autenticación y sesiones propias, y archivos en `public/uploads`. Migrar a Supabase local para Auth, PostgreSQL, Storage y Realtime. No usar Cloudflare R2.
+- Reemplazar el acceso a datos que omite RLS. Aplicar políticas por operación y reflejar los permisos por área en servidor y base de datos.
+- Restringir moderadores a su área. El moderador alumno de un club solo administra ese club. Solo el admin general puede asignar roles institucionales.
+- Usar verificación y recuperación por correo de Supabase Auth. No enviar por email avisos o notificaciones del producto.
+- Añadir apelaciones y sanciones escalonadas por cada bloque de tres infracciones: un mes, tres meses, seis meses y luego suspensión permanente. El demo actual solo tiene un booleano de baneo.
+- Resolver eliminación de cuentas y archivos personales relacionados sin conservar información del usuario que solicitó borrado.
 
-- El código de registro y de recuperación se muestra en la página. No hay servidor de correo ni plantillas institucionales.
-- No hay caducidad de sesión por inactividad más allá de las 8 horas de la cookie.
-- El alta de moderadores y administradores se hace a mano en la base. No hay importación de padrones.
+## Avisos y guías
 
-## Archivos y avisos
+- La generación de formatos sociales actual es una plantilla. Integrar la API de Google con clave local por ambiente y edición humana previa a publicar.
+- Los avisos programados no tienen un proceso que los publique a su hora ni actualización del feed en tiempo real.
+- Las guías se redactan manualmente. Admitir archivos compatibles con el procesador y convertirlos a pasos editables con revisión humana; no prometer formatos literalmente ilimitados.
+- Faltan preguntas por paso, analíticas útiles para una comunidad cercana a 3,000 personas, historial de versiones y flujo completo de sugerencias.
 
-- Las fotos de objetos se guardan en `public/uploads` de esta máquina. No hay Cloudflare R2.
-- El formato para redes es una plantilla de texto. No se publica en Facebook ni en X.
-- Un aviso con fecha futura se oculta hasta esa hora, pero no hay un proceso que lo despierte si nadie abre la página.
+## Foro
 
-## Datos y seguridad
+- Faltan sugerencias de preguntas similares mientras se escribe y límite de 20 minutos entre publicaciones.
+- La respuesta oficial no comprueba que el moderador corresponda al área de la pregunta.
+- No construir alertas de preguntas desatendidas a las 24/48 horas (CU-16), por decisión del propietario.
+- Implementar las infracciones del foro con apelación y escalamiento; el propietario definió sanción permanente después de cuatro bloques de tres infracciones.
 
-- Las políticas de fila están declaradas en el esquema. La aplicación entra como dueña de la base, así que esas reglas no se aplican.
-- Las contraseñas usan bcrypt. Las respuestas de objetos usan un hash simple, no un secreto aparte.
-- La descarga de datos del perfil existe. No hay un flujo formal de derechos ARCO con plazos ni un responsable designado.
-- No hay bitácora de incidentes de privacidad.
+## Clubes
 
-## Recorridos que la pantalla ya enseña
+- La propuesta actual permite simular el umbral de 20; quitar el atajo y requerir interés real de cuentas distintas.
+- Tras alcanzar 20 interesados, cada uno debe subir credencial IPN, boleta y vigencia de derechos IMSS a almacenamiento privado.
+- Falta la confirmación del profesor por código, el envío del formulario, la gestión de cita por Subdirección Académica/Sala 14 y los estados de revisión.
+- El presidente debe ser un alumno moderador limitado a su club. Faltan comunidad privada y flujo completo de solicitudes de ingreso.
 
-- Una propuesta de club muestra cuatro pasos: interés, umbral, asesor y registro. El botón de simular el umbral no junta a veinte alumnos ni les pide documentos.
-- Un objeto muestra reporte, coincidencia, reclamo y entrega. La coincidencia solo corre al publicar y compara texto, no la foto.
-- Una guía se lee como una línea de pasos. Aceptar una sugerencia no reescribe el paso oficial ni avisa al autor por correo.
-- Una pregunta puede tener respuesta oficial. El distintivo sale del rol de quien escribe, no de una asignación del área dueña del trámite.
+## Objetos perdidos
 
-## Módulos que se ven completos y no lo están
+- Los archivos hoy se guardan localmente. Moverlos a Supabase Storage con acceso privado cuando sean sensibles.
+- Cambiar el matching actual por comparación con umbral de 80 % y notificaciones internas.
+- Completar el reclamo para que el QR verifique a la persona correcta durante la entrega; añadir confirmación e historial para ambas partes.
 
-- Objetos: la coincidencia es por similitud de texto. No hay foto comparada ni código QR, solo un código de 8 caracteres.
-- Clubes: el umbral de 20 interesados se puede simular. No se piden los documentos oficiales ni se agenda la cita con la encargada.
-- Guías: los pasos son texto. No hay PDF adjunto ni generación automática a partir de un documento.
-- Espacios: el mapa dibuja edificios fijos. Las posiciones de cubículos son números, no un plano real de la ESCOM.
-- Notificaciones: se guardan dentro de la app. Las casillas de correo solo se almacenan; no sale ningún mensaje.
-- Insignias: hay una de demostración. No se otorgan solas por participar.
-- Panel: cuenta registros y permite vetar o cambiar rol. No hay reportes de impacto ni exportación institucional.
+## Espacios y reportes
 
-## Fuera de este entorno
+- Espacios no debe reservar ni autorizar salas. Los alumnos solo publican eventos ya autorizados y se confía en las publicaciones de moderadores institucionales.
+- El propietario entregará el plano real del campus; hasta entonces, el mapa es ilustrativo.
+- Completar métricas del panel, auditoría filtrable y reportes útiles con exportación CSV/PDF.
 
-- No está desplegado. No hay HTTPS de producción, respaldos programados ni pruebas automáticas.
-- No hay conexión con SAES ni con el sitio oficial de la ESCOM.
+## Importación de padrón (CU-33)
+
+El documento fuente solo nombra el caso, sin actor ni pasos. Para la demo se diseñará una importación CSV con vista previa, validación de campos y dominios institucionales, detección de duplicados, descarga de errores y confirmación antes de crear o invitar cuentas. El CSV no asignará roles de moderador/admin ni contendrá contraseñas; los usuarios crearán acceso con Supabase Auth. La plantilla será de ejemplo, no un formato oficial del IPN.
+
+## Fuera del trabajo actual
+
+- No desplegar ni conectar con un proyecto Supabase alojado en esta etapa.
+- No conectar con SAES u otros sistemas externos del IPN.
+- No enviar correos de avisos o notificaciones del producto.
+- No implementar seguimiento 24/48 horas del foro, reservas de espacio ni aprobación exclusiva del director para el auditorio.
+- No se requiere actualizar diagramas ni automatizar pruebas como entregables adicionales; la prioridad es que funcione el demo local y se puedan recorrer sus flujos.

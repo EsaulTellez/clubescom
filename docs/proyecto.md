@@ -50,15 +50,10 @@ Los casos de las tablas 3.32 a 3.38 agregan notificaciones y el panel de adminis
 - Garantizar que un objeto reportado existe, o que las guías están al día si el área no las carga.
 - Dependencia de que el usuario tenga internet y de que el servidor esté arriba. No es un módulo.
 
-## Stack
+## Stack y decisiones vigentes
 
-El documento (secciones 1.2.1, 1.6.1 y 4.1) pide Next.js, Supabase (PostgreSQL, autenticación y RLS), Cloudflare R2, Tailwind y disparadores SQL.
+La plataforma se desarrollará con Next.js y Supabase para autenticación, PostgreSQL, políticas RLS, almacenamiento de archivos y tiempo real. **No se usará Cloudflare R2.** La demo se ejecutará localmente; no se desplegará por ahora. La lógica programada o de servidor que requieran los flujos deberá integrarse con Supabase y quedar disponible en el entorno local.
 
-Este repositorio hoy:
+El código existente todavía no cumple esa arquitectura: usa PostgreSQL directo desde la aplicación, sesión propia con cookie y bcrypt, y archivos locales en `public/uploads`. Las políticas RLS del esquema no protegen las consultas realizadas con la conexión actual. El estado real y las decisiones detalladas están en `docs/estado.md`, `docs/pendientes.md` y `docs/decisiones-producto.md`.
 
-- Next.js y PostgreSQL en Docker. La app conecta con `DATABASE_URL` como dueña de la base (`src/lib/db.ts`).
-- Sesión propia: cookie `escom_session` y bcrypt. No hay Supabase ni JWT.
-- RLS está declarado en `db/schema.sql`. No se aplica, porque la conexión no es un rol limitado por esas políticas.
-- Fotos en `public/uploads`. No hay Cloudflare R2.
-- El OTP de registro y de recuperación se muestra en la página. No hay correo.
-- No está desplegado. No hay HTTPS de producción ni respaldos programados.
+Los correos de autenticación (registro/verificación y recuperación) sí forman parte del demo. Los correos de avisos y notificaciones de producto quedan fuera por ahora. La generación de texto y el procesamiento de documentos usarán la API de Google con una clave local y configurable; nunca se guardará la clave en el repositorio.

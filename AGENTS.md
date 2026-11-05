@@ -19,3 +19,7 @@ Cuando termines o cambies un caso de uso, actualiza `docs/estado.md` en el mismo
 No construyas lo que `docs/proyecto.md` lista como limitaciones: SAES, otras escuelas del IPN, ejecución legal de trámites, validación presencial con un prefecto, control del auditorio solo para el director, clubes informales.
 
 La contraseña de demostración y las cuentas viven en `scripts/seed.mjs`. Contraseña: `Escom2026!`.
+
+## UI y UX
+
+Antes de modificar una pantalla, leer `docs/ui-reference.md` y mantener sus patrones. Registrar ahí los patrones visuales que el propietario confirme con referencias concretas.

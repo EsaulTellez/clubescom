@@ -59,4 +59,6 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 - 2026-10-29. CU-20 sigue parcial: la comunidad del club muestra publicaciones, eventos, integrantes y membresía; falta completar aprobaciones y reglas administrativas del caso.
 - 2026-10-29. CU-28 sigue parcial: Espacios agrega cartelera mensual con navegación por mes y filtro por día sobre reservas públicas; no calcula rutas ni conflictos entre espacios.
 - 2026-10-29. CU-29 sigue parcial: al abrir una notificación, ahora se marca como leída y redirige al recurso; no hay contador en tiempo real.
-- 2026-10-29. Pase inicial. Estados de arriba, tomados del código local frente al Word. Ningún caso queda en `hecho`: cada flujo pedido todavía omite una parte (correo, QR, parsing, RLS efectivo, reportes, etc.).
+- 2026-11-04. CU-08, CU-17, CU-20, CU-13 y CU-14 siguen con el mismo estado funcional; inicio, clubes y foro adoptan patrones de tablero ESCOM con feed más legible, propuestas con avance y navegación visible en móvil y escritorio.
+- 2026-10-29. Pase inicial. Estados comparan el código local con el Word; CU-10 sí queda `hecho`, mientras los demás casos aún omiten partes de su flujo.
+- 2026-11-04. Decisiones del propietario registradas en `docs/decisiones-producto.md`: Supabase para Auth, base, Storage y Realtime; no R2. CU-16 (alertas 24/48 h) y CU-30 (correo de notificaciones del producto) quedan fuera del alcance acordado; el correo de autenticación sí se conserva. Cambian los requisitos de CU-20, CU-22 y CU-28; no se marca ningún caso como completado solo por estas decisiones.

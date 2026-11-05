@@ -9,6 +9,8 @@ El índice y el cuerpo no coinciden en dos puntos:
 
 Los dibujos no salen en la extracción de texto. Los pasos de abajo son solo los que el Word escribe en prosa.
 
+Las decisiones vigentes del propietario están en `docs/decisiones-producto.md` y prevalecen sobre el texto fuente donde lo contradigan. En particular: Supabase sustituye cualquier uso de R2; el matching de objetos usa umbral de 80 %; no se envía correo para notificaciones del producto; no se implementa el seguimiento de preguntas sin respuesta de 24/48 h (CU-16); y Espacios publica eventos ya autorizados, no administra reservaciones.
+
 Estados: `hecho` (el flujo pedido funciona en esta app local), `parcial` (hay pantalla o versión corta y falta una parte pedida), `pendiente` (no está).
 
 ## CU-01 · Registro y autenticación
@@ -120,7 +122,7 @@ Estados: `hecho` (el flujo pedido funciona en esta app local), `parcial` (hay pa
 
 - Tabla 3.19. Id del Word: `CU-FOR-05-03`. Actor: cron y moderador.
 - Flujo: 1) cada 6 horas revisa la base. 2) hilos sin respuesta oficial con más de 24 horas. 3) los agrupa por área. 4) notificación de alta prioridad al moderador. 5) el enlace abre esas dudas. Alterno: a las 48 horas, avisar al admin.
-- Estado: pendiente.
+- Estado: pendiente en comparación con el Word; excluido del alcance acordado por el propietario. No implementar las alertas de 24/48 horas.
 - Evidencia: no hay.
 
 ## CU-17 · Propuesta y validación social de clubes
@@ -150,6 +152,7 @@ Estados: `hecho` (el flujo pedido funciona en esta app local), `parcial` (hay pa
 - Flujo: 1) «Solicitar ingreso». 2) si hay formulario externo de requisitos, se muestra. 3) la solicitud llega al presidente. 4) aprueba. 5) membresía y acceso a avisos privados del club. El alumno ve a sus compañeros.
 - Estado: parcial.
 - Evidencia: `src/app/clubes/actions.ts`, `src/app/clubes/[id]/page.tsx`. Hay solicitud y aceptación o rechazo por responsable o asesor. No hay formulario de requisitos, avisos privados ni lista de integrantes.
+- Decisión vigente: el presidente será un alumno con moderación limitada a su club. Tras llegar a 20 interesados, cada persona interesada cargará credencial IPN, boleta y vigencia de derechos IMSS; el profesor debe confirmar con código y Subdirección Académica/Sala 14 revisa y agenda la cita.
 
 ## CU-21 · Reporte de hallazgo o pérdida
 
@@ -161,9 +164,10 @@ Estados: `hecho` (el flujo pedido funciona en esta app local), `parcial` (hay pa
 ## CU-22 · Matching automático por similitud
 
 - Tabla 3.25. Id del Word: `CU-OBJ-02-01`. Actor: el sistema.
-- Flujo: 1) al insertar, compara texto. 2) `pg_trgm`. 3) si la similitud supera 70 %, inserta en `objeto_matches`. 4) aviso in-app y por correo. Bajo 70 % no avisa.
+- Flujo fuente: 1) al insertar, compara texto. 2) `pg_trgm`. 3) si la similitud supera 70 %, inserta en `objeto_matches`. 4) aviso in-app y por correo. Bajo 70 % no avisa.
 - Estado: parcial.
 - Evidencia: `src/app/objetos/actions.ts`. Al publicar compara título y descripción y, si la suma pasa 0.35, guarda `matched_id` y avisa in-app a las dos personas. No hay correo ni tabla `objeto_matches`. No compara fotos.
+- Decisión vigente: usar 80 % de similitud y no enviar correo de notificación. El QR debe verificar a la persona correcta durante la entrega.
 
 ## CU-23 · Protocolo de reclamo y validación de identidad
 
@@ -206,6 +210,7 @@ Estados: `hecho` (el flujo pedido funciona en esta app local), `parcial` (hay pa
 - Flujo: 1) registra un evento en un espacio. 2) rechaza si el horario choca. 3) se publica en el calendario. 4) cualquiera ve los próximos 7 días. Alterno: sugiere horarios libres.
 - Estado: parcial.
 - Evidencia: `src/app/espacios/actions.ts`, `src/app/espacios/page.tsx`. Admin o cualquier moderador agregan una reserva. El itinerario público se lista. No hay detección de choque ni ventana de 7 días. El Word, en la sección 1.5, deja el control final del auditorio al director: eso no se construye.
+- Decisión vigente: no se reserva espacio dentro del sistema. Los alumnos solo publican eventos previamente autorizados y los avisos de moderadores institucionales se consideran autorizados.
 
 ## CU-29 · Centro de notificaciones in-app
 
@@ -218,7 +223,7 @@ Estados: `hecho` (el flujo pedido funciona en esta app local), `parcial` (hay pa
 
 - Tabla 3.33. Id del Word: `CU-NOT-02-01`. Actor: servicio de mensajería.
 - Flujo: 1) detecta una notificación `priority: high`. 2) revisa si el usuario quiere correo. 3) arma HTML. 4) envía con SendGrid o Resend. 5) registra el envío. Si rebota, apaga el canal.
-- Estado: parcial.
+- Estado: parcial frente al Word; fuera del alcance acordado para notificaciones del producto. El correo de Supabase Auth para registro/verificación y recuperación sí se requiere.
 - Evidencia: `src/app/notificaciones/forms.tsx`, `src/app/notificaciones/actions.ts`. Se guardan tres casillas (`email_clubs`, `email_forum`, `email_lost`). No sale ningún correo.
 
 ## CU-31 · Notificaciones masivas en cascada

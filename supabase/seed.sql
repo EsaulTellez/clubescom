@@ -1,0 +1,1 @@
+-- Cuentas de demo se crean mediante scripts/seed.mjs con Supabase Auth.

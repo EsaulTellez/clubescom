@@ -7,12 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:up": "docker compose up -d",
-    "db:down": "docker compose down",
+    "db:up": "supabase start",
+    "db:down": "supabase stop",
     "db:seed": "node --env-file=.env.local scripts/seed.mjs",
-    "db:reset": "docker compose down -v && docker compose up -d"
+    "db:reset": "supabase db reset"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.119.0",
     "bcryptjs": "^3.0.3",
     "next": "16.4.2",
     "pg": "^8.23.1",
@@ -28,6 +30,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "supabase": "^3.0.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

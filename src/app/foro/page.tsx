@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { PageIntro } from "@/components/page-intro";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btn, btnGhost, card } from "@/lib/ui";
@@ -49,87 +48,97 @@ export default async function ForoPage({
   }
 
   return (
-    <div className="space-y-6">
-      <PageIntro
-        kicker="Trámites"
-        title="Foro"
-        text="Dudas de gestión escolar, becas, el CATT y temas generales. Las más votadas aparecen primero."
-      />
+    <div className="board-page">
+      <header className="board-masthead">
+        <div>
+          <p className="board-eyebrow">Preguntas y respuestas · comunidad ESCOM</p>
+          <h1>Entre todos resolvemos la duda.</h1>
+          <p className="board-masthead__text">
+            Pregunta sobre trámites y temas de la escuela. La respuesta oficial de cada área queda a la vista de todos.
+          </p>
+        </div>
+        <nav className="board-shortcuts" aria-label="Atajos del foro">
+          <a href="#preguntas" className="board-shortcut">↕ Explorar dudas</a>
+          <a href="#new-question" className="board-shortcut">✎ Preguntar</a>
+        </nav>
+      </header>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        <Link href="/foro" className={area ? btnGhost : btn}>
-          Todas
-        </Link>
+      <div className="board-feed__bar">
+        <strong>Elige el pizarrón por tema</strong>
+        <span className="hidden text-xs text-[#647780] sm:inline">Ordenadas por votos y fecha</span>
+      </div>
+
+      <nav className="board-tag-row" aria-label="Filtrar preguntas por área">
+        <Link href="/foro" aria-current={!area ? "page" : undefined} className={!area ? btn : btnGhost}>Todas</Link>
         {AREAS.map((item) => (
           <Link
             key={item.id}
             href={`/foro?area=${item.id}`}
+            aria-current={area === item.id ? "page" : undefined}
             className={area === item.id ? btn : btnGhost}
           >
             {item.label}
           </Link>
         ))}
-      </div>
+      </nav>
 
       {dbDown && (
-        <p className={card}>
-          No se pudo leer el foro. Revisa que Postgres esté en marcha.
-        </p>
+        <p className={card} role="status">No se pudo conectar con los datos locales. Inicia los servicios del proyecto y vuelve a cargar.</p>
       )}
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="space-y-3">
-          {questions.map((question) => (
-            <article key={question.id} className={`${card} flex gap-4`}>
-              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#e6f3fa] text-center">
-                <span className="font-serif text-xl leading-none text-[#006699]">{question.votes}</span>
-                <span className="text-[10px] uppercase tracking-wide text-[#667085]">votos</span>
-              </div>
-              <div className="min-w-0 flex-1">
-              <p className="text-xs uppercase tracking-wide text-[#006699]">
-                {areaLabel(question.area)}
-              </p>
-              <h2 className="mt-1 font-serif text-2xl leading-tight">
-                <Link href={`/foro/${question.id}`}>{question.title}</Link>
-              </h2>
-              <p className="mt-1 text-sm text-[#667085]">
-                {question.author_name} · {formatDate(question.created_at)}
-              </p>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm font-medium">{voteLabel(Number(question.votes))}</p>
-                {user && (
-                  <form action={toggleVote}>
-                    <input type="hidden" name="questionId" value={question.id} />
-                    <button className={question.voted ? btn : btnGhost}>
-                      {question.voted ? "Quitar voto" : "Votar"}
-                    </button>
-                  </form>
-                )}
-              </div>
-              </div>
-            </article>
-          ))}
-          {!dbDown && questions.length === 0 && (
-            <p className={card}>
-              {area
-                ? `Todavía no hay preguntas en ${areaLabel(area)}.`
-                : "Todavía no hay preguntas. Publica la primera duda de la comunidad."}
-            </p>
-          )}
-        </div>
-
-        <aside className={card}>
-          <h2 className="font-semibold">Nueva pregunta</h2>
-          {user ? (
-            <div className="mt-3">
-              <QuestionForm action={publishQuestion} defaultArea={area ?? undefined} />
+      <div className="board-forum-layout">
+        <section id="preguntas" className="scroll-mt-28" aria-labelledby="questions-heading">
+          <div className="board-section-heading">
+            <div>
+              <p className="board-eyebrow">Pizarrón de la comunidad</p>
+              <h2 id="questions-heading">Dudas compartidas</h2>
+              <p>Vota por lo que también necesitas saber.</p>
             </div>
+            <span className="board-label">{questions.length} {questions.length === 1 ? "pregunta" : "preguntas"}</span>
+          </div>
+
+          <div className="board-forum-list">
+            {questions.map((question) => (
+              <article key={question.id} className="board-discussion">
+                <div className="board-vote" aria-label={`${question.votes} votos`}>
+                  <strong>{question.votes}</strong>
+                  <span>votos</span>
+                </div>
+                <div className="min-w-0">
+                  <span className="board-label">{areaLabel(question.area)}</span>
+                  <h2><Link href={`/foro/${question.id}`}>{question.title}</Link></h2>
+                  <p className="board-discussion__meta">Publicó {question.author_name} · {formatDate(question.created_at)}</p>
+                  <div className="board-discussion__footer">
+                    <p className="m-0 text-xs font-bold text-[#47616d]">{voteLabel(Number(question.votes))}</p>
+                    {user && (
+                      <form action={toggleVote}>
+                        <input type="hidden" name="questionId" value={question.id} />
+                        <button className={question.voted ? btn : btnGhost} aria-pressed={question.voted}>
+                          {question.voted ? "Quitar voto" : "Votar"}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              </article>
+            ))}
+            {!dbDown && questions.length === 0 && (
+              <p className={`${card} text-sm text-[#5f6e78]`}>
+                {area ? `Todavía no hay preguntas en ${areaLabel(area)}.` : "Todavía no hay preguntas. Puedes iniciar la conversación."}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <aside id="new-question" className="board-sidecard board-form-anchor scroll-mt-28">
+          <p className="board-eyebrow">Abre la conversación</p>
+          <h2>Nueva pregunta</h2>
+          {user ? (
+            <div className="mt-3"><QuestionForm action={publishQuestion} defaultArea={area ?? undefined} /></div>
           ) : (
-            <div className="mt-2 space-y-3 text-sm text-[#667085]">
+            <div className="mt-2 space-y-3 text-sm leading-6 text-[#5f6e78]">
               <p>Entra con tu correo institucional para preguntar, responder y votar.</p>
-              <Link href="/entrar" className={btn}>
-                Entrar
-              </Link>
+              <Link href="/entrar" className={btn}>Entrar</Link>
             </div>
           )}
         </aside>

@@ -60,94 +60,139 @@ export default async function HomePage() {
     .sort((a, b) => Number(Boolean(demoNoticeArt(b.title))) - Number(Boolean(demoNoticeArt(a.title))) || b.publish_at.getTime() - a.publish_at.getTime())
     .slice(0, 4)
     .map((aviso) => ({
-    href: `/avisos/${aviso.id}`,
-    title: aviso.title,
-    kicker: categoryLabel[aviso.category] ?? aviso.category,
-    tone: aviso.category,
-    image: demoNoticeArt(aviso.title),
-  }));
+      href: `/avisos/${aviso.id}`,
+      title: aviso.title,
+      kicker: categoryLabel[aviso.category] ?? aviso.category,
+      tone: aviso.category,
+      image: demoNoticeArt(aviso.title),
+    }));
 
   return (
-    <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_280px]">
-      <div className="min-w-0 space-y-6">
-        {dbDown && (
-          <p className={card}>
-            Postgres no responde. Levanta el contenedor con <code>docker compose up -d</code> y corre <code>npm run db:seed</code>.
+    <div className="board-page">
+      <header className="board-masthead">
+        <div>
+          <p className="board-eyebrow">Comunidad ESCOM · tablero abierto</p>
+          <h1>Lo que pasa en la escuela, en un solo lugar.</h1>
+          <p className="board-masthead__text">
+            Avisos de la comunidad, actividades y espacios para encontrar a tu gente.
           </p>
-        )}
+        </div>
+        <nav className="board-shortcuts" aria-label="Atajos del tablero">
+          <Link href="/avisos" className="board-shortcut">📌 Avisos</Link>
+          <Link href="/clubes" className="board-shortcut">✳ Clubes</Link>
+          <Link href="/foro" className="board-shortcut">💬 Foro</Link>
+        </nav>
+      </header>
 
-        <section aria-label="Carrusel de eventos y avisos">
-          <h2 className="sr-only">Eventos y avisos</h2>
-          <StoryCarousel items={stories} />
-        </section>
+      {dbDown && (
+        <p className={card} role="status">
+          No se pudo conectar con los datos locales. Inicia los servicios del proyecto y vuelve a cargar.
+        </p>
+      )}
 
-        <section>
-          <div className="mb-4 flex items-end justify-between gap-3">
-            <h2 className="text-2xl font-bold tracking-tight">Lo más reciente</h2>
-            <Link href="/avisos" className="text-sm text-[#667085] hover:text-[#006699]">
-              Ver avisos
-            </Link>
-          </div>
-          {avisos.length ? (
-            <div className="space-y-4">
-              {avisos.map((aviso) => (
-                <article key={aviso.id} className="overflow-hidden rounded-3xl border border-[#e6e9ef] bg-white shadow-[0_6px_24px_rgba(22,34,51,0.04)]">
-                  <div className="flex items-center gap-3 p-5 pb-0 sm:px-6 sm:pt-6">
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#e6f3fa] text-sm font-bold text-[#006699]">E</div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold">{demoNoticeAuthor(aviso.title)}</p>
-                      <p className="text-xs text-[#72788a]">{categoryLabel[aviso.category] ?? aviso.category} <span className="mx-1">·</span>{when(aviso.publish_at)}</p>
-                    </div>
-                    {aviso.featured && <span className="rounded-full bg-[#eef0ff] px-3 py-1 text-xs font-semibold text-[#5542c5]">Destacado</span>}
-                  </div>
-                  <div className="px-5 pb-4 pt-4 sm:px-6">
-                    <h3 className="text-xl font-bold leading-snug tracking-tight"><Link href={`/avisos/${aviso.id}`} className="hover:text-[#006699]">{aviso.title}</Link></h3>
-                    <p className="mt-2 whitespace-pre-line text-[15px] leading-7 text-[#4b5261]">{aviso.body}</p>
-                  </div>
-                  <Link href={`/avisos/${aviso.id}`} className="block px-5 pb-5 sm:px-6 sm:pb-6" aria-label={`Abrir aviso: ${aviso.title}`}>
-                    {demoNoticeArt(aviso.title) ? (
-                      <img src={demoNoticeArt(aviso.title)!} alt={`Cartel: ${aviso.title}`} className="max-h-[34rem] w-full rounded-2xl bg-[#f4f3f0] object-contain" />
-                    ) : (
-                      <Cover tone={aviso.category} kicker={categoryLabel[aviso.category] ?? aviso.category} title={aviso.title} className="h-56 rounded-2xl sm:h-72" />
-                    )}
-                  </Link>
-                  <div className="mx-5 border-t border-[#eef0f4] py-3 sm:mx-6">
-                    <Link href={`/avisos/${aviso.id}`} className="block rounded-xl py-2 text-center text-sm font-semibold text-[#72788a] transition hover:bg-[#f5f6fa] hover:text-[#006699]">💬 Ver publicación</Link>
-                  </div>
-                </article>
-              ))}
+      <div className="board-layout">
+        <div className="board-main">
+          <section className="board-pinned" aria-label="Avisos institucionales fijados">
+            <div className="board-section-heading">
+              <div>
+                <span className="board-pinned__label"><span aria-hidden="true">📌</span> En el pizarrón</span>
+                <h2 className="mt-2">Comunicados y eventos</h2>
+              </div>
+              <Link href="/avisos" className="board-text-link">Ver todos los avisos →</Link>
             </div>
-          ) : (
-            !dbDown && <p className="rounded-3xl border border-dashed border-[#d9deea] bg-white p-8 text-center text-sm text-[#72788a]">Todavía no hay avisos. Cuando publiquen algo, aparecerá aquí 👀</p>
-          )}
-        </section>
-      </div>
+            <div aria-label="Avisos destacados">
+              <h3 className="sr-only">Avisos destacados</h3>
+              <StoryCarousel items={stories} />
+            </div>
+          </section>
 
-      <aside className={`${card} rounded-3xl border-[#e6e9ef] shadow-[0_6px_24px_rgba(22,34,51,0.04)] xl:sticky xl:top-24`}>
-        <h2 className="text-lg font-bold tracking-tight">Clubes que te pueden gustar</h2>
-        <p className="mt-1 text-sm text-[#72788a]">Encuentra a tu gente.</p>
-        <ul className="mt-4 space-y-4">
-          {clubs.map((club) => (
-            <li key={club.id}>
-              <Link href={`/clubes/${club.id}`} className="flex items-center gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[#e6f3fa] text-sm font-semibold text-[#006699]">
-                  {demoClubArt(club.name) ? <img src={demoClubArt(club.name)!} alt="" className="h-full w-full object-cover" /> : club.name.replace("Club de ", "").slice(0, 1)}
-                </span>
-                <span>
-                  <span className="block text-sm font-medium">{club.name}</span>
-                  <span className="block text-xs capitalize text-[#667085]">{club.kind}</span>
-                </span>
-              </Link>
-            </li>
-          ))}
-          {clubs.length === 0 && !dbDown && (
-            <li className="text-sm text-[#667085]">Cuando haya clubes registrados, aparecen aquí.</li>
-          )}
-        </ul>
-        <Link href="/clubes" className="mt-5 inline-block text-sm text-[#006699]">
-          Ver más
-        </Link>
-      </aside>
+          <section className="board-feed" aria-labelledby="recent-heading">
+            <div className="board-feed__bar">
+              <strong>Actualizaciones de ESCOM</strong>
+              <Link href="/avisos" className="board-text-link">Explorar archivo</Link>
+            </div>
+            <div className="board-section-heading">
+              <div>
+                <p className="board-eyebrow">Lo último</p>
+                <h2 id="recent-heading">Recién publicado</h2>
+              </div>
+            </div>
+
+            {avisos.length ? (
+              <div className="grid gap-3">
+                {avisos.map((aviso) => {
+                  const art = demoNoticeArt(aviso.title);
+                  return (
+                    <article key={aviso.id} className="board-notice">
+                      <div className="board-notice__meta">
+                        <div className="board-notice__avatar" aria-hidden="true">E</div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-extrabold text-[#234657]">{demoNoticeAuthor(aviso.title)}</p>
+                          <p className="mt-0.5 text-xs text-[#647780]">
+                            {categoryLabel[aviso.category] ?? aviso.category}<span className="mx-1.5" aria-hidden="true">·</span>{when(aviso.publish_at)}
+                          </p>
+                        </div>
+                        <span className={`board-label ${aviso.featured ? "board-label--pinned" : ""}`}>
+                          {aviso.featured ? "📌 Fijado" : categoryLabel[aviso.category] ?? aviso.category}
+                        </span>
+                      </div>
+                      <div className="board-notice__body">
+                        <h3><Link href={`/avisos/${aviso.id}`} className="hover:text-[#006699]">{aviso.title}</Link></h3>
+                        <p>{aviso.body}</p>
+                      </div>
+                      <Link href={`/avisos/${aviso.id}`} className="block" aria-label={`Abrir aviso: ${aviso.title}`}>
+                        {art ? (
+                          <img src={art} alt={`Cartel: ${aviso.title}`} className="board-notice__image" />
+                        ) : (
+                          <div className="px-[1.1rem] pb-4 pt-2">
+                            <Cover tone={aviso.category} kicker={categoryLabel[aviso.category] ?? aviso.category} title={aviso.title} className="h-44 rounded-lg sm:h-56" />
+                          </div>
+                        )}
+                      </Link>
+                      <Link href={`/avisos/${aviso.id}`} className="board-notice__action">💬 Abrir publicación</Link>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              !dbDown && <p className={`${card} text-center text-sm text-[#5f6e78]`}>Todavía no hay avisos. Cuando publiquen algo, aparecerá aquí.</p>
+            )}
+          </section>
+        </div>
+
+        <aside className="board-sidebar grid gap-3 xl:sticky xl:top-24">
+          <section className="board-sidecard">
+            <p className="board-eyebrow">Gente que hace comunidad</p>
+            <h2>Clubes en el tablero</h2>
+            <p className="mt-1 text-sm leading-6 text-[#5f6e78]">Actividades, ideas y equipos para encontrar a tu gente.</p>
+            <hr className="board-sidecard__rule" />
+            <ul className="board-club-list">
+              {clubs.map((club) => (
+                <li key={club.id}>
+                  <Link href={`/clubes/${club.id}`}>
+                    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#d8d9cf] bg-[#f2f1e9] text-sm font-extrabold text-[#24546a]">
+                      {demoClubArt(club.name) ? <img src={demoClubArt(club.name)!} alt="" className="h-full w-full object-cover" /> : club.name.replace("Club de ", "").slice(0, 1)}
+                    </span>
+                    <span className="min-w-0">
+                      <strong className="block truncate text-sm">{club.name}</strong>
+                      <span className="mt-0.5 block text-xs capitalize text-[#647780]">{club.kind}</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+              {clubs.length === 0 && !dbDown && <li className="text-sm text-[#5f6e78]">Cuando haya clubes registrados, aparecerán aquí.</li>}
+            </ul>
+            <Link href="/clubes" className="mt-4 inline-flex min-h-10 items-center font-bold text-[#004d73] hover:underline">Explorar clubes →</Link>
+          </section>
+
+          <section className="board-sidecard border-t-4 border-t-[#d4b64f]">
+            <p className="board-eyebrow">¿Traes una idea?</p>
+            <h2>Propón el siguiente club</h2>
+            <p className="mt-2 text-sm leading-6 text-[#5f6e78]">Cuéntale a la comunidad qué te gustaría armar en ESCOM.</p>
+            <Link href="/clubes#proponer-club" className="mt-3 inline-flex min-h-10 items-center font-bold text-[#004d73] hover:underline">Ver cómo proponer →</Link>
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }
