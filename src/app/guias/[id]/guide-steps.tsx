@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { trackGuideStep } from "../actions";
 import type { GuideStep } from "../shared";
 
-export function GuideSteps({ steps }: { steps: GuideStep[] }) {
+export function GuideSteps({ steps, guideId }: { steps: GuideStep[]; guideId: string }) {
   const [done, setDone] = useState<number[]>([]);
   const count = done.length;
   const percent = steps.length ? Math.round((count / steps.length) * 100) : 0;
@@ -37,11 +38,11 @@ export function GuideSteps({ steps }: { steps: GuideStep[] }) {
                     <h3 className={`text-lg font-bold tracking-tight ${checked ? "text-[#667085] line-through decoration-[#8cb8cb]" : "text-[#222337]"}`}>{step.title}</h3>
                     <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#62697a]">{step.body}</p>
                   </div>
-                  <button type="button" aria-pressed={checked} onClick={() => setDone((current) => checked ? current.filter((item) => item !== index) : [...current, index])} className={`hidden shrink-0 rounded-full px-3 py-2 text-xs font-bold transition sm:block ${checked ? "bg-[#006699] text-white" : "bg-[#edf6fa] text-[#006699] hover:bg-[#d5eaf4]"}`}>
+                  <button type="button" aria-pressed={checked} onClick={() => { setDone((current) => checked ? current.filter((item) => item !== index) : [...current, index]); if (!checked) void trackGuideStep(guideId, index); }} className={`hidden shrink-0 rounded-full px-3 py-2 text-xs font-bold transition sm:block ${checked ? "bg-[#006699] text-white" : "bg-[#edf6fa] text-[#006699] hover:bg-[#d5eaf4]"}`}>
                     {checked ? "Hecho" : "Marcar listo"}
                   </button>
                 </div>
-                <button type="button" aria-pressed={checked} onClick={() => setDone((current) => checked ? current.filter((item) => item !== index) : [...current, index])} className={`mt-4 w-full rounded-full px-3 py-2 text-xs font-bold sm:hidden ${checked ? "bg-[#006699] text-white" : "bg-[#edf6fa] text-[#006699]"}`}>
+                <button type="button" aria-pressed={checked} onClick={() => { setDone((current) => checked ? current.filter((item) => item !== index) : [...current, index]); if (!checked) void trackGuideStep(guideId, index); }} className={`mt-4 w-full rounded-full px-3 py-2 text-xs font-bold sm:hidden ${checked ? "bg-[#006699] text-white" : "bg-[#edf6fa] text-[#006699]"}`}>
                   {checked ? "✓ Paso completado" : "Marcar paso como listo"}
                 </button>
               </article>

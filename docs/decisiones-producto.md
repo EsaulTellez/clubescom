@@ -89,6 +89,6 @@ Decisiones confirmadas por el propietario del proyecto el 2026-11-04. Aplican al
 - Columnas oficiales del CSV de padrón y si la importación crea cuentas, actualiza datos existentes o hace ambas cosas. Propuesta de demo: crear cuentas solamente; no asignar roles privilegiados desde CSV.
 - Formatos y límites concretos de archivos. “Todos los formatos” no es seguro ni implementable literalmente; preparar una lista extensible de formatos compatibles con el procesador elegido y mostrar errores claros para los demás.
 - Ventana temporal para contar las infracciones: el propietario indicó bloques de tres pero no definió si expiran con el tiempo. Propuesta para el demo: contar infracciones confirmadas durante la vida de la cuenta; el admin general resuelve apelaciones y una apelación pendiente no suspende la sanción automáticamente.
-- Qué persona/cuenta tendrá el rol que permite a Subdirección Académica administrar las citas de clubes.
+- Cuenta demo para el área: `subdireccion@ipn.mx`, rol moderador y área `subdireccion_academica`; se usa para revisar citas de Sala 14.
 - Plano real del campus pendiente de entrega.
 - Evidencia y diagramas finales del Trabajo Terminal: el propietario indicó que por ahora la prioridad es que el sistema funcione y no requiere pruebas automatizadas ni actualizar diagramas como entregable adicional.

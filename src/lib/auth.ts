@@ -40,14 +40,15 @@ export async function getSession(): Promise<SessionUser | null> {
   const authUser = authData.user;
   if (authError || !authUser || authUser.id !== userId || !authUser.email) return null;
 
-  const [{ data: profile, error: profileError }, { data: privateRows, error: privateError }, { data: suspensions, error: suspensionError }] =
+  const [{ data: profile, error: profileError }, { data: privateRows, error: privateError }, { data: statusRows, error: statusError }, { data: suspensions, error: suspensionError }] =
     await Promise.all([
       supabase
         .from("users")
-        .select("id, name, role, area, is_active")
+        .select("id, name, role, area")
         .eq("id", userId)
         .maybeSingle(),
       supabase.rpc("get_my_private_data"),
+      supabase.rpc("get_my_account_status"),
       supabase
         .from("moderation_suspensions")
         .select("ends_at, is_permanent")
@@ -56,7 +57,8 @@ export async function getSession(): Promise<SessionUser | null> {
         .limit(20),
     ]);
 
-  if (profileError || privateError || suspensionError || !profile?.is_active) return null;
+  const account = statusRows?.[0];
+  if (profileError || privateError || statusError || suspensionError || !account?.is_active || account.banned || !profile) return null;
   const suspended = (suspensions ?? []).some(
     (suspension) =>
       suspension.is_permanent ||

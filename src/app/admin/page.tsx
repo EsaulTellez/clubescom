@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { card } from "@/lib/ui";
 import { UserControls } from "./forms";
+import { RosterImport } from "./roster-import";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +67,7 @@ function formatWhen(value: Date) {
 
 export default async function AdminPage() {
   const user = await getSession();
-  if (!user || (user.role !== "admin" && user.role !== "moderador")) {
+  if (!user || user.role !== "admin") {
     return (
       <section className={`${card} max-w-lg space-y-2`}>
         <h1 className="text-xl font-semibold">Panel</h1>
@@ -167,6 +168,8 @@ export default async function AdminPage() {
           )}
         </section>
       )}
+
+      {user.role === "admin" && <RosterImport />}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Auditoría</h2>

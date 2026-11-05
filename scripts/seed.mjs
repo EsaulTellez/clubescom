@@ -20,6 +20,7 @@ const people = [
   ["comunicacion@ipn.mx", "Elizabeth Moreno", "EMP-200", "moderador", "comunicacion"],
   ["gestion@ipn.mx", "Erick Fernández", "EMP-201", "moderador", "gestion_escolar"],
   ["clubes@ipn.mx", "María del Rosario Galeana", "EMP-202", "moderador", "clubes_academicos"],
+  ["subdireccion@ipn.mx", "Subdirección Académica · Sala 14", "EMP-207", "moderador", "subdireccion_academica"],
   ["admin@ipn.mx", "Administración ESCOM", "EMP-001", "admin", null],
   ["becas@ipn.mx", "José Francisco Serrano", "EMP-203", "moderador", "becas"],
   ["catt@ipn.mx", "Comisión de TT", "EMP-204", "moderador", "catt"],

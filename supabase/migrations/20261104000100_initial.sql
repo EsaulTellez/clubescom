@@ -18,6 +18,7 @@ create table public.users (
   area text,
   is_active boolean not null default false,
   banned boolean not null default false,
+  admin_banned boolean not null default false,
   suspended_until timestamptz,
   created_at timestamptz not null default now(),
   check ((role = 'moderador' and area is not null) or (role <> 'moderador' and area is null))
@@ -1029,7 +1030,7 @@ begin
     (new.user_id, new.area, total_strikes, duration_value, now(), end_value, permanent_value);
 
   update public.users as u
-     set banned = u.banned or permanent_value,
+     set banned = u.admin_banned or permanent_value,
          suspended_until = case when permanent_value then null else end_value end
    where u.id = new.user_id;
 
@@ -1041,6 +1042,131 @@ revoke all on function private.apply_moderation_suspension() from public, anon, 
 create trigger moderation_suspension_after_third_strike
 after insert on public.moderation_strikes
 for each row execute function private.apply_moderation_suspension();
+
+create or replace function public.register_moderation_strike(
+  p_user_id uuid, p_area text, p_reason text, p_source_type text
+)
+returns table (strike_id uuid, strike_total integer, suspension_id uuid, target_name text)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor_id uuid := (select auth.uid());
+  inserted_id uuid;
+  total integer;
+  created_suspension uuid;
+  person_name text;
+begin
+  if not private.is_active_actor() or not private.can_manage_area(p_area) then
+    raise exception 'No tienes permiso para moderar esta área';
+  end if;
+  if p_user_id = actor_id or length(trim(coalesce(p_reason, ''))) < 8
+     or length(p_reason) > 1000 or coalesce(p_source_type, '') not in ('foro', 'guia', 'aviso', 'club', 'objeto', 'otro') then
+    raise exception 'Los datos de la infracción no son válidos';
+  end if;
+  if not exists (
+    select 1 from public.users u
+     where u.id = p_user_id and u.is_active and u.role <> 'admin'
+  ) then
+    raise exception 'No encontramos a la persona o no se puede sancionar esa cuenta';
+  end if;
+
+  insert into public.moderation_strikes (user_id, moderator_id, area, reason, source_type)
+  values (p_user_id, actor_id, p_area, trim(p_reason), p_source_type)
+  returning id into inserted_id;
+
+  select count(*)::integer into total
+    from public.moderation_strikes ms where ms.user_id = p_user_id;
+  select u.name into person_name from public.users u where u.id = p_user_id;
+  select s.id into created_suspension
+    from public.moderation_suspensions s
+   where s.user_id = p_user_id and s.strike_count = total
+   order by s.created_at desc limit 1;
+
+  insert into public.notifications (user_id, title, body, href)
+  values (
+    p_user_id,
+    case when created_suspension is null then 'Infracción registrada' else 'Nueva suspensión' end,
+    case when created_suspension is null
+      then 'Se registró una infracción en tu cuenta. Puedes revisar los detalles en Apelaciones.'
+      else 'Esta infracción activó una suspensión. Consulta el motivo y presenta una apelación en la plataforma.'
+    end,
+    '/apelaciones'
+  );
+
+  return query select inserted_id, total, created_suspension, person_name;
+end;
+$$;
+
+create or replace function public.review_moderation_appeal(
+  p_appeal_id uuid, p_accepted boolean, p_review_note text
+)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  appeal_row public.moderation_appeals%rowtype;
+  suspension_row public.moderation_suspensions%rowtype;
+  decision text := case when p_accepted then 'aceptada' else 'rechazada' end;
+begin
+  if not private.is_admin_actor() then
+    raise exception 'Solo el administrador general puede resolver apelaciones';
+  end if;
+  if length(trim(coalesce(p_review_note, ''))) < 5 or length(p_review_note) > 1000 then
+    raise exception 'Escribe el motivo de la decisión (5 a 1000 caracteres)';
+  end if;
+
+  select a.* into appeal_row
+    from public.moderation_appeals a
+   where a.id = p_appeal_id and a.status = 'pendiente'
+   for update;
+  if not found then raise exception 'La apelación ya fue resuelta o no existe'; end if;
+  select s.* into suspension_row
+    from public.moderation_suspensions s
+   where s.id = appeal_row.suspension_id
+   for update;
+
+  update public.moderation_appeals
+     set status = decision,
+         reviewed_by = (select auth.uid()),
+         review_note = trim(p_review_note),
+         reviewed_at = now()
+   where id = p_appeal_id;
+
+  if p_accepted then
+    update public.moderation_suspensions
+       set is_permanent = false,
+           duration = interval '0 seconds',
+           ends_at = now()
+     where id = suspension_row.id;
+
+    update public.users u
+       set banned = u.admin_banned or exists (
+             select 1 from public.moderation_suspensions other
+              where other.user_id = u.id and other.id <> suspension_row.id
+                and other.is_permanent
+           ),
+           suspended_until = (
+             select max(other.ends_at) from public.moderation_suspensions other
+              where other.user_id = u.id and other.id <> suspension_row.id
+                and not other.is_permanent and other.ends_at > now()
+           )
+     where u.id = appeal_row.user_id;
+  end if;
+
+  insert into public.notifications (user_id, title, body, href)
+  values (
+    appeal_row.user_id,
+    case when p_accepted then 'Apelación aceptada' else 'Apelación rechazada' end,
+    trim(p_review_note),
+    '/apelaciones'
+  );
+  return decision;
+end;
+$$;
 
 -- Safe account-facing RPCs. The private schema itself is not exposed by PostgREST.
 create or replace function public.get_my_private_data()
@@ -1131,7 +1257,11 @@ begin
     raise exception 'Solo administración puede cambiar el veto';
   end if;
   update public.users u
-     set banned = p_banned
+     set admin_banned = p_banned,
+         banned = p_banned or exists (
+           select 1 from public.moderation_suspensions s
+            where s.user_id = u.id and s.is_permanent
+         )
    where u.id = p_user_id
    returning u.name, u.banned into name, banned;
   if not found then
@@ -1222,6 +1352,8 @@ revoke all on function public.admin_get_user_private_data(uuid) from public, ano
 revoke all on function public.admin_list_user_profiles() from public, anon;
 revoke all on function public.admin_set_user_role(uuid, public.user_role, text) from public, anon;
 revoke all on function public.admin_set_user_banned(uuid, boolean) from public, anon;
+revoke all on function public.register_moderation_strike(uuid, text, text, text) from public, anon;
+revoke all on function public.review_moderation_appeal(uuid, boolean, text) from public, anon;
 revoke all on function public.issue_club_advisor_code(uuid, text) from public, anon;
 revoke all on function public.verify_club_advisor_code(uuid, text) from public, anon;
 grant execute on function public.get_my_private_data() to authenticated;
@@ -1229,6 +1361,8 @@ grant execute on function public.admin_get_user_private_data(uuid) to authentica
 grant execute on function public.admin_list_user_profiles() to authenticated;
 grant execute on function public.admin_set_user_role(uuid, public.user_role, text) to authenticated;
 grant execute on function public.admin_set_user_banned(uuid, boolean) to authenticated;
+grant execute on function public.register_moderation_strike(uuid, text, text, text) to authenticated;
+grant execute on function public.review_moderation_appeal(uuid, boolean, text) to authenticated;
 grant execute on function public.issue_club_advisor_code(uuid, text) to authenticated;
 grant execute on function public.verify_club_advisor_code(uuid, text) to authenticated;
 
@@ -1698,16 +1832,9 @@ for insert to authenticated with check (
     select 1 from public.moderation_suspensions s where s.id = suspension_id and s.user_id = (select auth.uid())
   )
 );
-create policy moderation_appeals_area_review on public.moderation_appeals
-for update to authenticated using (
-  private.is_admin_actor() or exists (
-    select 1 from public.moderation_suspensions s where s.id = suspension_id and private.can_manage_area(s.area)
-  )
-) with check (
-  private.is_admin_actor() or exists (
-    select 1 from public.moderation_suspensions s where s.id = suspension_id and private.can_manage_area(s.area)
-  )
-);
+create policy moderation_appeals_admin_review on public.moderation_appeals
+for update to authenticated using (private.is_admin_actor())
+with check (private.is_admin_actor());
 
 -- Private data RPCs and RLS helpers can execute, but raw private tables remain
 -- inaccessible through the Data API because the private schema is not exposed.

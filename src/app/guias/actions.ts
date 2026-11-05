@@ -219,3 +219,86 @@ export async function reviewSuggestion(form: FormData) {
   revalidatePath(`/guias/${reviewed.guideId}`);
   redirect(`/guias/${reviewed.guideId}`);
 }
+
+export async function askStepQuestion(form: FormData) {
+  const user = await getSession();
+  if (!user) redirect("/entrar");
+  const guideId = String(form.get("guideId") ?? "");
+  const stepIndex = Number(form.get("stepIndex"));
+  const title = String(form.get("title") ?? "").trim();
+  const body = String(form.get("body") ?? "").trim();
+  if (!isUuid(guideId) || !Number.isInteger(stepIndex) || stepIndex < 0 || title.length < 5 || title.length > 160 || body.length < 10 || body.length > 1600) {
+    redirect(isUuid(guideId) ? `/guias/${guideId}?error=pregunta` : "/guias");
+  }
+  const guide = await pool.query<{ steps: unknown }>("select steps from guides where id = $1", [guideId]);
+  if (!guide.rows[0] || stepIndex >= asSteps(guide.rows[0].steps).length) redirect("/guias");
+  const result = await pool.query<{ id: string }>(
+    `insert into guide_step_questions (guide_id, step_index, author_id, title, body)
+     values ($1, $2, $3, $4, $5) returning id`,
+    [guideId, stepIndex, user.id, title, body],
+  );
+  await audit(user.id, "guide.question.create", "guide_step_questions", result.rows[0].id, title);
+  revalidatePath(`/guias/${guideId}`);
+  redirect(`/guias/${guideId}#paso-${stepIndex + 1}`);
+}
+
+export async function answerStepQuestion(form: FormData) {
+  const user = await getSession();
+  if (!user) redirect("/entrar");
+  const questionId = String(form.get("questionId") ?? "");
+  const body = String(form.get("body") ?? "").trim();
+  if (!isUuid(questionId) || body.length < 5 || body.length > 2000) redirect("/guias");
+  const question = await pool.query<{ id: string; guide_id: string; area: string; status: string }>(
+    `select q.id, q.guide_id, g.area, q.status from guide_step_questions q
+     join guides g on g.id = q.guide_id where q.id = $1`, [questionId],
+  );
+  const row = question.rows[0];
+  if (!row || row.status === "cerrada") redirect("/guias");
+  const official = user.role === "admin" || (user.role === "moderador" && user.area === row.area);
+  const inserted = await pool.query<{ id: string }>(
+    `insert into guide_step_answers (question_id, author_id, body, official) values ($1, $2, $3, $4) returning id`,
+    [questionId, user.id, body, official],
+  );
+  if (official) await pool.query("update guide_step_questions set status = 'respondida', updated_at = now() where id = $1", [questionId]);
+  await audit(user.id, "guide.question.answer", "guide_step_answers", inserted.rows[0].id, official ? "respuesta oficial" : "respuesta comunitaria");
+  revalidatePath(`/guias/${row.guide_id}`);
+  redirect(`/guias/${row.guide_id}#pregunta-${questionId}`);
+}
+
+export async function voteGuideAnswer(form: FormData) {
+  const user = await getSession();
+  if (!user) redirect("/entrar");
+  const answerId = String(form.get("answerId") ?? "");
+  const helpful = String(form.get("helpful") ?? "true") === "true";
+  if (!isUuid(answerId)) redirect("/guias");
+  const answer = await pool.query<{ guide_id: string }>(
+    `select q.guide_id from guide_step_answers a join guide_step_questions q on q.id = a.question_id where a.id = $1`, [answerId],
+  );
+  const guideId = answer.rows[0]?.guide_id;
+  if (!guideId) redirect("/guias");
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await client.query("delete from guide_step_answer_votes where answer_id = $1 and user_id = $2", [answerId, user.id]);
+    await client.query("insert into guide_step_answer_votes (answer_id, user_id, helpful) values ($1, $2, $3)", [answerId, user.id, helpful]);
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+  revalidatePath(`/guias/${guideId}`);
+  redirect(`/guias/${guideId}#respuesta-${answerId}`);
+}
+
+export async function trackGuideStep(guideId: string, stepIndex: number) {
+  const user = await getSession();
+  if (!user || !isUuid(guideId) || !Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex > 29) return;
+  const guide = await pool.query<{ steps: unknown }>("select steps from guides where id = $1", [guideId]);
+  if (!guide.rows[0] || stepIndex >= asSteps(guide.rows[0].steps).length) return;
+  await pool.query(
+    "insert into guide_analytics_events (guide_id, user_id, event_type, step_index) values ($1, $2, 'step_complete', $3)",
+    [guideId, user.id, stepIndex],
+  );
+}

@@ -68,6 +68,7 @@ export function AppShell({ user, children }: { user: SessionUser | null; childre
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
               </Link>
               {(user.role === "admin" || user.role === "moderador") && <Link href="/admin" className="hidden rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73] sm:inline">Panel</Link>}
+              {(user.role === "admin" || user.role === "moderador") && <Link href="/moderacion" className="hidden rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73] sm:inline">Moderación</Link>}
               <Link href="/perfil" className="flex min-h-10 items-center gap-2 rounded-md border border-[#e3e0d6] bg-white px-2">
                 <span className="grid h-7 w-7 place-items-center rounded-md bg-[#e5eff1] text-xs font-extrabold text-[#004d73]">{user.name.slice(0, 1)}</span>
                 <span className="hidden max-w-28 truncate text-sm font-bold sm:block">{user.name.split(" ")[0]}</span>
