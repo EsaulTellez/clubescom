@@ -42,20 +42,65 @@ Orienta sobre trámites. No los ejecuta en SAES ni en el Sistema de Becas, y no 
 
 No entrega un objeto en persona ni exige que un prefecto esté presente. Tampoco deja al director como único responsable del itinerario del auditorio, ni admite clubes informales. La documentación de un club (IMSS, credencial, firmas) no queda validada aquí: esa revisión sigue siendo física, a cargo de la encargada del área.
 
-## Cómo correrla en local
+## Ejecutar el proyecto
 
-Hace falta Docker, Node.js y una vez instalar las dependencias. Supabase CLI inicia localmente PostgreSQL, Auth, Storage, Realtime y Mailpit.
+### Requisitos
+
+- [Node.js](https://nodejs.org/) 20.9 o superior y npm 10 o superior.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) abierto y en ejecución.
+- La [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started). Puede instalarse globalmente con `npm install -g supabase` o ejecutarse con `npx supabase`.
+
+Funciona en macOS, Linux y Windows. En Windows usa PowerShell o WSL y verifica que Docker Desktop esté iniciado antes de continuar.
+
+### Primera ejecución
+
+Desde la carpeta clonada del repositorio, ejecuta los siguientes comandos en orden:
 
 ```bash
-npm install
+npm ci
 npm run db:up
 npm run env:local
 npm run db:seed
 npm run dev -- --hostname 127.0.0.1 --port 3001
 ```
 
-Abre `http://127.0.0.1:3001`. Mailpit local está disponible en `http://127.0.0.1:54324` para verificar los correos de Auth. La clave de Google para funciones de IA es opcional durante la configuración; guárdala solo en `.env.local` como `GOOGLE_GENERATIVE_AI_API_KEY`.
+Abre [http://127.0.0.1:3001](http://127.0.0.1:3001). El primer inicio de Supabase puede tardar porque Docker descarga las imágenes necesarias. Si `npm ci` no es posible porque modificaste las dependencias, usa `npm install` para regenerar el archivo de bloqueo.
 
-La contraseña de las cuentas de demostración es `Escom2026!`. Esas cuentas están en `scripts/seed.mjs`.
+El comando `db:up` inicia PostgreSQL, Auth, Storage, Realtime, Studio y Mailpit en tu equipo. `env:local` crea el archivo privado `.env.local` con las claves de esa instancia; no hay que copiar ni editar `.env.example` para el arranque normal.
+
+### Cuentas de demostración
+
+La contraseña de todas las cuentas de demostración es `Escom2026!`. Los correos y roles disponibles están definidos en `scripts/seed.mjs`.
+
+Para abrir los mensajes de confirmación y recuperación de cuenta, usa Mailpit en [http://127.0.0.1:54324](http://127.0.0.1:54324).
+
+### Configuración opcional de IA
+
+Las funciones que usan IA requieren una clave de Google. Después de ejecutar `npm run env:local`, agrega esta línea a `.env.local`:
+
+```env
+GOOGLE_GENERATIVE_AI_API_KEY=tu_clave
+```
+
+Sin esa variable, el resto de la plataforma y los datos de demostración siguen funcionando.
+
+### Detener o reiniciar los servicios
+
+```bash
+# Detiene la base de datos y los servicios locales
+npm run db:down
+
+# Borra y recrea la base de datos local con las migraciones y datos semilla
+npm run db:reset
+```
+
+Después de `db:reset`, ejecuta de nuevo `npm run env:local` y `npm run db:seed` antes de iniciar la aplicación.
+
+### Problemas frecuentes
+
+- **Docker no responde:** abre Docker Desktop y espera a que indique que el motor está listo.
+- **Un puerto está ocupado:** los servicios usan los puertos 3001, 54321, 54322, 54323 y 54324. Libera el puerto indicado o detén el proceso que lo ocupa.
+- **Variables locales desactualizadas:** ejecuta `npm run env:local` con Supabase activo.
+- **Base de datos en estado inconsistente:** usa `npm run db:reset`, luego `npm run env:local` y `npm run db:seed`.
 
 El detalle del alcance, de los casos de uso y de lo que ya está construido está en `docs/proyecto.md`, `docs/casos-de-uso.md` y `docs/estado.md`.
