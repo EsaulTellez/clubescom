@@ -216,11 +216,6 @@ export async function requestClubAppointment(_prev: ClubState, form: FormData): 
        values ($1, $2, $3::jsonb) returning id`,
       [proposalId, user.id, JSON.stringify(slots.map((slot) => slot.toISOString()))],
     );
-    await client.query(
-      `update club_proposals set status = 'cita_pendiente', updated_at = now()
-       where id = $1 and proposer_id = $2 and status = 'en_validacion'`,
-      [proposalId, user.id],
-    );
     if (!appointment.rowCount) throw new Error("No se pudo crear la solicitud de cita.");
     await client.query("commit");
   } catch (error) {
@@ -369,10 +364,9 @@ export async function requestMembership(_prev: ClubState, form: FormData): Promi
   if (status === "aceptada") return { error: "Ya eres integrante de este club." };
 
   if (status === "rechazada") {
-    await pool.query(
-      `update memberships set status = 'pendiente' where club_id = $1 and user_id = $2 and status = 'rechazada'`,
-      [clubId, user.id],
-    );
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.rpc("resubmit_club_membership", { p_club_id: clubId });
+    if (error || !data) return { error: "No se pudo volver a enviar la solicitud. Recarga la página." };
   } else {
     try {
       await pool.query(

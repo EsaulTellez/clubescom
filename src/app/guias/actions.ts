@@ -71,6 +71,7 @@ export async function publishGuide(
   const faqsRaw = String(form.get("faqs") ?? "");
 
   if (!isArea(area)) return { error: "Elige un área válida." };
+  if (user.role !== "admin" && user.area !== area) return { error: "Solo puedes publicar guías de tu área." };
   if (title.length < 4 || title.length > 180) {
     return { error: "El título debe tener entre 4 y 180 caracteres." };
   }
@@ -301,4 +302,25 @@ export async function trackGuideStep(guideId: string, stepIndex: number) {
     "insert into guide_analytics_events (guide_id, user_id, event_type, step_index) values ($1, $2, 'step_complete', $3)",
     [guideId, user.id, stepIndex],
   );
+}
+
+export async function deleteGuide(form: FormData) {
+  const user = await getSession();
+  const id = String(form.get("id") ?? "");
+  if (!user || !isUuid(id)) redirect("/guias");
+  const result = await pool.query("delete from guides where id = $1 and author_id = $2 returning id", [id, user.id]);
+  if (result.rowCount) await audit(user.id, "guide.delete", "guides", id);
+  revalidatePath("/guias");
+  redirect("/guias");
+}
+
+export async function deleteSuggestion(form: FormData) {
+  const user = await getSession();
+  const id = String(form.get("id") ?? "");
+  const guideId = String(form.get("guideId") ?? "");
+  if (!user || !isUuid(id) || !isUuid(guideId)) redirect("/guias");
+  const result = await pool.query("delete from guide_suggestions where id = $1 and guide_id = $2 returning id", [id, guideId]);
+  if (result.rowCount) await audit(user.id, "guide.suggestion.delete", "guide_suggestions", id);
+  revalidatePath(`/guias/${guideId}`);
+  redirect(`/guias/${guideId}`);
 }

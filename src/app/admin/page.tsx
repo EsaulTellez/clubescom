@@ -1,21 +1,17 @@
 import { PageIntro } from "@/components/page-intro";
 import type { Role } from "@/lib/auth";
 import { getSession } from "@/lib/auth";
-import { pool } from "@/lib/db";
 import { card } from "@/lib/ui";
 import { UserControls } from "./forms";
 import { RosterImport } from "./roster-import";
+import { getAuditLogs, readAuditFilters } from "./audit-query";
+import { PrintButton } from "./print-button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-type Counts = {
-  users: number;
-  avisos: number;
-  clubs: number;
-  lost_items: number;
-  questions: number;
-};
+type Counts = { users_total: number; notices_total: number; clubs_total: number; lost_total: number; questions_total: number; active_30_days: number; questions_open: number; questions_answered: number; handoffs_pending: number };
+type Impact = { title: string; area: string; readers: number; views: number };
 
 type Person = {
   id: string;
@@ -24,16 +20,6 @@ type Person = {
   role: Role;
   area: string | null;
   banned: boolean;
-};
-
-type Log = {
-  id: string;
-  action: string;
-  entity: string;
-  entity_id: string | null;
-  detail: string | null;
-  created_at: Date;
-  actor_name: string | null;
 };
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -65,7 +51,7 @@ function formatWhen(value: Date) {
   }).format(value);
 }
 
-export default async function AdminPage() {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getSession();
   if (!user || user.role !== "admin") {
     return (
@@ -77,48 +63,36 @@ export default async function AdminPage() {
   }
 
   const supabase = user.role === "admin" ? await createSupabaseServerClient() : null;
-  const [countsResult, logs, peopleResult] = await Promise.all([
-    user.role === "admin" ? pool.query<Counts>(
-      `select
-         (select count(*)::int from users) as users,
-         (select count(*)::int from avisos) as avisos,
-         (select count(*)::int from clubs) as clubs,
-         (select count(*)::int from lost_items) as lost_items,
-         (select count(*)::int from questions) as questions`,
-    ) : Promise.resolve({ rows: [] as Counts[] }),
-    pool.query<Log>(
-      `select l.id, l.action, l.entity, l.entity_id, l.detail, l.created_at, u.name as actor_name
-       from audit_logs l
-       left join users u on u.id = l.actor_id
-       order by l.created_at desc
-       limit 50`,
-    ),
-    supabase
-      ? supabase.rpc("admin_list_user_profiles")
-      : Promise.resolve({ data: [] as Person[], error: null }),
+  const filters = readAuditFilters(await searchParams);
+  const [metricsResult, logs, peopleResult, impactResult, questionImpact] = await Promise.all([
+    supabase!.rpc("admin_dashboard_metrics"), getAuditLogs(filters),
+    supabase!.rpc("admin_list_user_profiles"), supabase!.rpc("admin_guide_impact"), supabase!.rpc("admin_question_impact"),
   ]);
   const people = { rows: (peopleResult.data ?? []) as Person[] };
-
-  const summary = countsResult.rows[0];
+  const summary = (metricsResult.data?.[0] ?? {}) as Partial<Counts>;
+  const impact = (impactResult.data ?? []) as Impact[];
   const stats = [
-    ["Usuarios", summary?.users ?? 0],
-    ["Avisos", summary?.avisos ?? 0],
-    ["Clubes", summary?.clubs ?? 0],
-    ["Objetos perdidos", summary?.lost_items ?? 0],
-    ["Preguntas", summary?.questions ?? 0],
+    ["Usuarios activos", summary.users_total], ["Avisos", summary.notices_total],
+    ["Clubes activos", summary.clubs_total], ["Objetos abiertos", summary.lost_total],
+    ["Preguntas", summary.questions_total], ["Personas con actividad registrada (30 días)", summary.active_30_days],
+    ["Preguntas sin responder", summary.questions_open], ["Preguntas respondidas", summary.questions_answered],
+    ["Entregas pendientes", summary.handoffs_pending],
   ] as const;
+  const query = new URLSearchParams(Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1]))).toString();
 
   return (
     <div className="space-y-8">
+      <style>{`@media print { body * { visibility: hidden !important; } .admin-print, .admin-print * { visibility: visible !important; } .admin-print { position: relative; } .admin-print button, .admin-print form, .admin-print a { display: none !important; } }`}</style>
       <PageIntro kicker="Administración" title="Panel" text="Cuentas, contenido y el registro de lo que hace el personal." />
 
+      {metricsResult.error && <p role="alert" className="text-sm text-[#8C1D18]">No se pudieron cargar los indicadores. Comprueba que las migraciones estén aplicadas.</p>}
       {user.role === "admin" && (
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {stats.map(([label, value]) => (
             <article key={label} className={card}>
               <p className="text-sm text-[#667085]">{label}</p>
               <p className="mt-1 text-2xl font-semibold text-[#006699]">
-                {value.toLocaleString("es-MX")}
+                {value === undefined ? "—" : Number(value).toLocaleString("es-MX")}
               </p>
             </article>
           ))}
@@ -169,11 +143,28 @@ export default async function AdminPage() {
         </section>
       )}
 
+      <section className={`${card} admin-print space-y-3`}>
+        <h2 className="text-lg font-semibold">Uso de guías</h2>
+        <p className="text-sm text-[#667085]">Vistas de cuentas identificadas. Solo se muestran guías con al menos cinco lectores distintos.</p>
+        {impactResult.error ? <p>No se pudieron consultar los indicadores.</p> : impact.length ? <ul className="space-y-2 text-sm">{impact.map((item, index) => <li key={`${item.area}-${item.title}-${index}`}><strong>{item.title}</strong> · {item.area} · {item.views} vistas de {item.readers} personas</li>)}</ul> : <p className="text-sm">Aún no hay datos suficientes.</p>}
+        <h3 className="font-semibold">Preguntas por área</h3>
+        <p className="text-sm text-[#667085]">Se muestran áreas con al menos cinco autores distintos.</p>
+        {questionImpact.error ? <p>No se pudieron consultar las preguntas.</p> : questionImpact.data?.length ? <ul className="space-y-1 text-sm">{questionImpact.data.map((item: {area: string; questions: number; unanswered: number}) => <li key={item.area}>{item.area} · {item.questions} preguntas · {item.unanswered} sin responder</li>)}</ul> : <p className="text-sm">Aún no hay datos suficientes.</p>}
+        <div className="flex flex-wrap gap-2"><PrintButton /><a className="rounded border px-3 py-2 text-sm text-[#006699]" href="/admin/impacto.csv">Descargar reporte CSV</a></div>
+      </section>
       {user.role === "admin" && <RosterImport />}
 
-      <section className="space-y-3">
+      <section className="admin-print space-y-3">
         <h2 className="text-lg font-semibold">Auditoría</h2>
-        <p className="text-sm text-[#667085]">Últimos 50 movimientos.</p>
+        <p className="text-sm text-[#667085]">Hasta 500 movimientos, ordenados del más reciente al más antiguo.</p>
+        <form className="flex flex-wrap gap-2" method="get">
+          <input className="rounded border p-2 text-sm" name="actor" defaultValue={filters.actor} placeholder="Nombre de usuario" aria-label="Nombre de usuario" />
+          <input className="rounded border p-2 text-sm" name="entity" defaultValue={filters.entity} placeholder="Entidad" aria-label="Entidad" />
+          <label className="text-sm">Desde <input className="rounded border p-2" type="date" name="from" defaultValue={filters.from} /></label>
+          <label className="text-sm">Hasta <input className="rounded border p-2" type="date" name="to" defaultValue={filters.to} /></label>
+          <button className="rounded bg-[#006699] px-3 py-2 text-sm text-white">Filtrar</button>
+          <a className="rounded border px-3 py-2 text-sm text-[#006699]" href={`/admin/auditoria.csv${query ? `?${query}` : ""}`}>Descargar CSV</a>
+        </form>
         {logs.rows.length === 0 ? (
           <p className={card}>Todavía no hay registros de auditoría.</p>
         ) : (

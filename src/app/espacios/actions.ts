@@ -111,3 +111,11 @@ export async function addSpaceEvent(_prev: FormState, form: FormData): Promise<F
   revalidatePath("/espacios");
   return { ok: inserted.rowCount ? "Evento autorizado publicado en el itinerario." : "No se pudo publicar el evento." };
 }
+
+export async function deleteSpaceEvent(form: FormData) {
+  const user = await getSession();
+  const id = text(form, "id");
+  if (!user || !canPublishEvents(user) || !UUID.test(id)) return;
+  await pool.query("delete from space_events where id = $1", [id]);
+  revalidatePath("/espacios");
+}

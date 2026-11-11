@@ -52,6 +52,19 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 ## Cambios
 
+- 2026-11-10. CU-14 sigue parcial: una respuesta crea la notificación y marca la pregunta respondida cuando es oficial mediante un trigger; antes la inserción de notificación violaba RLS y revertía respuestas ajenas. Falta validarlo con Supabase y dos cuentas.
+
+- 2026-11-10. CU-01 sigue parcial: la baja identifica archivos propios y asociados con propuestas u objetos que desaparecerán antes de eliminar Auth. Falta probar limpieza y fallos parciales en Supabase local.
+- 2026-11-10. CU-17, CU-19 y CU-20 siguen parciales: se restringe la modificación directa de estados de propuestas y altas de membresía; se habilita el reenvío controlado de solicitudes rechazadas. Falta probar las políticas en Supabase.
+- 2026-11-10. CU-32, CU-34 y CU-35 siguen parciales: el panel incorpora métricas, filtros y CSV de auditoría, reporte CSV e impresión/PDF de uso de guías y preguntas por área con umbral de privacidad de cinco personas. Falta verificar resultados con datos locales y ampliar métricas.
+- 2026-11-10. CU-33 sigue parcial: se añadió un CSV de muestra ficticio compatible con nombre y correo; faltan recorridos de importación y entrega de invitaciones en Mailpit.
+
+- 2026-11-10. CU-05 y CU-GUA-02-01 siguen parciales: el formulario limita áreas, valida permisos y permite borrar guías propias y sugerencias; una nota aceptada permanece en el texto. Falta validar en Supabase y completar edición/versiones.
+- 2026-11-10. CU-07 sigue parcial: el autor puede consultar avisos ocultos o programados mediante RLS. Falta probar creación y edición con Supabase.
+- 2026-11-10. CU-17 a CU-20 siguen parciales: el conteo usa el agregado público; el detalle evita consultar boleta privada y el asesor obtiene acceso a publicaciones y solicitudes. Falta recorrer la creación y registro completo del club.
+- 2026-11-10. CU-23 y CU-24 siguen parciales: se limitan los intentos a tres por usuario y reporte y solo se permite una entrega aprobada; se bloquea confirmar sobre un reporte cerrado. Falta aplicar y probar la migración con varias cuentas.
+- 2026-11-10. CU-28 sigue parcial: la cartelera muestra fecha y hora completas de fin y permite eliminar eventos a personal autorizado. Falta probar el flujo con Supabase.
+
 - 2026-11-04. CU-01 sigue parcial: Supabase Auth administra registro, login y perfiles; las cuentas demo ya inician sesión en local como alumno, profesor, moderador y admin. Registro con OTP y baja de cuenta siguen pendientes de recorrido en navegador.
 - 2026-11-04. CU-02 sigue parcial: la recuperación usa el enlace de Supabase Auth y callback local; falta recorrer el correo de recuperación y cambio de contraseña con Mailpit.
 - 2026-11-04. CU-03 sigue parcial: RLS y el esquema local incluyen suspensiones graduadas y apelaciones; falta completar y recorrer toda la interfaz de infracciones y apelaciones.

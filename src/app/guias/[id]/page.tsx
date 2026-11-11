@@ -4,7 +4,7 @@ import { Cover } from "@/components/cover";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btn, btnGhost, card } from "@/lib/ui";
-import { reviewSuggestion, suggestImprovement } from "../actions";
+import { deleteGuide, deleteSuggestion, reviewSuggestion, suggestImprovement } from "../actions";
 import {
   areaLabel,
   asFaqs,
@@ -28,6 +28,7 @@ type GuideRow = {
   faqs: unknown;
   created_at: Date;
   author_name: string;
+  author_id: string;
 };
 
 type Suggestion = {
@@ -49,7 +50,7 @@ export default async function GuidePage({
 
   const user = await getSession();
   const guideResult = await pool.query<GuideRow>(
-    `select g.id, g.area, g.title, g.summary, g.steps, g.faqs, g.created_at, u.name as author_name
+    `select g.id, g.author_id, g.area, g.title, g.summary, g.steps, g.faqs, g.created_at, u.name as author_name
      from guides g
      join users u on u.id = g.author_id
      where g.id = $1`,
@@ -124,6 +125,7 @@ export default async function GuidePage({
         </div>
       </header>
 
+      {staff && user?.id === guide.author_id && <form action={deleteGuide}><input type="hidden" name="id" value={guide.id} /><button className={btnGhost}>Eliminar mi guía</button></form>}
       <section className="space-y-4">
         <div>
           <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">En corto</p>
@@ -153,6 +155,7 @@ export default async function GuidePage({
                     <span className="text-[#667085]">{formatDate(suggestion.created_at)}</span>
                   </div>
                   <p className="mt-2 whitespace-pre-wrap text-sm">{suggestion.body}</p>
+                  {staff && <form action={deleteSuggestion} className="mt-2"><input type="hidden" name="id" value={suggestion.id} /><input type="hidden" name="guideId" value={guide.id} /><button className="text-xs font-bold text-[#8C1D18]">Eliminar sugerencia {suggestion.status === "aceptada" ? "(conserva la nota aplicada)" : ""}</button></form>}
                   {staff && suggestion.status === "pendiente" && <form action={reviewSuggestion} className="mt-3 flex flex-wrap gap-2">
                     <input type="hidden" name="id" value={suggestion.id} />
                     <button className={btn} name="decision" value="aceptar">Aceptar</button>

@@ -140,17 +140,6 @@ export async function publishAnswer(
       [questionId, user.id, body, official],
     );
 
-    if (row.author_id !== user.id) {
-      await client.query(
-        `insert into notifications (user_id, title, body, href)
-         values ($1, 'Nueva respuesta', $2, $3)`,
-        [
-          row.author_id,
-          `Hay una nueva respuesta en «${row.title}».`,
-          `/foro/${questionId}`,
-        ],
-      );
-    }
     return row.title;
   });
 

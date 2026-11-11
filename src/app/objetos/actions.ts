@@ -100,7 +100,8 @@ export async function claimItem(_prev: FormState, form: FormData): Promise<FormS
   });
   if (error?.code === "23505") return { error: "Ya enviaste un reclamo para este reporte." };
   if (error) return { error: "No se pudo enviar el reclamo. Comprueba que el reporte siga abierto." };
-  if (!data?.[0]?.claim_id) return { error: "La respuesta de seguridad no coincide." };
+  if (data?.[0]?.status === "limite") return { error: "Agotaste los tres intentos para este reporte." };
+  if (!data?.[0]?.claim_id) return { error: "La respuesta de seguridad no coincide. Tienes hasta tres intentos." };
 
   revalidatePath(`/objetos/${id}`);
   return { ok: "Respuesta correcta. Quien publicó el hallazgo revisará el reclamo." };

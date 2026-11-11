@@ -21,7 +21,7 @@ type Club = {
   leader_name: string | null;
   advisor_name: string | null;
 };
-type Pending = { user_id: string; name: string; boleta: string | null };
+type Pending = { user_id: string; name: string };
 type Member = { id: string; name: string; role: string };
 type Post = { id: string; title: string; body: string; author_name: string; created_at: Date };
 type Event = { id: string; title: string; description: string; location: string; starts_at: Date };
@@ -103,7 +103,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
       }
       if (user && (user.id === club.leader_id || user.id === club.advisor_id)) {
         const queue = await pool.query<Pending>(
-          `select m.user_id, u.name, u.boleta
+          `select m.user_id, u.name
            from memberships m join users u on u.id = m.user_id
            where m.club_id = $1 and m.status = 'pendiente' order by u.name`,
           [id],
@@ -241,7 +241,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
       {manages && club.active && <section className={`${card} space-y-4`}>
         <div><h2 className="font-extrabold text-[#19384c]">Solicitudes por revisar</h2><p className="mt-1 text-sm text-[#71818d]">Acepta o rechaza a quien pidió integrarse.</p></div>
         {pending.length === 0 ? <p className="text-sm text-[#667085]">No hay solicitudes pendientes.</p> : <ul className="space-y-3">
-          {pending.map((person) => <li key={person.user_id} className="flex flex-col gap-3 border-t border-[#e6eef2] pt-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm font-semibold">{person.name}{person.boleta ? <span className="text-[#667085]"> · {person.boleta}</span> : null}</p><DecisionButtons clubId={club.id} userId={person.user_id} /></li>)}
+          {pending.map((person) => <li key={person.user_id} className="flex flex-col gap-3 border-t border-[#e6eef2] pt-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm font-semibold">{person.name}</p><DecisionButtons clubId={club.id} userId={person.user_id} /></li>)}
         </ul>}
       </section>}
     </div>

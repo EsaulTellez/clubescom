@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { CampusMap } from "@/components/campus-map";
 import { card } from "@/lib/ui";
+import { deleteSpaceEvent } from "./actions";
 import { CubicleForm, SpaceEventForm } from "./forms";
 
 type EventItem = {
@@ -132,7 +133,8 @@ export function SpacesTabs({
                   <p className="text-xs font-bold text-[#004d73]">{time(event.startsAt)} · {event.spaceName}</p>
                   <h3 className="font-extrabold">{event.title}</h3>
                   {event.description && <p className="text-sm leading-6 text-[#5f6e78]">{event.description}</p>}
-                  <p className="text-sm text-[#5f6e78]">{event.building ?? "Campus ESCOM"}{event.endsAt ? ` · Termina ${time(event.endsAt)}` : ""}</p>
+                  <p className="text-sm text-[#5f6e78]">{event.building ?? "Campus ESCOM"}{event.endsAt ? ` · Termina ${new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short", timeZone: TZ }).format(new Date(event.endsAt))}` : ""}</p>
+                  {canPublishEvents && <form action={deleteSpaceEvent}><input type="hidden" name="id" value={event.id} /><button className="text-xs font-bold text-[#8C1D18]">Eliminar evento</button></form>}
                 </article>
               )) : <div className={`${card} border-dashed text-center`}><span className="text-3xl" aria-hidden="true">🗓️</span><h3 className="mt-3 font-bold">Todavía no hay eventos</h3><p className="mt-1 text-sm text-[#5f6e78]">Prueba otro mes o vuelve más tarde.</p></div>}
             </section>

@@ -1,14 +1,14 @@
 # Pendientes del proyecto
 
-Estado al 2026-11-05, comparado con `docs/fuente/TT.docx` y las decisiones del propietario en `docs/decisiones-producto.md`. La demo corre localmente con Supabase, seed de 12 cuentas y migraciones aplicadas. Las rutas principales ya conectan con el modelo nuevo; esta lista contiene brechas funcionales todavía abiertas y recorridos que falta validar.
+Estado actualizado el 2026-11-10, comparado con `docs/fuente/TT.docx` y las decisiones del propietario en `docs/decisiones-producto.md`. La demo usa Supabase local y un seed de 12 cuentas. Las migraciones nuevas deben aplicarse antes de validar estos cambios. Las rutas principales ya conectan con el modelo nuevo; esta lista contiene brechas funcionales todavía abiertas y recorridos que falta validar.
 
 ## Lo siguiente para llegar a una demo funcional
 
 1. Recorrer los flujos con las cuentas demo: alta y OTP, recuperación, foro y respuestas oficiales por área, propuesta de club con expedientes/asesor/cita, reclamo y QR entre dos personas, apelación, baja de cuenta y avisos programados.
 2. Completar CU-09: carga privada de archivos compatibles (al menos PDF/DOCX/TXT), extracción con Google GenAI y borrador de pasos editables con confirmación humana. La clave local aún no se ha probado.
 3. Completar preguntas/analíticas de guías: notificar a moderación dentro de la app, versiones de guía, filtros de métricas y preguntas por paso; hoy existen Q&A, votos y métricas básicas de vistas/pasos completados.
-4. Completar panel CU-32/34/35: filtros de auditoría y exportación CSV/PDF; métricas de actividad reciente, preguntas atendidas/abiertas, objetos por entregar, uso de guías y reportes de impacto sin exponer grupos pequeños.
-5. Verificar CU-33 con un CSV de muestra, errores y Mailpit. El flujo ya previsualiza, valida, detecta duplicados, deja descargar errores y envía invitaciones Auth de alumnos/profesores; no crea personal privilegiado desde el archivo.
+4. Verificar CU-32/34/35 con datos: panel, filtros y CSV de auditoría, métricas básicas, reporte de impacto CSV e impresión/PDF ya están implementados; faltan recorridos reales, más indicadores y comprobar el documento impreso.
+5. Verificar CU-33 con el ejemplo ficticio `public/ejemplo-padron-escom.csv`, errores y Mailpit. El flujo ya previsualiza, valida, detecta duplicados, deja descargar errores y envía invitaciones Auth de alumnos/profesores; no crea personal privilegiado desde el archivo.
 6. Revisar preferencias de notificación: conservar solo canales in-app, sin correo para avisos del producto ni seguimiento automático 24/48 h del foro.
 7. Cambiar el mapa ilustrativo por el plano real cuando el propietario lo comparta; mejorar selección/búsqueda y resalte sobre el plano.
 
@@ -21,7 +21,7 @@ Estado al 2026-11-05, comparado con `docs/fuente/TT.docx` y las decisiones del p
 - El administrador general asigna roles. Los moderadores institucionales se limitan al área; el moderador alumno, a su club.
 - Supabase Auth verifica correo y recupera contraseña. Los correos de avisos/notificaciones del producto y las alertas de preguntas a 24/48 horas se excluyen.
 - Registro de infracciones, escalera 1/3/6 meses y permanente, historial y apelación ya tienen pantalla y RPC. El demo interpreta el conteo como acumulado de por vida; falta recorrer la resolución con dos cuentas.
-- La baja de cuenta debe comprobar que borre archivos personales asociados además del usuario Auth; borrar permanentemente una cuenta no se prueba contra cuentas reales.
+- La baja de cuenta intenta borrar archivos relacionados antes del usuario Auth; hay que comprobarlo con archivos y fallos reales; borrar permanentemente una cuenta no se prueba contra cuentas reales.
 
 ### Avisos y guías
 
@@ -51,7 +51,7 @@ Estado al 2026-11-05, comparado con `docs/fuente/TT.docx` y las decisiones del p
 
 ### Reportes e importación
 
-- El panel global corresponde solo al admin general. Faltan las métricas acordadas para comunidad cercana a 3,000 personas, filtros y exportación CSV/PDF.
+- El panel global corresponde solo al admin general. Hay métricas básicas, filtros, CSV e impresión/PDF; faltan validación con datos y métricas adicionales para la comunidad.
 - La importación de padrón será CSV de demostración, con vista previa, validación de columnas/dominios, detección de duplicados y descarga de errores. Nunca asignará roles de moderador/admin ni contraseñas.
 
 ## Decisiones de alcance

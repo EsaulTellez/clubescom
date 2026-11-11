@@ -81,14 +81,13 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
     const result = await pool.query<Proposal>(
       `select p.id, p.proposer_id, p.name, p.kind, p.description, p.plan_url, p.status,
               p.advisor_id, p.advisor_confirmed_at, proposer.name as proposer_name,
-              advisor.name as advisor_name, count(i.user_id)::int as interests, c.id as club_id
+              advisor.name as advisor_name, p.interested_count as interests, c.id as club_id
        from club_proposals p
        join users proposer on proposer.id = p.proposer_id
        left join users advisor on advisor.id = p.advisor_id
-       left join club_interests i on i.proposal_id = p.id
        left join clubs c on c.proposal_id = p.id
        where p.id = $1
-       group by p.id, proposer.name, advisor.name, c.id`,
+`,
       [id],
     );
     proposal = result.rows[0];

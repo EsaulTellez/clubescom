@@ -139,7 +139,19 @@ export async function deleteAccount() {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) redirect("/entrar");
 
+  const { data: objects, error: listError } = await supabase.rpc("my_account_storage_objects");
+  if (listError) throw new Error("No se pudieron identificar tus archivos. Inténtalo de nuevo.");
   const admin = createSupabaseAdminClient();
+  const grouped = new Map<string, string[]>();
+  for (const object of (objects ?? []) as { bucket_id: string; object_name: string }[]) {
+    grouped.set(object.bucket_id, [...(grouped.get(object.bucket_id) ?? []), object.object_name]);
+  }
+  for (const [bucket, paths] of grouped) {
+    for (let offset = 0; offset < paths.length; offset += 100) {
+      const { error: storageError } = await admin.storage.from(bucket).remove(paths.slice(offset, offset + 100));
+      if (storageError) throw new Error("No se pudieron eliminar todos tus archivos. Inténtalo de nuevo.");
+    }
+  }
   const { error: deleteError } = await admin.auth.admin.deleteUser(data.user.id);
   if (deleteError) {
     throw new Error("No se pudo eliminar la cuenta. Inténtalo de nuevo.");

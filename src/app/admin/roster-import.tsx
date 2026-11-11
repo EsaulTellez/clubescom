@@ -155,7 +155,8 @@ export function RosterImport() {
         <h2 className="mt-1 text-lg font-semibold text-[#123044]">Invitar cuentas institucionales</h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-[#526778]">Columnas requeridas: <code>nombre,correo</code>. Acepta <code>@alumno.ipn.mx</code> y <code>@ipn.mx</code>; el rol se deriva del dominio. Se envía una invitación de Supabase Auth para verificar el correo.</p>
         <p className="mt-1 text-sm text-[#526778]">Hasta {MAX_ROWS} filas por archivo. Solo se crean cuentas nuevas; el CSV no puede asignar roles, áreas ni contraseñas.</p>
-        <a className="mt-2 inline-flex text-sm font-semibold text-[#006699] underline decoration-[#9fc8dc] underline-offset-4" href="data:text/csv;charset=utf-8,%EF%BB%BFnombre%2Ccorreo%0D%0A" download="plantilla-padron-escom.csv">Descargar plantilla CSV</a>
+        <a className="mt-2 inline-flex text-sm font-semibold text-[#006699] underline decoration-[#9fc8dc] underline-offset-4" href="data:text/csv;charset=utf-8,%EF%BB%BFnombre%2Ccorreo%0D%0A" download="plantilla-padron-escom.csv">Descargar plantilla CSV</a><span className="mx-2">·</span><a className="text-sm font-semibold text-[#006699] underline" href="/ejemplo-padron-escom.csv" download>Descargar ejemplo ficticio</a>
+        <p className="mt-1 text-xs text-[#526778]">El ejemplo ilustra el formato de la demo; sustituye sus datos antes de importar. No es un padrón oficial del IPN.</p>
       </div>
       <label className="block space-y-2 text-sm font-medium text-[#123044]">
         Archivo CSV

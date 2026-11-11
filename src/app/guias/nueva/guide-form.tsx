@@ -7,7 +7,9 @@ import { AREAS } from "../shared";
 
 export function GuideForm({
   action,
+  areas,
 }: {
+  areas: readonly (typeof AREAS)[number][];
   action: (state: GuideState, form: FormData) => Promise<GuideState>;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
@@ -16,8 +18,8 @@ export function GuideForm({
     <form action={formAction} className="space-y-3">
       <label className={label}>
         Área
-        <select className={input} name="area" defaultValue="gestion_escolar">
-          {AREAS.map((area) => (
+        <select className={input} name="area" defaultValue={areas[0]?.id}>
+          {areas.map((area) => (
             <option key={area.id} value={area.id}>
               {area.label}
             </option>

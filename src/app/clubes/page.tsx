@@ -42,12 +42,10 @@ export default async function ClubesPage() {
     const proposalResult = await pool.query<ProposalRow>(
       `select p.id, p.name, p.kind, p.description, p.status,
               u.name as proposer_name,
-              count(i.user_id)::int as interests
+              p.interested_count as interests
        from club_proposals p
        join users u on u.id = p.proposer_id
-       left join club_interests i on i.proposal_id = p.id
        where p.status <> 'registrado'
-       group by p.id, u.name
        order by p.created_at desc`,
     );
     clubs = clubResult.rows;
