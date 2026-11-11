@@ -13,6 +13,7 @@ type Row = {
   kind: ItemKind;
   title: string;
   place: string;
+  description: string;
   photo_url: string | null;
   status: ItemStatus;
   created_at: string;
@@ -28,7 +29,7 @@ export default async function ObjetosPage({
   const kind = raw && isKind(raw) ? raw : null;
   const user = await getSession();
   const { rows } = await pool.query<Row>(
-    `select id, kind, title, place, photo_url, status, created_at
+    `select id, kind, title, description, place, photo_url, status, created_at
      from lost_items
      where status = 'abierto' and ($1::text is null or kind = $1)
      order by created_at desc`,
@@ -58,9 +59,9 @@ export default async function ObjetosPage({
       />
 
       <section className="grid gap-3 sm:grid-cols-3" aria-label="Resumen de reportes">
-        <div className="rounded-3xl border border-white bg-white/85 p-4 shadow-[0_8px_24px_rgba(0,64,96,0.06)]"><p className="text-2xl font-extrabold text-[#006699]">{rows.length}</p><p className="mt-1 text-xs font-semibold text-[#667085]">Reportes abiertos</p></div>
-        <div className="rounded-3xl border border-white bg-white/85 p-4 shadow-[0_8px_24px_rgba(0,64,96,0.06)]"><p className="text-2xl font-extrabold text-[#006699]">{lostCount}</p><p className="mt-1 text-xs font-semibold text-[#667085]">Cosas por encontrar</p></div>
-        <div className="rounded-3xl border border-white bg-white/85 p-4 shadow-[0_8px_24px_rgba(0,64,96,0.06)]"><p className="text-2xl font-extrabold text-[#006699]">{foundCount}</p><p className="mt-1 text-xs font-semibold text-[#667085]">Hallazgos publicados</p></div>
+        <div className="board-sidecard p-4"><p className="text-2xl font-extrabold text-[#006699]">{rows.length}</p><p className="mt-1 text-xs font-semibold text-[#667085]">Reportes en esta vista</p></div>
+        <div className="board-sidecard p-4"><p className="text-2xl font-extrabold text-[#006699]">{lostCount}</p><p className="mt-1 text-xs font-semibold text-[#667085]">Cosas por encontrar</p></div>
+        <div className="board-sidecard p-4"><p className="text-2xl font-extrabold text-[#006699]">{foundCount}</p><p className="mt-1 text-xs font-semibold text-[#667085]">Hallazgos publicados</p></div>
       </section>
 
       <div className="flex flex-wrap gap-2">
@@ -81,7 +82,7 @@ export default async function ObjetosPage({
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((item) => (
             <li key={item.id}>
-              <Link href={`/objetos/${item.id}`} className="group block h-full overflow-hidden rounded-[28px] border border-white bg-white/90 shadow-[0_10px_34px_rgba(0,64,96,0.07)] transition duration-200 hover:-translate-y-1 hover:border-[#b7d4e4] hover:shadow-[0_18px_44px_rgba(0,64,96,0.13)]">
+              <Link href={`/objetos/${item.id}`} className="group block h-full overflow-hidden rounded-lg border border-[#dcd9ce] bg-[#fffdf7] shadow-sm transition hover:border-[#006699]">
                 <div className="relative">
                   <Cover tone={item.kind} image={item.photo_url} className="h-52" />
                   <span className={`absolute left-3 top-3 rounded-full px-3 py-1.5 text-xs font-extrabold shadow-sm ${item.kind === "perdido" ? "bg-white text-[#9b4c2f]" : "bg-white text-[#006699]"}`}>{kindLabel[item.kind]}</span>
@@ -91,6 +92,7 @@ export default async function ObjetosPage({
                     <h2 className="text-lg font-extrabold leading-snug tracking-tight text-[#222337] group-hover:text-[#006699]">{item.title}</h2>
                     <span className="shrink-0 rounded-full bg-[#e6f3fa] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#006699]">{statusLabel[item.status]}</span>
                   </div>
+                  <p className="line-clamp-2 text-sm leading-6 text-[#5f6e78]">{item.description}</p>
                   <div className="flex items-center gap-2 text-sm text-[#667085]">
                     <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-[#006699]" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M16 8.5c0 4.8-6 9-6 9s-6-4.2-6-9a6 6 0 1 1 12 0Z"/><circle cx="10" cy="8.5" r="2"/></svg>
                     <span className="truncate">{item.place}</span>

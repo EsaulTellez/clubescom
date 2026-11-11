@@ -101,13 +101,20 @@ export async function publishGuide(
     }));
   }
 
-  const inserted = await pool.query<{ id: string }>(
-    `insert into guides (author_id, area, title, summary, steps, faqs)
-     values ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
-     returning id`,
-    [user.id, area, title, summary, JSON.stringify(steps), JSON.stringify(faqs)],
-  );
-  const id = inserted.rows[0].id;
+  const id = await withTx(async (client) => {
+    const inserted = await client.query<{ id: string }>(
+      `insert into guides (author_id, area, title, summary, steps, faqs)
+       values ($1, $2, $3, $4, $5::jsonb, $6::jsonb) returning id`,
+      [user.id, area, title, summary, JSON.stringify(steps), JSON.stringify(faqs)],
+    );
+    const guideId = inserted.rows[0].id;
+    await client.query(
+      `insert into guide_versions (guide_id, version, edited_by, title, summary, steps, faqs, change_note)
+       select id, version, $2, title, summary, steps, faqs, 'Publicación inicial' from guides where id = $1`,
+      [guideId, user.id],
+    );
+    return guideId;
+  });
   await audit(user.id, "guide.create", "guides", id, title);
   revalidatePath("/guias");
   redirect(`/guias/${id}`);
@@ -201,10 +208,21 @@ export async function reviewSuggestion(form: FormData) {
 
     const note = `Nota: ${row.body.trim()}`;
     step.body = step.body.trim() ? `${step.body.trim()}\n\n${note}` : note;
-    await client.query("update guides set steps = $2::jsonb where id = $1", [
+    await client.query(
+      `insert into guide_versions (guide_id, version, edited_by, title, summary, steps, faqs, change_note)
+       select id, version, $2, title, summary, steps, faqs, 'Versión anterior' from guides where id = $1
+       on conflict (guide_id, version) do nothing`,
+      [row.guide_id, user.id],
+    );
+    await client.query("update guides set steps = $2::jsonb, version = version + 1, updated_at = now() where id = $1", [
       row.guide_id,
       JSON.stringify(steps),
     ]);
+    await client.query(
+      `insert into guide_versions (guide_id, version, edited_by, title, summary, steps, faqs, change_note)
+       select id, version, $2, title, summary, steps, faqs, $3 from guides where id = $1`,
+      [row.guide_id, user.id, `Sugerencia aceptada en el paso ${row.step_index + 1}`],
+    );
     await client.query(
       "update guide_suggestions set status = 'aceptada' where id = $1",
       [id],

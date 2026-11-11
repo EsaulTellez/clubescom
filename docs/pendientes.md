@@ -27,7 +27,7 @@ Estado actualizado el 2026-11-10, comparado con `docs/fuente/TT.docx` y las deci
 
 - El formato social ya llama Google GenAI en servidor si hay `GOOGLE_GENERATIVE_AI_API_KEY`; falta recorrerlo con una clave válida. El borrador requiere edición humana antes de publicar.
 - Inicio, foro y notificaciones reciben cambios Realtime de tablas configuradas; falta recorrerlo con dos sesiones. La publicación programada aún necesita un scheduler local.
-- Falta carga y extracción de documentos para guías, versiones, aviso in-app al moderador de área, filtros de métricas y lista de colaboradores. Las preguntas por paso, respuestas y votos de utilidad ya están conectadas.
+- Falta carga y extracción de documentos para guías, edición general, aviso in-app al moderador de área, filtros de métricas y lista de colaboradores. Las preguntas por paso, respuestas y votos de utilidad ya están conectadas; la publicación y las sugerencias aceptadas guardan versiones.
 - La interfaz de preferencias aún contiene banderas `email_*` heredadas aunque no se enviarán correos de producto; debe quedar en preferencias de notificación dentro de la app.
 
 ### Foro y moderación

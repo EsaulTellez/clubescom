@@ -58,19 +58,6 @@ export default async function ClubesPage() {
 
   return (
     <div className="board-page">
-      <header className="board-masthead">
-        <div>
-          <p className="board-eyebrow">Vida estudiantil · comunidades ESCOM</p>
-          <h1>Encuentra tu lugar en un club.</h1>
-          <p className="board-masthead__text">
-            Conoce lo que ya se reúne en la escuela o ayuda a que una nueva idea llegue a buen puerto.
-          </p>
-        </div>
-        <nav className="board-shortcuts" aria-label="Atajos de clubes">
-          <a href="#clubes-activos" className="board-shortcut">✳ Ver clubes</a>
-          <a href="#propuestas" className="board-shortcut">🗳 Propuestas</a>
-        </nav>
-      </header>
 
       {dbDown && (
         <p className={card} role="status">
@@ -113,7 +100,7 @@ export default async function ClubesPage() {
                     </div>
                     <p className="board-club-card__description line-clamp-3">{club.description}</p>
                     <div className="board-club-card__footer">
-                      <span className="min-w-0 truncate">🗓 {club.schedule?.trim() || "Horario por anunciar"}</span>
+                      <span className="min-w-0 truncate">{club.schedule?.trim() || "Horario por anunciar"}</span>
                       <span className="shrink-0 font-extrabold text-[#004d73]">Abrir →</span>
                     </div>
                   </Link>

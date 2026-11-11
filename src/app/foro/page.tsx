@@ -17,6 +17,8 @@ type QuestionRow = {
   author_name: string;
   votes: number;
   voted: boolean;
+  has_official: boolean;
+  answer_count: number;
 };
 
 export default async function ForoPage({
@@ -34,6 +36,8 @@ export default async function ForoPage({
     const result = await pool.query<QuestionRow>(
       `select q.id, q.area, q.title, q.created_at, u.name as author_name,
               count(v.user_id)::int as votes,
+              (select count(*)::int from answers a where a.question_id = q.id) as answer_count,
+              exists (select 1 from answers a where a.question_id = q.id and a.official) as has_official,
               coalesce(bool_or(v.user_id = $2::uuid), false) as voted
        from questions q
        join users u on u.id = q.author_id
@@ -51,19 +55,6 @@ export default async function ForoPage({
   return (
     <div className="board-page">
       <RealtimeRefresh tables={["questions", "answers", "question_votes"]} />
-      <header className="board-masthead">
-        <div>
-          <p className="board-eyebrow">Preguntas y respuestas · comunidad ESCOM</p>
-          <h1>Entre todos resolvemos la duda.</h1>
-          <p className="board-masthead__text">
-            Pregunta sobre trámites y temas de la escuela. La respuesta oficial de cada área queda a la vista de todos.
-          </p>
-        </div>
-        <nav className="board-shortcuts" aria-label="Atajos del foro">
-          <a href="#preguntas" className="board-shortcut">↕ Explorar dudas</a>
-          <a href="#new-question" className="board-shortcut">✎ Preguntar</a>
-        </nav>
-      </header>
 
       <div className="board-feed__bar">
         <strong>Elige el pizarrón por tema</strong>
@@ -107,11 +98,11 @@ export default async function ForoPage({
                   <span>votos</span>
                 </div>
                 <div className="min-w-0">
-                  <span className="board-label">{areaLabel(question.area)}</span>
+                  <div className="flex flex-wrap gap-2"><span className="board-label">{areaLabel(question.area)}</span><span className="board-label">{question.has_official ? "Respuesta oficial" : "Sin respuesta oficial"}</span></div>
                   <h2><Link href={`/foro/${question.id}`}>{question.title}</Link></h2>
                   <p className="board-discussion__meta">Publicó {question.author_name} · {formatDate(question.created_at)}</p>
                   <div className="board-discussion__footer">
-                    <p className="m-0 text-xs font-bold text-[#47616d]">{voteLabel(Number(question.votes))}</p>
+                    <p className="m-0 text-xs font-bold text-[#47616d]">{voteLabel(Number(question.votes))} · {question.answer_count} {question.answer_count === 1 ? "respuesta" : "respuestas"}</p>
                     {user && (
                       <form action={toggleVote}>
                         <input type="hidden" name="questionId" value={question.id} />

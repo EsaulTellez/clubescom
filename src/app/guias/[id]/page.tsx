@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Cover } from "@/components/cover";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btn, btnGhost, card } from "@/lib/ui";
@@ -87,6 +86,11 @@ export default async function GuidePage({
      order by s.created_at asc`,
     [id],
   );
+  const versions = await pool.query<{ version: number; change_note: string | null; created_at: Date; editor: string }>(
+    `select v.version, v.change_note, v.created_at, u.name as editor
+     from guide_versions v join users u on u.id = v.edited_by
+     where v.guide_id = $1 order by v.version desc`, [id],
+  );
 
   const steps = asSteps(guide.steps);
   const faqs = asFaqs(guide.faqs);
@@ -114,15 +118,13 @@ export default async function GuidePage({
         Volver a guías
       </Link>
 
-      <header className={`${card} overflow-hidden p-0`}>
-        <Cover tone={guide.area} kicker={areaLabel(guide.area)} title={guide.title} className="h-44" />
-        <div className="space-y-2 p-5">
-        <h1 className="font-serif text-3xl tracking-tight">{guide.title}</h1>
+      <header className="board-sidecard space-y-2 border-t-4 border-t-[#006699] p-5 sm:p-6">
+        <p className="board-eyebrow">{areaLabel(guide.area)} · Guía de trámite</p>
+        <h1 className="text-3xl font-extrabold tracking-tight text-[#1b4053]">{guide.title}</h1>
         <p className="mt-2 text-sm leading-6">{guide.summary}</p>
         <p className="mt-3 text-xs text-[#667085]">
           {guide.author_name} · {formatDate(guide.created_at)}
         </p>
-        </div>
       </header>
 
       {staff && user?.id === guide.author_id && <form action={deleteGuide}><input type="hidden" name="id" value={guide.id} /><button className={btnGhost}>Eliminar mi guía</button></form>}
@@ -142,7 +144,7 @@ export default async function GuidePage({
         <div className="grid gap-3 sm:grid-cols-2">
           {steps.map((step, index) => {
             const related = suggestions.rows.filter((item) => item.step_index === index);
-            return <article key={`${step.title}-${index}`} className="rounded-3xl border border-white bg-white/85 p-5 shadow-[0_8px_28px_rgba(0,64,96,0.06)]">
+            return <article key={`${step.title}-${index}`} className="board-sidecard p-5">
               <p className="text-xs font-bold uppercase tracking-wide text-[#006699]">Paso {index + 1}</p>
                 <h3 className="mt-1 font-bold">{step.title}</h3>
                 <StepQA guideId={guide.id} stepIndex={index} questions={questions} signedIn={!!user} />
@@ -177,6 +179,13 @@ export default async function GuidePage({
           <div className="rounded-2xl bg-white p-4"><p className="text-xs text-[#667085]">Pasos marcados</p><p className="mt-1 text-2xl font-extrabold">{guideMetrics[0]?.completions ?? 0}</p></div>
         </div>
         {guideMetrics.slice(1).length > 0 && <p className="mt-3 text-sm text-[#52636d]">Pasos con 5 o más personas: {guideMetrics.slice(1).map((metric) => `${metric.stepIndex + 1} (${metric.stepReaders})`).join(" · ")}</p>}
+      </section>}
+
+      {versions.rows.length > 0 && <section className="board-sidecard space-y-3 p-5">
+        <h2>Historial de versiones</h2>
+        <ul className="space-y-2 text-sm text-[#5f6e78]">
+          {versions.rows.map((version) => <li key={version.version}><strong className="text-[#1b4053]">Versión {version.version}</strong> · {version.change_note ?? "Actualización"} · {version.editor} · {formatDate(version.created_at)}</li>)}
+        </ul>
       </section>}
 
       <section className="space-y-3">

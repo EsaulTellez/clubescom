@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PageIntro } from "@/components/page-intro";
 import { Cover } from "@/components/cover";
 import { demoNoticeArt } from "@/lib/demo-art";
 import { getSession } from "@/lib/auth";
@@ -55,19 +56,15 @@ export default async function AvisosPage({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-sm text-[#006699]">Comunicación</p>
-          <h1 className="font-serif text-4xl tracking-tight">Avisos</h1>
-        </div>
-        {canManageAvisos(user) && (
+      <PageIntro kicker="Comunicación institucional" title="Avisos" text="Comunicados y novedades de la comunidad ESCOM." action={
+        canManageAvisos(user) ? (
           <Link href="/avisos/nuevo" className={btn}>
             Nuevo aviso
           </Link>
-        )}
-      </div>
+        ) : undefined
+      } />
 
-      <form method="get" className="grid gap-2 sm:grid-cols-[1fr_12rem_auto] sm:items-center">
+      <form method="get" className="board-sidecard grid gap-2 p-4 sm:grid-cols-[1fr_12rem_auto] sm:items-center">
         <input
           className={input}
           name="q"
@@ -94,7 +91,7 @@ export default async function AvisosPage({
       </form>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Destacados</h2>
+        <div className="board-section-heading"><div><p className="board-eyebrow">Para tener en cuenta</p><h2>Destacados</h2></div></div>
         {featured.length === 0 ? (
           <p className="text-sm text-[#667085]">
             {filtering
@@ -124,7 +121,7 @@ export default async function AvisosPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Cronología</h2>
+        <div className="board-section-heading"><div><p className="board-eyebrow">Tablero institucional</p><h2>Cronología</h2></div><span className="board-label">{rows.length} {rows.length === 1 ? "aviso" : "avisos"}</span></div>
         {rows.length === 0 ? (
           <p className={card}>
             {filtering
@@ -137,7 +134,7 @@ export default async function AvisosPage({
               <Link
                 key={aviso.id}
                 href={`/avisos/${aviso.id}`}
-                className={`${card} overflow-hidden p-0 hover:border-[#006699]`}
+                className="board-sidecard overflow-hidden border-t-4 border-t-[#006699] hover:border-[#006699]"
               >
                 {demoNoticeArt(aviso.title) ? (
                   <img src={demoNoticeArt(aviso.title)!} alt={`Cartel: ${aviso.title}`} className="max-h-80 w-full bg-[#f4f3f0] object-contain" />
@@ -153,9 +150,9 @@ export default async function AvisosPage({
                     </span>
                   )}
                 </div>
-                <h3 className="mt-1 font-semibold">{aviso.title}</h3>
+                <h3 className="mt-2 text-lg font-extrabold text-[#1b4053]">{aviso.title}</h3>
                 <p className="mt-2 line-clamp-3 text-sm text-[#667085]">{aviso.body}</p>
-                <p className="mt-3 text-xs text-[#667085]">{formatWhen(aviso.publish_at)}</p>
+                <p className="mt-4 flex justify-between border-t border-[#e9e6dc] pt-3 text-xs font-bold text-[#647780]"><span>{formatWhen(aviso.publish_at)}</span><span className="text-[#006699]">Abrir aviso →</span></p>
                 </div>
               </Link>
             ))}

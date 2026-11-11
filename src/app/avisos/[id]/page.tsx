@@ -52,18 +52,18 @@ export default async function AvisoPage({ params }: { params: Promise<{ id: stri
         Volver a avisos
       </Link>
       {demoNoticeArt(aviso.title) ? (
-        <img src={demoNoticeArt(aviso.title)!} alt={`Cartel: ${aviso.title}`} className="mx-auto max-h-[44rem] w-full rounded-3xl bg-[#f4f3f0] object-contain" />
+        <img src={demoNoticeArt(aviso.title)!} alt={`Cartel: ${aviso.title}`} className="mx-auto max-h-[44rem] w-full rounded-md bg-[#f4f3f0] object-contain" />
       ) : (
-        <Cover tone={aviso.category} kicker={categoryLabel(aviso.category)} title={aviso.title} className="h-56 rounded-3xl sm:h-72" />
+        <Cover tone={aviso.category} kicker={categoryLabel(aviso.category)} title={aviso.title} className="h-56 rounded-md sm:h-72" />
       )}
-      <div className={`${card} space-y-3`}>
+      <div className="board-sidecard space-y-3 border-t-4 border-t-[#006699] p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-[#006699]">
           <span>{categoryLabel(aviso.category)}</span>
           {aviso.featured && <span>· Destacado</span>}
           {!aviso.is_public && <span>· Oculto del feed</span>}
           {aviso.is_scheduled && <span>· Programado</span>}
         </div>
-        <h1 className="font-serif text-4xl tracking-tight">{aviso.title}</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight text-[#1b4053] sm:text-4xl">{aviso.title}</h1>
         <p className="text-sm text-[#667085]">
           Publicado {formatWhen(aviso.publish_at)}
           {aviso.created_at.getTime() !== aviso.publish_at.getTime()

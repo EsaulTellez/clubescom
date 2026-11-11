@@ -1,5 +1,7 @@
 # Casos de uso
 
+> Los flujos de este archivo describen la especificación fuente. Sus párrafos de estado y evidencia son el diagnóstico inicial de 2026-10-29 y pueden estar desactualizados; para el estado vigente y los recorridos pendientes consulta `docs/estado.md` y `docs/pendientes.md`.
+
 Salen de las tablas 3.4 a 3.38 del índice de `docs/fuente/TT.docx` (35). El identificador `CU-01` … `CU-35` sigue ese orden. Entre paréntesis va el id que escribe el cuerpo (`CU-USR-…`, `CU-COM-…`, etc.).
 
 El índice y el cuerpo no coinciden en dos puntos:

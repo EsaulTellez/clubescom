@@ -151,7 +151,10 @@ await pool.query(`
   insert into public.spaces (name, kind, building, description)
   select v.name, v.kind, v.building, v.description from (values
     ('Auditorio', 'auditorio', 'Edificio principal', 'Agenda informativa de actividades autorizadas.'),
-    ('Sala 14', 'sala', 'Edificio 1', 'Sala de atención de propuestas de clubes.')
+    ('Sala 14', 'sala', 'Edificio 1', 'Sala de atención de propuestas de clubes.'),
+    ('El domo', 'espacio', null, 'Actividades autorizadas en el domo.'),
+    ('Canchas de fútbol', 'deportivo', null, 'Actividades autorizadas en las canchas de fútbol.'),
+    ('Canchas de voleibol', 'deportivo', null, 'Actividades autorizadas en las canchas de voleibol.')
   ) v(name, kind, building, description)
   where not exists (select 1 from public.spaces s where s.name = v.name)
 `);

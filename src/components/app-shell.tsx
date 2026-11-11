@@ -9,7 +9,8 @@ const links = [
   { href: "/", label: "Inicio", icon: "home" },
   { href: "/avisos", label: "Avisos", icon: "sparkles" },
   { href: "/clubes", label: "Clubes", icon: "people" },
-  { href: "/espacios", label: "Espacios", icon: "map" },
+  { href: "/eventos", label: "Eventos", icon: "calendar" },
+  { href: "/mapa", label: "Mapa", icon: "map" },
   { href: "/foro", label: "Foro", icon: "chat" },
   { href: "/guias", label: "Guías", icon: "book" },
   { href: "/objetos", label: "Objetos", icon: "bag" },
@@ -21,6 +22,7 @@ function Icon({ name }: { name: string }) {
     home: <><path d="m3.5 10 8.5-7 8.5 7"/><path d="M5.5 9v11h13V9M9.5 20v-6h5v6"/></>,
     sparkles: <><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/><path d="m5 14 .6 1.4L7 16l-1.4.6L5 18l-.6-1.4L3 16l1.4-.6L5 14Z"/></>,
     people: <><circle cx="9" cy="8" r="3"/><path d="M3.5 20c.4-3.4 2.3-5.2 5.5-5.2s5.1 1.8 5.5 5.2"/><path d="M15.5 5.4a3 3 0 0 1 0 5.7M17 14.8c2.1.6 3.3 2.3 3.5 5.2"/></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/></>,
     map: <><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Z"/><path d="M9 3v15m6-12v15"/><circle cx="15" cy="9" r="1.5"/></>,
     chat: <><path d="M20 11.5a7.5 7.5 0 0 1-8 7.5 8.8 8.8 0 0 1-3.5-.7L4 20l1.5-4A7.1 7.1 0 0 1 4 11.5 7.5 7.5 0 0 1 12 4a7.5 7.5 0 0 1 8 7.5Z"/><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01"/></>,
     book: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22V5.5Z"/><path d="M4 6v16m4-14h8m-8 4h7"/></>,
@@ -31,7 +33,7 @@ function Icon({ name }: { name: string }) {
 
 function NavItems({ pathname, mobile = false }: { pathname: string; mobile?: boolean }) {
   return (
-    <nav aria-label={mobile ? "Navegación principal móvil" : "Navegación principal"} className={mobile ? "flex w-full items-stretch justify-between gap-1" : "mx-auto flex w-full max-w-[1480px] items-center gap-1 overflow-x-auto px-4 sm:px-7"}>
+    <nav aria-label={mobile ? "Navegación principal móvil" : "Navegación principal"} className={mobile ? "flex w-full items-stretch gap-1 overflow-x-auto" : "mx-auto flex w-full max-w-[1480px] items-center gap-1 overflow-x-auto px-4 sm:px-7"}>
       {links.map((link) => {
         const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
         return (

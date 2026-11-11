@@ -54,6 +54,6 @@ Los casos de las tablas 3.32 a 3.38 agregan notificaciones y el panel de adminis
 
 La plataforma se desarrollará con Next.js y Supabase para autenticación, PostgreSQL, políticas RLS, almacenamiento de archivos y tiempo real. **No se usará Cloudflare R2.** La demo se ejecutará localmente; no se desplegará por ahora. La lógica programada o de servidor que requieran los flujos deberá integrarse con Supabase y quedar disponible en el entorno local.
 
-El código existente todavía no cumple esa arquitectura: usa PostgreSQL directo desde la aplicación, sesión propia con cookie y bcrypt, y archivos locales en `public/uploads`. Las políticas RLS del esquema no protegen las consultas realizadas con la conexión actual. El estado real y las decisiones detalladas están en `docs/estado.md`, `docs/pendientes.md` y `docs/decisiones-producto.md`.
+La demo usa Supabase local para Auth, PostgreSQL, Storage y Realtime. Las consultas PostgreSQL de la aplicación se ejecutan con el contexto de la sesión y las políticas RLS; todavía faltan recorridos y revisión de permisos de extremo a extremo. El estado real y las decisiones detalladas están en `docs/estado.md`, `docs/pendientes.md` y `docs/decisiones-producto.md`.
 
 Los correos de autenticación (registro/verificación y recuperación) sí forman parte del demo. Los correos de avisos y notificaciones de producto quedan fuera por ahora. La generación de texto y el procesamiento de documentos usarán la API de Google con una clave local y configurable; nunca se guardará la clave en el repositorio.

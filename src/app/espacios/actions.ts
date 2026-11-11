@@ -77,7 +77,8 @@ export async function saveCubicle(_prev: FormState, form: FormData): Promise<For
     client.release();
   }
 
-  revalidatePath("/espacios");
+  revalidatePath("/eventos");
+  revalidatePath("/mapa");
   return { ok: "Cubículo guardado." };
 }
 
@@ -108,7 +109,8 @@ export async function addSpaceEvent(_prev: FormState, form: FormData): Promise<F
      returning id`,
     [spaceId, title, description, starts, ends, user.id],
   );
-  revalidatePath("/espacios");
+  revalidatePath("/eventos");
+  revalidatePath("/mapa");
   return { ok: inserted.rowCount ? "Evento autorizado publicado en el itinerario." : "No se pudo publicar el evento." };
 }
 
@@ -117,5 +119,6 @@ export async function deleteSpaceEvent(form: FormData) {
   const id = text(form, "id");
   if (!user || !canPublishEvents(user) || !UUID.test(id)) return;
   await pool.query("delete from space_events where id = $1", [id]);
-  revalidatePath("/espacios");
+  revalidatePath("/eventos");
+  revalidatePath("/mapa");
 }

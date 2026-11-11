@@ -54,19 +54,15 @@ Funciona en macOS, Linux y Windows. En Windows usa PowerShell o WSL y verifica q
 
 ### Primera ejecución
 
-Desde la carpeta clonada del repositorio, ejecuta los siguientes comandos en orden:
+Con Docker Desktop abierto, desde la carpeta clonada ejecuta un solo comando:
 
 ```bash
-npm ci
-npm run db:up
-npm run env:local
-npm run db:seed
-npm run dev -- --hostname 127.0.0.1 --port 3001
+node scripts/iniciar.mjs
 ```
 
 Abre [http://127.0.0.1:3001](http://127.0.0.1:3001). El primer inicio de Supabase puede tardar porque Docker descarga las imágenes necesarias. Si `npm ci` no es posible porque modificaste las dependencias, usa `npm install` para regenerar el archivo de bloqueo.
 
-El comando `db:up` inicia PostgreSQL, Auth, Storage, Realtime, Studio y Mailpit en tu equipo. `env:local` crea el archivo privado `.env.local` con las claves de esa instancia; no hay que copiar ni editar `.env.example` para el arranque normal.
+El comando instala las dependencias si faltan, inicia los contenedores de Supabase, aplica migraciones pendientes, prepara `.env.local` e inicia la aplicación. Carga las cuentas de demostración únicamente si la base no contiene usuarios; no reinicia ni sustituye los datos existentes. Supabase CLI administra los contenedores de PostgreSQL, Auth, Storage, Realtime, Studio y Mailpit; el antiguo Compose de PostgreSQL independiente no era compatible con estos servicios.
 
 ### Cuentas de demostración
 

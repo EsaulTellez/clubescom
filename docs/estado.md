@@ -4,9 +4,9 @@ Cualquier agente que implemente, cambie o cierre un caso de uso actualiza este a
 
 Pase inicial: 2026-10-29. Se contrastó `docs/fuente/TT.docx` con esta app local. No se tocó el código.
 
-Conteos del índice (tablas 3.4 a 3.38, 35 casos): **hecho 1**, **parcial 32**, **pendiente 2**.
+Conteos del índice (tablas 3.4 a 3.38, 35 casos): **hecho 1**, **parcial 33**, **pendiente 1**. CU-16 está excluido por decisión del propietario; CU-30 se conserva como parcial frente al Word, aunque los correos de producto también están excluidos.
 
-El cuerpo trae 2 casos más, sin número de tabla. Los dos están en parcial. Tablero completo: **hecho 1**, **parcial 34**, **pendiente 2**.
+El cuerpo trae 2 casos más, sin número de tabla. Los dos están en parcial. Tablero completo: **hecho 1**, **parcial 35**, **pendiente 1**. Estos estados no equivalen a recorridos completos verificados.
 
 Un caso del índice no trae pasos en el texto extraído: CU-33.
 
@@ -36,21 +36,55 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 | CU-22 | Matching por similitud de texto | parcial | `src/app/objetos/actions.ts`, `supabase/migrations/20261104000100_initial.sql` |
 | CU-23 | Reclamo y código de entrega | parcial | `src/app/objetos/[id]/page.tsx`, `src/app/objetos/actions.ts` |
 | CU-24 | Cierre del reporte | parcial | `src/app/objetos/actions.ts`, `src/app/objetos/page.tsx` |
-| CU-25 | Mapa del campus | parcial | `src/app/espacios/spaces-tabs.tsx`, `src/components/campus-map.tsx` |
-| CU-26 | Localización de profesores | parcial | `src/app/espacios/spaces-tabs.tsx` |
+| CU-25 | Mapa del campus | parcial | `src/app/mapa/page.tsx`, `src/components/campus-map.tsx` |
+| CU-26 | Localización de profesores | parcial | `src/app/mapa/page.tsx` |
 | CU-27 | Actualización de cubículo | parcial | `src/app/espacios/actions.ts`, `src/app/espacios/forms.tsx` |
-| CU-28 | Itinerario de espacios | parcial | `src/app/espacios/page.tsx`, `src/app/espacios/actions.ts` |
+| CU-28 | Itinerario de espacios | parcial | `src/app/eventos/page.tsx`, `src/app/espacios/actions.ts` |
 | CU-29 | Centro de notificaciones | parcial | `src/app/notificaciones/page.tsx` |
 | CU-30 | Alertas por correo | parcial | `src/app/notificaciones/actions.ts` |
 | CU-31 | Aviso masivo al llegar a 20 | parcial | `src/app/clubes/actions.ts` |
 | CU-32 | Panel de conteos y roles | parcial | `src/app/admin/page.tsx` |
 | CU-33 | Importación masiva de padrones | parcial | `src/app/admin/roster-import.tsx`, `src/app/admin/actions.ts` |
 | CU-34 | Auditoría de acciones | parcial | `src/app/admin/page.tsx` |
-| CU-35 | Reportes de impacto académico | pendiente | no hay |
+| CU-35 | Reportes de impacto académico | parcial | `src/app/admin/page.tsx`, `src/app/admin/impacto.csv/route.ts` |
 | CU-COM-04-01 | Consulta y filtrado de avisos | parcial | `src/app/avisos/page.tsx` |
 | CU-GUA-02-01 | Sugerencia de mejora en una guía | parcial | `src/app/guias/actions.ts` |
 
 ## Cambios
+
+- 2026-11-10. CU-05 y CU-GUA-02-01 siguen parciales: la publicación guarda la versión inicial y aceptar una sugerencia conserva instantáneas y crea una versión nueva visible en el detalle; falta la edición general y recorrer el flujo con moderación de área.
+
+- 2026-11-10. CU-10 y CU-COM-04-01 conservan sus estados: se armonizaron los catálogos y detalles de guías y avisos con el tablero institucional, sin cambiar sus flujos. Se corrigió el resumen de CU-35 para reflejar las métricas y exportaciones ya registradas en este historial; siguen pendientes sus recorridos y métricas adicionales.
+
+- 2026-11-10. CU-25, CU-26 y CU-27 siguen parciales: Mapa tiene ruta propia y fichas por espacio con tipo, descripción y varios profesores, editables por administración; se aplicó la migración y se comprobó la escritura de administración y el bloqueo de alumno; falta confirmar la distribución física y recorrer la interfaz con varias cuentas.
+- 2026-11-10. CU-28 sigue parcial: Eventos se separó en una ruta propia con cartelera y calendario; se retiró el directorio de espacios de esta pantalla.
+
+- 2026-11-10. CU-28 sigue parcial: la cartelera filtra eventos autorizados por espacio y fecha, con vistas general y por espacio; se agregaron los espacios solicitados al catálogo. Los espacios se agregaron a la base local; falta recorrer el flujo completo con Supabase.
+- 2026-11-10. CU-08, CU-10, CU-13, CU-14, CU-17 y CU-21 a CU-24 conservan su estado: se reorganizaron las pantallas y tarjetas para mostrar mejor sus datos y estados existentes.
+
+- 2026-11-10. CU-25 sigue parcial: se repararon las fachadas de Gobierno y auditorio, restituyendo sus volúmenes y representando la galería mediante piezas separadas; falta contrastar su distribución exacta.
+
+- 2026-11-10. CU-25 sigue parcial: la navegación usa arrastre, rueda, botones y teclado; se sustituyeron las franjas pintadas por pasillos abiertos aproximados con losas y barandales. Falta confirmar su distribución real.
+
+- 2026-11-10. CU-25 sigue parcial: la barra de café se movió junto al edificio 1 a la altura de Gobierno y se incorporaron el camino naranja y el área de barras entre este y las canchas, según la referencia del propietario.
+
+- 2026-11-10. CU-25 sigue parcial: el mapa incorpora cafetería, barra de café y canchas junto a Gobierno; la posición de la barra es aproximada y requiere confirmación.
+
+- 2026-11-10. CU-25 sigue parcial: se corrigió la orientación de las caras verticales de la maqueta para que Gobierno, el auditorio y los niveles crezcan desde el suelo. Faltan validar dimensiones y fachadas con más referencias.
+
+- 2026-11-10. CU-25 sigue parcial: Gobierno incorpora dos niveles de fachada, ventanas, pretiles y detalles de azotea, con patio abierto y volumen del auditorio según la foto compartida; dimensiones e interiores siguen aproximados.
+
+- 2026-11-10. CU-25 sigue parcial: se sustituyó la ilustración por una maqueta con volúmenes 3D, órbita y capas seleccionables, trazada aproximadamente de las fotos satelitales; se probó la selección del salón 4008. Falta precisar medidas, fachadas y distribución interior.
+
+- 2026-11-10. CU-25 sigue parcial: se ajustaron los techos y la huella escalonada de los edificios 3 y 4, y se añadieron las dos áreas de palapas y un estacionamiento más largo con referencia a la imagen satelital. Faltan medidas y posiciones definitivas.
+
+- 2026-11-10. CU-25 sigue parcial: el mapa permite girar 360° y ajustar la inclinación mediante arrastre o controles; la geometría del campus sigue siendo ilustrativa.
+
+- 2026-11-10. CU-25 sigue parcial: se agregó giro de perspectiva y mayor detalle ilustrativo de edificios, puentes, jardines, estacionamiento y palapas; el plano y las posiciones siguen sujetos a confirmación.
+
+- 2026-11-10. CU-25 sigue parcial: la vista isométrica permite elegir capas por piso y seleccionar salones; los tramos 04–07 y 08–13 de los edificios 3 y 4 se distinguen de forma aproximada. Falta confirmar el plano detallado.
+
+- 2026-11-10. CU-25 sigue parcial: la vista isométrica conserva su estilo y ajusta los cuatro edificios, el patio de Gobierno y los puentes según la orientación del propietario; muestra rangos de aulas por nivel. Falta precisar las ubicaciones y los detalles del plano.
 
 - 2026-11-10. CU-14 sigue parcial: una respuesta crea la notificación y marca la pregunta respondida cuando es oficial mediante un trigger; antes la inserción de notificación violaba RLS y revertía respuestas ajenas. Falta validarlo con Supabase y dos cuentas.
 

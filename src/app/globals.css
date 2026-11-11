@@ -702,3 +702,23 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     animation-duration: .01ms !important;
   }
 }
+
+.event-poster {
+  position: relative;
+  display: flex;
+  gap: 1.25rem;
+  overflow: hidden;
+  padding: 1.35rem 1.5rem;
+  border: 1px solid #cbdad8;
+  border-left: 6px solid #006699;
+  border-radius: .65rem;
+  background: #fffdf7;
+  box-shadow: 0 3px 0 #d9e2dd;
+}
+.event-poster h3 { margin-top: .7rem; color: #173e50; font-size: 1.3rem; line-height: 1.25; }
+.event-poster p + p { margin-top: .55rem; }
+
+.event-poster__date { display: flex; flex: 0 0 4.5rem; flex-direction: column; align-items: center; align-self: flex-start; padding: .65rem .35rem; border-radius: .35rem; background: #075679; color: white; text-transform: uppercase; }
+.event-poster__date span { font-size: .66rem; font-weight: 800; letter-spacing: .1em; }
+.event-poster__date strong { font-size: 2rem; line-height: 1.1; }
+.event-poster__footer { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin-top: 1rem; padding-top: .75rem; border-top: 1px solid #e4e8df; color: #5f727a; font-size: .75rem; font-weight: 700; }

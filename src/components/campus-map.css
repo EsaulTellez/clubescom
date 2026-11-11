@@ -1,0 +1,49 @@
+.model-viewport { position: relative; height: clamp(440px, 70vh, 780px); overflow: hidden; border: 1px solid #cadbd9; border-radius: 20px; background: linear-gradient(#e4f0ef, #d0e5e0); perspective: 1800px; cursor: grab; touch-action: none; }
+.model-viewport:active { cursor: grabbing; }
+.model-world { position: absolute; left: 50%; top: 50%; width: 1000px; height: 1300px; transform-style: preserve-3d; }
+.model-world * { transform-style: preserve-3d; }
+.model-group { position: absolute; inset: 0; pointer-events: none; }
+.model-box, .model-face, .model-ground, .model-tree, .model-car, .model-label, .room-tile { position: absolute; }
+.model-box { transform-style: preserve-3d; pointer-events: none; }
+.model-face { box-sizing: border-box; border: 1px solid rgba(88, 99, 95, .3); }
+.model-top { inset: 0; box-shadow: inset 0 0 0 2px #eeeeea; }
+.model-front, .model-back { left: 0; top: 0; width: 100%; transform-origin: top; }
+.model-left, .model-right { left: 0; top: 0; height: 100%; transform-origin: left; }
+.school-block .model-front, .school-block .model-back, .school-block .model-left, .school-block .model-right { background-image: linear-gradient(to bottom, #e4e7df, #cdd3ca) !important; }
+.model-base { background: #a4c696; border: 6px solid #d4dfcb; box-shadow: 0 12px 18px #6f958a80; }
+.parking { background: #888e89; border: 10px solid #b3b5a7; border-radius: 50px 50px 32px 22px; }
+.parking-island { position: absolute; left: 49px; width: 100px; height: 110px; background: #a5bd92; border-radius: 20px; border: 6px solid #cdcbb5; }
+.island-a { top: 24px; }.island-b { top: 205px; }.island-c { top: 386px; }.island-d { top: 567px; }
+.parking-south { background: #c5bd9d; border: 8px solid #bbb49b; }
+.model-car { width: 11px; height: 21px; border-radius: 3px; border: 1px solid #738382; transform: translateZ(3px); }
+.plaza, .paving { background: #d8d4c5; border: 2px solid #e9e4d3; }
+.plaza { background: repeating-linear-gradient(90deg, #d7d3c5 0 22px, #cfcbbf 23px 24px); }
+.walkway { background: #c8c4b7; }
+.court { background: #78a384; border: 5px solid #d5dbcc; }
+.court-lines { position: absolute; inset: 12px; border: 2px solid #e8efdf; }
+.court-lines::after { content: ''; position: absolute; top: 50%; width: 100%; border-top: 2px solid #e8efdf; }
+.model-tree { width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #7caa72, #41764d 75%); box-shadow: 5px 8px 4px #3a604970; }
+.palapa .model-top { border-radius: 50%; box-shadow: 0 0 0 2px #8c9893; }
+.courtyard { background: #a5bd95; border: 3px solid #d2cabc; }
+.courtyard span { display: block; width: 19px; height: 19px; border-radius: 50%; background: #e9e9dd; margin: 25px auto; }
+.solar { transform: translateZ(80px); background: repeating-linear-gradient(90deg,#354e67 0 9px,#7890a2 10px 11px); border: 2px solid #a0aeb1; }
+.model-label { font: 700 13px sans-serif; letter-spacing: .08em; color: #34484c; pointer-events: none; }
+.room-tile { padding: 0; border: 1px solid #78969a; background: #f3f1e5; color: #344b53; cursor: pointer; pointer-events: auto; font: bold 12px sans-serif; }
+.room-tile:hover, .room-tile:focus-visible { background: #c6e7eb; outline: 3px solid #006699; }
+.room-tile.selected { background: #ffcf64; border: 3px solid #a66b00; }
+.model-north { position: absolute; right: 16px; top: 12px; border-radius: 6px; background: #ffffffd9; padding: 5px 9px; font-size: 12px; color: #2d5665; font-weight: 800; }
+
+/* Fachadas sólidas: los corredores se dibujan con geometría separada. */
+.government-block .model-front, .government-block .model-back, .government-block .model-left, .government-block .model-right { background: #e4e7e0 !important; }
+.auditorium-block .model-front, .auditorium-block .model-back, .auditorium-block .model-left, .auditorium-block .model-right { background: #e1e4dc !important; }
+
+.north-courts { display: flex; flex-direction: column; gap: 5px; padding: 5px; background: #b4c1b1; border: 3px solid #e5e8dc; }
+.north-court { position: relative; flex: 1; background: #6e9b85; border: 2px solid #eef3e7; }
+.north-court::after { content: ""; position: absolute; top: 50%; left: 0; width: 100%; border-top: 2px solid #eef3e7; }
+.north-court span { position: absolute; border: 1px solid #eef3e7; border-radius: 50%; width: 15px; height: 15px; left: calc(50% - 7px); top: calc(50% - 7px); }
+.landmark-label { font-size: 9px; letter-spacing: 0; color: #263f45; }
+
+.exercise-area { background: #a9c69b; border: 2px solid #b7cfaa; }
+.orange-path { background: #d8896a; }
+
+.model-viewport:focus-visible { outline: 3px solid #006699; outline-offset: 3px; }

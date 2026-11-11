@@ -71,20 +71,6 @@ export default async function HomePage() {
   return (
     <div className="board-page">
       <RealtimeRefresh tables={["avisos", "clubs", "club_proposals"]} />
-      <header className="board-masthead">
-        <div>
-          <p className="board-eyebrow">Comunidad ESCOM · tablero abierto</p>
-          <h1>Lo que pasa en la escuela, en un solo lugar.</h1>
-          <p className="board-masthead__text">
-            Avisos de la comunidad, actividades y espacios para encontrar a tu gente.
-          </p>
-        </div>
-        <nav className="board-shortcuts" aria-label="Atajos del tablero">
-          <Link href="/avisos" className="board-shortcut">📌 Avisos</Link>
-          <Link href="/clubes" className="board-shortcut">✳ Clubes</Link>
-          <Link href="/foro" className="board-shortcut">💬 Foro</Link>
-        </nav>
-      </header>
 
       {dbDown && (
         <p className={card} role="status">
@@ -95,17 +81,11 @@ export default async function HomePage() {
       <div className="board-layout">
         <div className="board-main">
           <section className="board-pinned" aria-label="Avisos institucionales fijados">
-            <div className="board-section-heading">
-              <div>
-                <span className="board-pinned__label"><span aria-hidden="true">📌</span> En el pizarrón</span>
-                <h2 className="mt-2">Comunicados y eventos</h2>
-              </div>
-              <Link href="/avisos" className="board-text-link">Ver todos los avisos →</Link>
-            </div>
             <div aria-label="Avisos destacados">
-              <h3 className="sr-only">Avisos destacados</h3>
+              <h1 className="sr-only">Comunicados y eventos destacados</h1>
               <StoryCarousel items={stories} />
             </div>
+            <div className="board-section-heading mt-4"><div><span className="board-pinned__label">En el pizarrón</span><h2 className="mt-2">Comunicados y eventos</h2></div><Link href="/avisos" className="board-text-link">Ver todos los avisos →</Link></div>
           </section>
 
           <section className="board-feed" aria-labelledby="recent-heading">
@@ -135,7 +115,7 @@ export default async function HomePage() {
                           </p>
                         </div>
                         <span className={`board-label ${aviso.featured ? "board-label--pinned" : ""}`}>
-                          {aviso.featured ? "📌 Fijado" : categoryLabel[aviso.category] ?? aviso.category}
+                          {aviso.featured ? "Fijado" : categoryLabel[aviso.category] ?? aviso.category}
                         </span>
                       </div>
                       <div className="board-notice__body">
@@ -151,7 +131,7 @@ export default async function HomePage() {
                           </div>
                         )}
                       </Link>
-                      <Link href={`/avisos/${aviso.id}`} className="board-notice__action">💬 Abrir publicación</Link>
+                      <Link href={`/avisos/${aviso.id}`} className="board-notice__action">Abrir publicación →</Link>
                     </article>
                   );
                 })}

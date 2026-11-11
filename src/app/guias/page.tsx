@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { Cover } from "@/components/cover";
 import { PageIntro } from "@/components/page-intro";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
-import { btn, btnGhost, card } from "@/lib/ui";
+import { btn, card, input } from "@/lib/ui";
 import { AREAS, areaLabel, firstParam, isArea, isStaff } from "./shared";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +12,8 @@ type GuideRow = {
   area: string;
   title: string;
   summary: string;
+  step_count: number;
+  version: number;
 };
 
 export default async function GuiasPage({
@@ -31,7 +32,7 @@ export default async function GuiasPage({
   let dbDown = false;
   try {
     const result = await pool.query<GuideRow>(
-      `select id, area, title, summary
+      `select id, area, title, summary, jsonb_array_length(steps) as step_count, version
        from guides
        where ($1::text is null or area = $1)
          and ($2::text is null or title ilike $2 escape '!' or summary ilike $2 escape '!')
@@ -43,7 +44,7 @@ export default async function GuiasPage({
 
     if (query && guides.length === 0) {
       const nearby = await pool.query<GuideRow>(
-        `select id, area, title, summary
+        `select id, area, title, summary, jsonb_array_length(steps) as step_count, version
          from guides
          where ($1::text is null or area = $1)
            and greatest(similarity(title, $2), similarity(summary, $2)) >= 0.08
@@ -75,22 +76,22 @@ export default async function GuiasPage({
         }
       />
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        <Link href="/guias" className={area ? btnGhost : btn}>
+      <nav aria-label="Filtrar guías por área" className="board-tag-row">
+        <Link href="/guias" aria-current={!area ? "page" : undefined}>
           Todas
         </Link>
         {AREAS.map((item) => (
           <Link
             key={item.id}
             href={`/guias?area=${item.id}`}
-            className={area === item.id ? btn : btnGhost}
+            aria-current={area === item.id ? "page" : undefined}
           >
             {item.label}
           </Link>
         ))}
-      </div>
+      </nav>
 
-      <form action="/guias" method="get" className={`${card} flex flex-col gap-3 sm:flex-row`}>
+      <form action="/guias" method="get" className="board-sidecard flex flex-col gap-3 p-4 sm:flex-row">
         {area && <input type="hidden" name="area" value={area} />}
         <label htmlFor="guide-search" className="sr-only">Buscar una guía</label>
         <input
@@ -99,7 +100,7 @@ export default async function GuiasPage({
           type="search"
           defaultValue={query}
           placeholder="¿Qué trámite necesitas resolver?"
-          className="min-w-0 flex-1 rounded-2xl border border-[#e6e8ee] bg-[#f8fafc] px-4 py-3 text-sm outline-none transition focus:border-[#006699] focus:ring-4 focus:ring-[#006699]/10"
+          className={`${input} min-w-0 flex-1`}
         />
         <button className={btn}>Buscar guías</button>
       </form>
@@ -108,18 +109,14 @@ export default async function GuiasPage({
         <p className={card}>No se pudieron leer las guías. Revisa que Postgres esté en marcha.</p>
       )}
 
+      <div className="board-section-heading"><div><p className="board-eyebrow">Orientación escolar</p><h2>Catálogo de guías</h2></div><span className="board-label">{guides.length} {guides.length === 1 ? "guía" : "guías"}</span></div>
       <div className="grid gap-3 md:grid-cols-2">
         {guides.map((guide) => (
-          <article key={guide.id} className={`${card} overflow-hidden p-0`}>
-            <Link href={`/guias/${guide.id}`}>
-              <Cover tone={guide.area} kicker={areaLabel(guide.area)} title={guide.title} className="h-36" />
-            </Link>
-            <div className="p-4">
-              <h2 className="font-serif text-2xl">
-                <Link href={`/guias/${guide.id}`}>{guide.title}</Link>
-              </h2>
-              <p className="mt-2 text-sm text-[#667085]">{guide.summary}</p>
-            </div>
+          <article key={guide.id} className="board-sidecard flex flex-col border-t-4 border-t-[#006699] p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2"><span className="board-label">{areaLabel(guide.area)}</span><span className="text-xs font-bold text-[#647780]">Versión {guide.version}</span></div>
+            <h2 className="mt-4 text-xl font-extrabold text-[#1b4053]"><Link href={`/guias/${guide.id}`} className="hover:text-[#006699]">{guide.title}</Link></h2>
+            <p className="mt-2 flex-1 text-sm leading-6 text-[#5f6e78]">{guide.summary}</p>
+            <div className="mt-5 flex items-center justify-between border-t border-[#e9e6dc] pt-3 text-xs font-bold text-[#5f6e78]"><span>{guide.step_count} {guide.step_count === 1 ? "paso" : "pasos"}</span><Link href={`/guias/${guide.id}`} className="text-[#006699]">Consultar guía →</Link></div>
           </article>
         ))}
       </div>
@@ -132,13 +129,13 @@ export default async function GuiasPage({
       )}
 
       {!dbDown && query && guides.length === 0 && (
-        <section className="rounded-3xl border border-[#e6e9ef] bg-white p-6 shadow-[0_6px_24px_rgba(22,34,51,0.04)] sm:p-8">
+        <section className="board-sidecard p-6 sm:p-8">
           <p className="text-sm font-semibold text-[#006699]">No encontramos una coincidencia exacta</p>
           <h2 className="mt-1 text-2xl font-bold tracking-tight">¿Quizá buscabas una de estas?</h2>
           {suggestions.length > 0 ? (
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {suggestions.map((guide) => (
-                <Link key={guide.id} href={`/guias/${guide.id}`} className="rounded-2xl border border-[#e6e9ef] p-4 transition hover:border-[#006699] hover:bg-[#fafaff]">
+                <Link key={guide.id} href={`/guias/${guide.id}`} className="rounded-md border border-[#dcd9ce] p-4 transition hover:border-[#006699] hover:bg-[#edf5f5]">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#006699]">{areaLabel(guide.area)}</p>
                   <h3 className="mt-1 font-bold">{guide.title}</h3>
                   <p className="mt-2 line-clamp-2 text-sm text-[#72788a]">{guide.summary}</p>
