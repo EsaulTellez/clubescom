@@ -39,6 +39,8 @@ Estado actualizado el 2026-11-11, comparado con `docs/fuente/TT.docx`, el plan d
 ### Clubes
 
 - El modelo de propuesta, interés, expediente, profesor asesor y cita está implementado en Supabase/RPC; falta verificar los cambios de estado en recorrido real.
+- El área de clubes puede registrar un club reconocido directamente sin votación; el alta exige alumno responsable y profesor asesor. Falta probar el alta completa en la interfaz y permitir cambiar responsables. Las propuestas iniciadas por profesores aún requieren definir cómo asignar a un alumno responsable al registrar el club.
+- Solo el alumno responsable y el profesor asesor pueden crear publicaciones del club; una membresía aceptada permite leerlas. La base impide a la persona que revisa solicitudes cambiar su dueño o resolver una que no esté pendiente.
 - Deben ser 20 personas distintas; después cada una carga credencial IPN, boleta, firma y vigencia de derechos IMSS.
 - Falta recorrer el código de confirmación del asesor, el envío de formulario y la cita confirmada por Subdirección Académica/Sala 14.
 - No se reservan salas; se publica un evento cuando los alumnos ya tienen autorización. El moderador de club solo gestiona su club.
@@ -60,6 +62,18 @@ Estado actualizado el 2026-11-11, comparado con `docs/fuente/TT.docx`, el plan d
 - No Cloudflare R2; Supabase Storage para todo archivo que sí esté dentro del alcance.
 - Fuera del producto: SAES, otras escuelas IPN, ejecutar legalmente trámites, validar presencialmente con prefecto, reservas de espacios, control del auditorio solo por dirección y clubes informales.
 - No añadir entregables de diagramas ni automatización de pruebas; la prioridad es que los flujos de la demo funcionen.
+
+## Revisión de permisos por rol (2026-11-11)
+
+- **Visitante:** lectura pública de avisos, guías, foro, directorio y mapa; no tiene permisos de escritura. Falta recorrer y comprobar todas las rutas anónimas y datos privados.
+- **Alumno:** puede participar en los flujos comunitarios y solicitar ingreso; solo publica en un club si es su responsable asignado. No debe fijar preguntas, adjudicarse una membresía aceptada, crear clubes directamente ni registrar cubículos. Se comprobó el bloqueo de publicación como integrante, alta directa, fijado de preguntas y cubículo en la base; falta revisar otros accesos directos.
+- **Profesor:** puede actualizar su cubículo y publicar en los clubes donde sea asesor asignado. Se comprobó publicación como asesor; faltan recorridos de cubículo y revisión de accesos entre clubes.
+- **Responsable alumno de club:** publica y resuelve solicitudes pendientes únicamente en su club. Se comprobó la publicación y que no puede cambiar el dueño de una membresía; falta probar solicitudes entre clubes y usuarios suspendidos de extremo a extremo.
+- **Moderación institucional:** Comunicación gestiona avisos y eventos autorizados; Gestión Escolar, Becas y CATT operan contenido de su área; Clubes Académicos registra clubes directamente y Clubes Culturales registra culturales/deportivos; Subdirección gestiona revisión y citas. Se comprobó que Gestión Escolar no crea clubes y que Clubes Culturales no crea académicos. Falta comprobar la matriz completa por área, incluidas acciones directas por API y datos privados.
+- **Administración general:** puede gestionar roles y panel, y registrar clubes; sus acciones privilegiadas requieren controles adicionales en cada flujo. Falta verificar todas las acciones y exportaciones con cuentas demo.
+- **Cuenta suspendida o vetada:** debe perder acceso a operaciones privadas, salvo el flujo de apelación. Se reforzó la lectura del feed privado de clubes; falta probar tokens existentes y todas las demás políticas.
+
+La revisión detectó más límites pendientes: el enfriamiento del foro se verifica en la acción de aplicación y aún no está garantizado ante acceso directo a la base; deben auditarse los campos mutables y transiciones en el resto de tablas y funciones RPC. No se considera completada una auditoría integral de seguridad o de todos los roles.
 
 ## Brechas adicionales detectadas al revisar el plan del TT (2026-11-11)
 

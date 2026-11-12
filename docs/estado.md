@@ -52,6 +52,9 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 ## Cambios
 
+- 2026-11-11. CU-17 y CU-20 siguen parciales: el área de clubes registra clubes reconocidos directamente con alumno responsable y profesor asesor, sin votación; la votación sigue para propuestas. Solo esas dos personas publican en su club, con control en pantalla, acciones y RLS; se probaron permisos con cuentas demo en transacciones revertidas. Falta recorrer el alta completa en interfaz y gestionar cambios de responsables o propuestas iniciadas por profesores.
+- 2026-11-11. CU-13, CU-27 y CU-GUA-02-01 siguen parciales: RLS exige que solo profesores activos registren su cubículo; impide que una cuenta común cree preguntas fijadas o sugerencias ya revisadas. Falta una revisión integral de permisos y recorridos del resto de módulos.
+
 - 2026-11-11. CU-05 sigue parcial: administración y moderación del área pueden editar título, resumen y contenido de pasos conservando una nueva versión; se evita sobrescribir cambios concurrentes. Se comprobó el guardado con la cuenta demo de Gestión Escolar y el historial. Falta editar FAQ, añadir o reordenar pasos sin perder sus vínculos, y verificar restricciones con otras cuentas.
 
 - 2026-11-10. CU-05 y CU-GUA-02-01 siguen parciales: la publicación guarda la versión inicial y aceptar una sugerencia conserva instantáneas y crea una versión nueva visible en el detalle; falta la edición general y recorrer el flujo con moderación de área.

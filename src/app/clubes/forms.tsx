@@ -6,6 +6,7 @@ import {
   approveProposal,
   completeClubAppointment,
   createProposal,
+  createClubDirectly,
   createClubPost,
   decideClubAppointment,
   decideMembership,
@@ -24,6 +25,31 @@ function FieldError({ state }: { state: ClubState }) {
     {state.error && <p className="text-sm text-[#8C1D18]" role="alert">{state.error}</p>}
     {state.success && <p className="text-sm font-semibold text-[#17634a]" role="status">{state.success}</p>}
   </>;
+}
+
+export function DirectClubForm({ students, professors, culturalOnly }: {
+  students: { id: string; name: string }[];
+  professors: { id: string; name: string }[];
+  culturalOnly: boolean;
+}) {
+  const [state, action, pending] = useActionState(createClubDirectly, {});
+  return <form action={action} className="space-y-3">
+    <label className={label}>Nombre del club<input className={input} name="name" required minLength={3} maxLength={120} /></label>
+    <label className={label}>Tipo<select className={input} name="kind" defaultValue={culturalOnly ? "cultural" : "academico"}>
+      {!culturalOnly && <option value="academico">Académico</option>}
+      <option value="cultural">Cultural</option><option value="deportivo">Deportivo</option>
+    </select></label>
+    <label className={label}>Descripción<textarea className={`${input} min-h-28`} name="description" required minLength={10} maxLength={2000} /></label>
+    <label className={label}>Alumno responsable<select className={input} name="leader_id" required defaultValue="">
+      <option value="" disabled>Selecciona un alumno</option>{students.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+    </select></label>
+    <label className={label}>Profesor asesor<select className={input} name="advisor_id" required defaultValue="">
+      <option value="" disabled>Selecciona un profesor</option>{professors.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+    </select></label>
+    <FieldError state={state} />
+    <button className={btn} disabled={pending || !students.length || !professors.length}>{pending ? "Registrando…" : "Registrar club"}</button>
+    {(!students.length || !professors.length) && <p className="text-sm text-[#667085]">Se necesita al menos una cuenta activa de alumno y una de profesor.</p>}
+  </form>;
 }
 
 export function ProposalForm() {

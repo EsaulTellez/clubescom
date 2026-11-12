@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { card } from "@/lib/ui";
 import { demoClubArt } from "@/lib/demo-art";
-import { ProposalForm } from "./forms";
+import { DirectClubForm, ProposalForm } from "./forms";
 import { interestLabel, kindLabel, statusLabel } from "./format";
 
 export const dynamic = "force-dynamic";
@@ -28,8 +28,10 @@ type ProposalRow = {
 
 export default async function ClubesPage() {
   const user = await getSession();
+  const canCreate = Boolean(user && (user.role === "admin" || (user.role === "moderador" && ["clubes_academicos", "clubes_culturales"].includes(user.area ?? ""))));
   let clubs: ClubRow[] = [];
   let proposals: ProposalRow[] = [];
+  let people: { id: string; name: string; role: string }[] = [];
   let dbDown = false;
 
   try {
@@ -50,6 +52,10 @@ export default async function ClubesPage() {
     );
     clubs = clubResult.rows;
     proposals = proposalResult.rows;
+    if (canCreate) {
+      const result = await pool.query<{ id: string; name: string; role: string }>("select id, name, role from users where is_active and role in ('alumno', 'profesor') order by name");
+      people = result.rows;
+    }
   } catch {
     dbDown = true;
   }
@@ -149,6 +155,12 @@ export default async function ClubesPage() {
         </div>
 
         <aside className="board-sidebar grid gap-3">
+          {canCreate && <section className="board-sidecard space-y-3">
+            <p className="board-eyebrow">Área de clubes</p>
+            <h2>Registrar club directamente</h2>
+            <p className="text-sm text-[#5f6e78]">Registra un club reconocido y asigna a sus responsables, sin pasar por votación.</p>
+            <DirectClubForm students={people.filter((p) => p.role === "alumno")} professors={people.filter((p) => p.role === "profesor")} culturalOnly={user?.role === "moderador" && user.area === "clubes_culturales"} />
+          </section>}
           <section id="proponer-club" className="board-propose board-form-anchor scroll-mt-28">
             <p className="board-eyebrow">El tablero también es tuyo</p>
             <h2>Propón una comunidad</h2>

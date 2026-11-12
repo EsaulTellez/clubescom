@@ -101,7 +101,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
         );
         membership = mine.rows[0]?.status ?? null;
       }
-      if (user && (user.id === club.leader_id || user.id === club.advisor_id)) {
+      if (user && ((user.role === "alumno" && user.id === club.leader_id) || (user.role === "profesor" && user.id === club.advisor_id))) {
         const queue = await pool.query<Pending>(
           `select m.user_id, u.name
            from memberships m join users u on u.id = m.user_id
@@ -118,9 +118,9 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
   if (dbDown) return <p className={card}>No se pudo consultar el club. Revisa que Postgres esté en marcha.</p>;
   if (!club) notFound();
 
-  const manages = Boolean(user && (user.id === club.leader_id || user.id === club.advisor_id));
+  const manages = Boolean(user && ((user.role === "alumno" && user.id === club.leader_id) || (user.role === "profesor" && user.id === club.advisor_id)));
   const canRequest = Boolean(user && club.active && !manages && membership !== "pendiente" && membership !== "aceptada");
-  const canPost = Boolean(user && club.active && (manages || membership === "aceptada"));
+  const canPost = Boolean(user && club.active && manages);
   const logo = demoClubArt(club.name);
 
   return (
@@ -168,18 +168,18 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
         <main id="publicaciones" className="min-w-0 space-y-4">
           {canPost ? <ClubPostForm clubId={club.id} /> : user ? (
             <div className="rounded-[24px] border border-[#e4edf2] bg-white p-4 text-sm text-[#667985] shadow-[0_8px_28px_rgba(0,45,75,0.04)]">
-              Únete al club para compartir publicaciones en su comunidad.
+              Las publicaciones las comparten el alumno responsable y el profesor asesor del club.
             </div>
           ) : null}
 
           <div className="flex items-end justify-between gap-3 px-1 pt-1">
-            <div><h2 className="text-xl font-extrabold tracking-tight text-[#19384c]">Feed del club</h2><p className="mt-1 text-xs text-[#778a96]">Ideas, preguntas y novedades de integrantes.</p></div>
+            <div><h2 className="text-xl font-extrabold tracking-tight text-[#19384c]">Feed del club</h2><p className="mt-1 text-xs text-[#778a96]">Novedades del equipo responsable del club.</p></div>
             <span className="rounded-full bg-[#e8f4f8] px-3 py-1 text-xs font-bold text-[#006699]">{posts.length} publicaciones</span>
           </div>
           {posts.length === 0 ? (
             <div className="rounded-[26px] border border-dashed border-[#cbdde6] bg-white/80 p-8 text-center">
               <span className="text-3xl">💬</span><h3 className="mt-2 font-bold text-[#19384c]">Todavía no hay publicaciones</h3>
-              <p className="mt-1 text-sm text-[#71818d]">Sé la primera persona en iniciar la conversación.</p>
+              <p className="mt-1 text-sm text-[#71818d]">Las novedades del club aparecerán aquí.</p>
             </div>
           ) : posts.map((post) => (
             <article key={post.id} className="rounded-[26px] border border-white bg-white p-5 shadow-[0_8px_28px_rgba(14,54,78,0.06)] transition hover:border-[#c7e1eb] sm:p-6">
@@ -234,7 +234,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
           </section>
 
           {canRequest && <section className="rounded-[26px] border border-[#cfe4ec] bg-[#f2fafc] p-5"><h2 className="font-bold text-[#264a60]">¿Te late este club?</h2><p className="mt-1 text-xs leading-5 text-[#667985]">Manda tu solicitud y el equipo del club la revisará.</p><div className="mt-3"><JoinButton clubId={club.id} /></div></section>}
-          {!user && <section className="rounded-[26px] border border-[#cfe4ec] bg-[#f2fafc] p-5"><h2 className="font-bold text-[#264a60]">¿Te late este club?</h2><p className="mt-1 text-xs leading-5 text-[#667985]">Inicia sesión para solicitar ingreso y participar en el feed.</p><Link href="/entrar" className="mt-3 inline-flex rounded-full bg-[#006699] px-4 py-2 text-xs font-bold text-white">Iniciar sesión</Link></section>}
+          {!user && <section className="rounded-[26px] border border-[#cfe4ec] bg-[#f2fafc] p-5"><h2 className="font-bold text-[#264a60]">¿Te late este club?</h2><p className="mt-1 text-xs leading-5 text-[#667985]">Inicia sesión para solicitar ingreso.</p><Link href="/entrar" className="mt-3 inline-flex rounded-full bg-[#006699] px-4 py-2 text-xs font-bold text-white">Iniciar sesión</Link></section>}
         </aside>
       </div>
 

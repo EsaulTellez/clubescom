@@ -16,6 +16,33 @@ function canModerate(user: SessionUser) {
   return user.role === "admin" || (user.role === "moderador" && user.area === "clubes_academicos");
 }
 
+export async function createClubDirectly(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user || !(user.role === "admin" || (user.role === "moderador" && ["clubes_academicos", "clubes_culturales"].includes(user.area ?? "")))) {
+    return { error: "Solo el área de clubes puede registrar un club directamente." };
+  }
+  const name = String(form.get("name") ?? "").trim();
+  const kind = String(form.get("kind") ?? "");
+  const description = String(form.get("description") ?? "").trim();
+  const leaderId = String(form.get("leader_id") ?? "");
+  const advisorId = String(form.get("advisor_id") ?? "");
+  if (name.length < 3 || name.length > 120 || description.length < 10 || description.length > 2000 || !KINDS.includes(kind as ClubKind)) return { error: "Completa el nombre, tipo y descripción del club." };
+  if (user.area === "clubes_culturales" && kind === "academico") return { error: "Esta área solo registra clubes culturales o deportivos." };
+  if (!isUuid(leaderId) || !isUuid(advisorId)) return { error: "Selecciona un alumno responsable y un profesor asesor." };
+  const people = await pool.query<{ id: string; role: string }>(
+    "select id, role from users where id = any($1::uuid[]) and is_active", [[leaderId, advisorId]],
+  );
+  if (!people.rows.some((p) => p.id === leaderId && p.role === "alumno") || !people.rows.some((p) => p.id === advisorId && p.role === "profesor")) return { error: "Selecciona un alumno y un profesor activos." };
+  const inserted = await pool.query<{ id: string }>(
+    "insert into clubs (name, kind, description, leader_id, advisor_id) values ($1, $2, $3, $4, $5) returning id",
+    [name, kind, description, leaderId, advisorId],
+  );
+  const id = inserted.rows[0].id;
+  await audit(user.id, "registrar_directamente", "clubs", id, name);
+  refresh(undefined, id);
+  redirect(`/clubes/${id}`);
+}
+
 function canManageAppointments(user: SessionUser) {
   return user.role === "admin" || (user.role === "moderador" && user.area === "subdireccion_academica");
 }
@@ -399,7 +426,7 @@ export async function decideMembership(_prev: ClubState, form: FormData): Promis
   );
   const row = club.rows[0];
   if (!row || !row.active) return { error: "Ese club no está activo." };
-  if (user.id !== row.leader_id && user.id !== row.advisor_id) {
+  if (!((user.role === "alumno" && user.id === row.leader_id) || (user.role === "profesor" && user.id === row.advisor_id))) {
     return { error: "Solo el responsable o el asesor pueden resolver solicitudes." };
   }
 
@@ -429,15 +456,11 @@ export async function createClubPost(_prev: ClubState, form: FormData): Promise<
   if (body.length < 10 || body.length > 3000) return { error: "La publicación debe tener entre 10 y 3000 caracteres." };
 
   const access = await pool.query<{ can_post: boolean }>(
-    `select c.active and (
-       c.leader_id = $2 or c.advisor_id = $2 or exists (
-         select 1 from memberships m where m.club_id = c.id and m.user_id = $2 and m.status = 'aceptada'
-       )
-     ) as can_post
+    `select c.active and (($3 = 'alumno' and c.leader_id = $2) or ($3 = 'profesor' and c.advisor_id = $2)) as can_post
      from clubs c where c.id = $1`,
-    [clubId, user.id],
+    [clubId, user.id, user.role],
   );
-  if (!access.rows[0]?.can_post) return { error: "Solo integrantes aceptados pueden publicar en el feed del club." };
+  if (!access.rows[0]?.can_post) return { error: "Solo el alumno responsable o el profesor asesor de este club pueden publicar." };
 
   const inserted = await pool.query<{ id: string }>(
     `insert into club_posts (club_id, author_id, title, body)
