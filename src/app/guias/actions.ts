@@ -120,6 +120,49 @@ export async function publishGuide(
   redirect(`/guias/${id}`);
 }
 
+export async function editGuide(_prev: GuideState, form: FormData): Promise<GuideState> {
+  const user = await getSession();
+  const id = String(form.get("id") ?? "");
+  const expectedVersion = Number(form.get("version"));
+  const title = String(form.get("title") ?? "").trim();
+  const summary = String(form.get("summary") ?? "").trim();
+  if (!user || !isStaff(user.role) || !isUuid(id)) return { error: "No tienes permiso para editar esta guía." };
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 1) return { error: "Recarga la guía antes de editarla." };
+  if (title.length < 4 || title.length > 180 || summary.length < 8 || summary.length > 800) return { error: "Revisa la longitud del título y del resumen." };
+
+  const result = await withTx(async (client) => {
+    const found = await client.query<{ area: string; version: number; steps: unknown }>(
+      "select area, version, steps from guides where id = $1 for update", [id],
+    );
+    const guide = found.rows[0];
+    if (!guide || (user.role !== "admin" && user.area !== guide.area)) return "permission";
+    if (guide.version !== expectedVersion) return "version";
+    const steps = asSteps(guide.steps).map((_, index) => ({
+      title: String(form.get(`step_title_${index}`) ?? "").trim(),
+      body: String(form.get(`step_body_${index}`) ?? "").trim(),
+    }));
+    if (!steps.length || steps.some((step) => !step.title || step.title.length > 160 || !step.body || step.body.length > 2000)) return "steps";
+    await client.query(
+      `insert into guide_versions (guide_id, version, edited_by, title, summary, steps, faqs, change_note)
+       select id, version, $2, title, summary, steps, faqs, 'Versión anterior' from guides where id = $1
+       on conflict (guide_id, version) do nothing`, [id, user.id],
+    );
+    await client.query("update guides set title = $2, summary = $3, steps = $4::jsonb, version = version + 1, updated_at = now() where id = $1", [id, title, summary, JSON.stringify(steps)]);
+    await client.query(
+      `insert into guide_versions (guide_id, version, edited_by, title, summary, steps, faqs, change_note)
+       select id, version, $2, title, summary, steps, faqs, 'Edición de guía' from guides where id = $1`, [id, user.id],
+    );
+    return "ok";
+  });
+  if (result === "permission") return { error: "No tienes permiso para editar esta guía." };
+  if (result === "version") return { error: "La guía cambió mientras la editabas. Recarga para ver la versión actual." };
+  if (result === "steps") return { error: "Completa el título y el texto de cada paso dentro de los límites indicados." };
+  await audit(user.id, "guide.edit", "guides", id, title);
+  revalidatePath("/guias");
+  revalidatePath(`/guias/${id}`);
+  redirect(`/guias/${id}`);
+}
+
 export async function suggestImprovement(
   _prev: SuggestState,
   form: FormData,

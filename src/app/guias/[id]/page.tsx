@@ -127,7 +127,7 @@ export default async function GuidePage({
         </p>
       </header>
 
-      {staff && user?.id === guide.author_id && <form action={deleteGuide}><input type="hidden" name="id" value={guide.id} /><button className={btnGhost}>Eliminar mi guía</button></form>}
+      {staff && <div className="flex flex-wrap gap-2"><Link href={`/guias/${guide.id}/editar`} className={btnGhost}>Editar guía</Link>{user?.id === guide.author_id && <form action={deleteGuide}><input type="hidden" name="id" value={guide.id} /><button className={btnGhost}>Eliminar mi guía</button></form>}</div>}
       <section className="space-y-4">
         <div>
           <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">En corto</p>

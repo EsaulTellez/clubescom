@@ -1,12 +1,12 @@
 # Pendientes del proyecto
 
-Estado actualizado el 2026-11-10, comparado con `docs/fuente/TT.docx` y las decisiones del propietario en `docs/decisiones-producto.md`. La demo usa Supabase local y un seed de 12 cuentas. Las migraciones nuevas deben aplicarse antes de validar estos cambios. Las rutas principales ya conectan con el modelo nuevo; esta lista contiene brechas funcionales todavía abiertas y recorridos que falta validar.
+Estado actualizado el 2026-11-11, comparado con `docs/fuente/TT.docx`, el plan de revisión externo y las decisiones del propietario en `docs/decisiones-producto.md`. La demo usa Supabase local y un seed de 12 cuentas. Las migraciones nuevas deben aplicarse antes de validar estos cambios. Las rutas principales ya conectan con el modelo nuevo; esta lista contiene brechas funcionales todavía abiertas y recorridos que falta validar. La existencia de código no equivale a un flujo verificado.
 
 ## Lo siguiente para llegar a una demo funcional
 
 1. Recorrer los flujos con las cuentas demo: alta y OTP, recuperación, foro y respuestas oficiales por área, propuesta de club con expedientes/asesor/cita, reclamo y QR entre dos personas, apelación, baja de cuenta y avisos programados.
 2. Completar CU-09: carga privada de archivos compatibles (al menos PDF/DOCX/TXT), extracción con Google GenAI y borrador de pasos editables con confirmación humana. La clave local aún no se ha probado.
-3. Completar preguntas/analíticas de guías: notificar a moderación dentro de la app, versiones de guía, filtros de métricas y preguntas por paso; hoy existen Q&A, votos y métricas básicas de vistas/pasos completados.
+3. Completar preguntas/analíticas de guías: notificar a moderación dentro de la app, editar FAQ y gestionar altas/reordenamiento de pasos sin perder sus vínculos, filtros de métricas y reconocimiento de colaboradores. Ya se pueden editar título, resumen y contenido de los pasos existentes con historial; existen Q&A, votos y métricas básicas.
 4. Verificar CU-32/34/35 con datos: panel, filtros y CSV de auditoría, métricas básicas, reporte de impacto CSV e impresión/PDF ya están implementados; faltan recorridos reales, más indicadores y comprobar el documento impreso.
 5. Verificar CU-33 con el ejemplo ficticio `public/ejemplo-padron-escom.csv`, errores y Mailpit. El flujo ya previsualiza, valida, detecta duplicados, deja descargar errores y envía invitaciones Auth de alumnos/profesores; no crea personal privilegiado desde el archivo.
 6. Revisar preferencias de notificación: conservar solo canales in-app, sin correo para avisos del producto ni seguimiento automático 24/48 h del foro.
@@ -27,7 +27,7 @@ Estado actualizado el 2026-11-10, comparado con `docs/fuente/TT.docx` y las deci
 
 - El formato social ya llama Google GenAI en servidor si hay `GOOGLE_GENERATIVE_AI_API_KEY`; falta recorrerlo con una clave válida. El borrador requiere edición humana antes de publicar.
 - Inicio, foro y notificaciones reciben cambios Realtime de tablas configuradas; falta recorrerlo con dos sesiones. La publicación programada aún necesita un scheduler local.
-- Falta carga y extracción de documentos para guías, edición general, aviso in-app al moderador de área, filtros de métricas y lista de colaboradores. Las preguntas por paso, respuestas y votos de utilidad ya están conectadas; la publicación y las sugerencias aceptadas guardan versiones.
+- Falta carga y extracción de documentos para guías, editar FAQ y gestionar los pasos sin perder sus vínculos, aviso in-app al moderador de área, filtros de métricas y lista de colaboradores. Ya se editan título, resumen y contenido de pasos existentes con historial; las preguntas por paso, respuestas y votos de utilidad están conectadas.
 - La interfaz de preferencias aún contiene banderas `email_*` heredadas aunque no se enviarán correos de producto; debe quedar en preferencias de notificación dentro de la app.
 
 ### Foro y moderación
@@ -60,3 +60,35 @@ Estado actualizado el 2026-11-10, comparado con `docs/fuente/TT.docx` y las deci
 - No Cloudflare R2; Supabase Storage para todo archivo que sí esté dentro del alcance.
 - Fuera del producto: SAES, otras escuelas IPN, ejecutar legalmente trámites, validar presencialmente con prefecto, reservas de espacios, control del auditorio solo por dirección y clubes informales.
 - No añadir entregables de diagramas ni automatización de pruebas; la prioridad es que los flujos de la demo funcionen.
+
+## Brechas adicionales detectadas al revisar el plan del TT (2026-11-11)
+
+Estas tareas complementan los recorridos anteriores. Se separa lo que se observa en el código de lo que aún requiere comprobación; los cuadros vacíos del plan externo no son evidencia de ausencia.
+
+### Funcionalidad y datos
+
+- [ ] **CU-04 / RF-04:** definir el catálogo y criterios de insignias y completar su otorgamiento automático sin duplicados. El perfil ya muestra insignias, pero mostrar una no prueba su asignación automática.
+- [ ] **CU-07 / RF-07:** asegurar que un aviso programado aparezca a la hora prevista también en una sesión ya abierta; verificar activación, zona horaria y actualización en vivo. Hoy se filtra por fecha al consultar y falta el mecanismo programado señalado arriba.
+- [ ] **CU-09 / RF-12:** además de generar borradores desde archivos, definir y completar la carga y descarga de PDF asociados a trámites; comprobar permisos y enlaces. Las FAQ ya pueden capturarse como texto.
+- [ ] **CU-17 / RF-18:** permitir adjuntar el plan de trabajo de la propuesta; el formulario actual ofrece un enlace opcional, no un archivo adjunto. Completar y verificar el reclamo de propuesta por otro interesado tras siete días, conforme a la decisión del propietario.
+- [ ] **CU-20:** modelar y verificar la asignación explícita del presidente por club y sus permisos; `leader_id` es la representación actual. Comprobar solicitudes, integrantes y acceso a la comunidad con cuentas distintas.
+- [ ] **CU-23–24:** completar el historial de entrega para ambas personas y verificar contacto, cierre por reporte falso y QR con dos cuentas y un dispositivo real; no dar por probado el escaneo solo porque el QR se genera.
+- [ ] **CU-34 / RF-35 / RNF-10:** revisar cobertura de auditoría de altas, cambios y eliminaciones administrativas, filtros y exportación. El esquema actual guarda actor, acción, entidad, detalle y fecha; contrastar la falta de valores anterior/nuevo e IP con el flujo del Word. Existe CSV; el Word menciona PDF/Excel.
+- [ ] **CU-01 / privacidad:** revisar alcance de exportación y rectificación de datos: la ruta actual exporta perfil, insignias y preferencias; verificar qué otros datos personales corresponden y cómo se solicitan o corrigen. Probar la baja y limpieza de archivos.
+- [ ] **CU-06:** probar el generador con una clave Google válida, el fallback manual y el guardado de formatos; el Word menciona tres versiones pero solo identifica dos, por lo que queda por definir la tercera si se requiere.
+
+### Calidad y operación de la demo
+
+- [ ] Medir carga principal (<3 s) y búsquedas (<500 ms) en condiciones documentadas; revisar que matching y operaciones masivas no bloqueen la interfaz (RNF-01–03). No se ha acreditado el cumplimiento con esta revisión.
+- [ ] Comprobar vencimiento por inactividad, validación de entradas y permisos/RLS de datos y Storage por rol y área, incluidas operaciones críticas y transacciones (RNF-05–06, 08–09). Hacer recorridos manuales con cuentas distintas, incluida la cuenta suspendida.
+- [ ] Revisar responsividad, teclado, contraste, etiquetas ARIA, texto alternativo y estados de carga/error en los flujos principales (RNF-12–14 y accesibilidad descrita en el Word). No se afirma conformidad WCAG sin evaluarla.
+- [ ] Documentar arquitectura y esquema de datos actuales, y comprobar estándares de código (RNF-15–17). No implica crear diagramas adicionales en esta etapa, según la decisión vigente.
+- [ ] Preparar y probar un respaldo y restauración local sin afectar datos de trabajo; el Word plantea respaldos periódicos (RNF-11), cuya programación y alcance para la demo siguen por definir. HTTPS (RNF-07) se verificará si se acuerda un entorno publicado; la demo actual es local.
+
+### Puntos a aclarar, no requisitos nuevos aprobados
+
+- Precisar criterios de insignias, la tercera salida del generador, formatos y límites de archivos, y si la ubicación del profesor significa cubículo o ubicación actual; el Word usa ambas expresiones.
+- Revisar con la dirección del TT qué entregables de memoria, manuales, capacitación y presentación corresponden a esta etapa. El Word los contempla, pero el propietario priorizó la demo funcional y no pidió diagramas ni pruebas automatizadas como entregables adicionales.
+- Revisar las referencias legales y obligaciones de privacidad con la fuente normativa y responsables institucionales antes de afirmar cumplimiento; el plan externo contiene citas y plazos que no se han validado. No asumir que la exportación parcial equivale a un módulo ARCO completo.
+- El plan externo propone hosting, proveedor de correo, servicios concretos, costos, Jest, estructura de tablas y procesos de producción; son propuestas o trabajo futuro, no decisiones aprobadas para esta demo. Tampoco sustituye las exclusiones acordadas: correo de producto, alertas 24/48 h, reservas y control exclusivo del auditorio. El proveedor de IA acordado es Google y el umbral de similitud es 80 %, no Deepseek ni 70 %.
+- El índice del Word contiene 35 casos; hay dos especificaciones adicionales en el cuerpo y una de las 35 carece de pasos extraíbles. El total documentado aquí es 37, no los 38 afirmados por el plan externo.

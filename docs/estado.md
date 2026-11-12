@@ -52,6 +52,8 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 ## Cambios
 
+- 2026-11-11. CU-05 sigue parcial: administración y moderación del área pueden editar título, resumen y contenido de pasos conservando una nueva versión; se evita sobrescribir cambios concurrentes. Se comprobó el guardado con la cuenta demo de Gestión Escolar y el historial. Falta editar FAQ, añadir o reordenar pasos sin perder sus vínculos, y verificar restricciones con otras cuentas.
+
 - 2026-11-10. CU-05 y CU-GUA-02-01 siguen parciales: la publicación guarda la versión inicial y aceptar una sugerencia conserva instantáneas y crea una versión nueva visible en el detalle; falta la edición general y recorrer el flujo con moderación de área.
 
 - 2026-11-10. CU-10 y CU-COM-04-01 conservan sus estados: se armonizaron los catálogos y detalles de guías y avisos con el tablero institucional, sin cambiar sus flujos. Se corrigió el resumen de CU-35 para reflejar las métricas y exportaciones ya registradas en este historial; siguen pendientes sus recorridos y métricas adicionales.
