@@ -1,0 +1,15 @@
+server {
+  listen ${SUPABASE_PORT};
+  client_max_body_size 50m;
+  location /templates/ { root /usr/share/nginx/html; }
+  location /auth/v1/ { proxy_pass http://auth:9999/; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto $scheme; }
+  location /rest/v1/ { proxy_pass http://rest:3000/; proxy_set_header Host $host; }
+  location /storage/v1/ { proxy_pass http://storage:5000/; proxy_set_header Host $host; proxy_set_header X-Forwarded-Proto $scheme; }
+  location /realtime/v1/ {
+    proxy_pass http://realtime:4000/socket/;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host realtime-dev;
+  }
+}

@@ -44,6 +44,24 @@ No entrega un objeto en persona ni exige que un prefecto esté presente. Tampoco
 
 ## Ejecutar el proyecto
 
+### Con Docker Compose
+
+Instala y abre [Docker Desktop](https://www.docker.com/products/docker-desktop/) (o Docker Engine con el complemento Compose). En la carpeta del repositorio ejecuta:
+
+```bash
+docker compose up -d
+```
+
+La primera ejecución descarga las imágenes y construye la aplicación. Compose inicia PostgreSQL, Auth, Storage, Realtime y Mailpit, aplica las migraciones y carga las cuentas de demostración en una base vacía. Abre [http://127.0.0.1:3001](http://127.0.0.1:3001); los mensajes de prueba están en [Mailpit](http://127.0.0.1:54324). La contraseña de las cuentas demo es `Escom2026!`.
+
+Los servicios usan los puertos locales 3001, 54321 y 54324. Si ya ejecutas Supabase con su CLI, detén esa instalación o libera los puertos antes de iniciar Compose. Los datos y archivos de Compose se guardan en volúmenes separados de la instalación con la CLI.
+
+Para detener los contenedores sin borrar los datos, ejecuta `docker compose down`. Para reconstruir tras cambios en el código, ejecuta `docker compose up -d --build`. `docker compose down -v` elimina también la base y los archivos de Compose.
+
+Esta configuración es exclusivamente para una demo local: usa credenciales públicas de prueba y solo expone los servicios a la propia computadora. La clave opcional de IA se puede pasar como `GOOGLE_GENERATIVE_AI_API_KEY` en el entorno de Compose.
+
+### Alternativa: Node y Supabase CLI
+
 ### Requisitos
 
 - [Node.js](https://nodejs.org/) 20.9 o superior y npm 10 o superior.
