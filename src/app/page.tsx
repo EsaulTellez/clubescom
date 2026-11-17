@@ -1,76 +1,128 @@
 import Link from "next/link";
-import { Cover } from "@/components/cover";
+import { canManageAvisos, toDatetimeLocal } from "@/app/avisos/shared";
+import { canManageSpaceByName, canPublishAnySpaceEvents } from "@/app/espacios/shared";
+import { AttendButton } from "@/components/attend-button";
+import { HomeFeed } from "@/components/home-feed";
 import { RealtimeRefresh } from "@/components/realtime-refresh";
 import { StoryCarousel, type StoryCard } from "@/components/story-carousel";
+import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
+import { demoNoticeArt, demoNoticeAuthor } from "@/lib/demo-art";
+import {
+  getHomeFeedBatch,
+  getTrendingLeaderboards,
+  type FeedBatchResult,
+  type PopularClubItem,
+  type TrendingEventItem,
+} from "@/lib/feed";
 import { card } from "@/lib/ui";
-import { demoClubArt, demoNoticeArt, demoNoticeAuthor } from "@/lib/demo-art";
 
 export const dynamic = "force-dynamic";
 
-type Aviso = {
+type ComunicadoHighlight = {
   id: string;
   title: string;
   body: string;
-  category: string;
   publish_at: Date;
-  featured: boolean;
+  image_url: string | null;
+  external_url: string | null;
 };
 
-type Club = {
-  id: string;
-  name: string;
-  kind: string;
-};
-
-const categoryLabel: Record<string, string> = {
-  academico: "Académico",
-  social: "Comunidad",
-  tramites: "Trámites",
-};
-
-function when(value: Date) {
+function shortWhen(value: Date) {
   return new Intl.DateTimeFormat("es-MX", {
     day: "numeric",
-    month: "long",
+    month: "short",
+    year: "numeric",
     timeZone: "America/Mexico_City",
   }).format(value);
 }
 
 export default async function HomePage() {
-  let avisos: Aviso[] = [];
-  let clubs: Club[] = [];
+  const user = await getSession();
+  const canPublishAviso = canManageAvisos(user);
+  const canPublishSpaceEvents = canPublishAnySpaceEvents(user);
+  let stories: StoryCard[] = [];
+  let initialBatch: FeedBatchResult = {
+    items: [],
+    hasMore: false,
+    nextOffset: 0,
+    totalCount: 0,
+    mode: "para_ti",
+  };
+  let popularClubs: PopularClubItem[] = [];
+  let trendingEvents: TrendingEventItem[] = [];
+  let managedClubs: { id: string; name: string }[] = [];
+  let spaces: { id: string; name: string }[] = [];
   let dbDown = false;
+
   try {
-    const news = await pool.query<Aviso>(
-      `select id, title, body, category, publish_at, featured from avisos
-       where is_public and publish_at <= now()
-       order by publish_at desc
-       limit 12`,
-    );
-    const popular = await pool.query<Club>(
-      `select id, name, kind from clubs where active = true order by name asc limit 4`,
-    );
-    avisos = news.rows;
-    clubs = popular.rows;
+    try {
+      await pool.query("select public.trigger_scheduled_avisos()");
+    } catch {
+      // ignore if migration not yet applied
+    }
+
+    const [highlightsRes, feedBatch, leaderboards, clubsRes, spacesRes] = await Promise.all([
+      pool.query<ComunicadoHighlight>(
+        `select id, title, body, publish_at, image_url, external_url
+         from public.avisos
+         where (is_public or $1::boolean) and publish_at <= now()
+         order by (image_url is not null) desc, featured desc, publish_at desc
+         limit 8`,
+        [Boolean(user)],
+      ),
+      getHomeFeedBatch({
+        userId: user?.id ?? null,
+        isAuthenticated: Boolean(user),
+        mode: "para_ti",
+        offset: 0,
+        limit: 5,
+      }),
+      getTrendingLeaderboards(user?.id ?? null),
+      user
+        ? pool.query<{ id: string; name: string }>(
+            `select id, name from public.clubs
+             where active = true
+               and (($2 = 'alumno' and leader_id = $1) or ($2 = 'profesor' and advisor_id = $1))
+             order by name`,
+            [user.id, user.role],
+          )
+        : Promise.resolve({ rows: [] as { id: string; name: string }[] }),
+      canPublishSpaceEvents
+        ? pool.query<{ id: string; name: string }>("select id, name from public.spaces order by name")
+        : Promise.resolve({ rows: [] as { id: string; name: string }[] }),
+    ]);
+
+    stories = highlightsRes.rows
+      .map((aviso): StoryCard | null => {
+        const img = aviso.image_url ?? demoNoticeArt(aviso.title);
+        if (!img) return null;
+        return {
+          id: aviso.id,
+          title: aviso.title,
+          summary: aviso.body,
+          dateLabel: shortWhen(new Date(aviso.publish_at)),
+          author: demoNoticeAuthor(aviso.title),
+          image: img,
+          externalUrl: aviso.external_url,
+        };
+      })
+      .filter((item): item is StoryCard => item !== null);
+
+    initialBatch = feedBatch;
+    popularClubs = leaderboards.popularClubs;
+    trendingEvents = leaderboards.trendingEvents;
+    managedClubs = clubsRes.rows;
+    spaces = spacesRes.rows.filter((space) => canManageSpaceByName(user, space.name));
   } catch {
     dbDown = true;
   }
 
-  const stories: StoryCard[] = [...avisos]
-    .sort((a, b) => Number(Boolean(demoNoticeArt(b.title))) - Number(Boolean(demoNoticeArt(a.title))) || b.publish_at.getTime() - a.publish_at.getTime())
-    .slice(0, 4)
-    .map((aviso) => ({
-      href: `/avisos/${aviso.id}`,
-      title: aviso.title,
-      kicker: categoryLabel[aviso.category] ?? aviso.category,
-      tone: aviso.category,
-      image: demoNoticeArt(aviso.title),
-    }));
-
   return (
     <div className="board-page">
-      <RealtimeRefresh tables={["avisos", "clubs", "club_proposals"]} />
+      <RealtimeRefresh
+        tables={["avisos", "clubs", "club_posts", "club_events", "space_events", "questions", "event_attendees"]}
+      />
 
       {dbDown && (
         <p className={card} role="status">
@@ -80,98 +132,130 @@ export default async function HomePage() {
 
       <div className="board-layout">
         <div className="board-main">
-          <section className="board-pinned" aria-label="Avisos institucionales fijados">
-            <div aria-label="Avisos destacados">
-              <h1 className="sr-only">Comunicados y eventos destacados</h1>
+          {stories.length > 0 && (
+            <section className="board-pinned" aria-labelledby="comunicados-heading">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h1 id="comunicados-heading" className="text-lg font-extrabold tracking-tight text-[#15394d] sm:text-xl">
+                  Comunicados
+                </h1>
+              </div>
               <StoryCarousel items={stories} />
-            </div>
-            <div className="board-section-heading mt-4"><div><span className="board-pinned__label">En el pizarrón</span><h2 className="mt-2">Comunicados y eventos</h2></div><Link href="/avisos" className="board-text-link">Ver todos los avisos →</Link></div>
-          </section>
+            </section>
+          )}
 
-          <section className="board-feed" aria-labelledby="recent-heading">
-            <div className="board-feed__bar">
-              <strong>Actualizaciones de ESCOM</strong>
-              <Link href="/avisos" className="board-text-link">Explorar archivo</Link>
-            </div>
-            <div className="board-section-heading">
-              <div>
-                <p className="board-eyebrow">Lo último</p>
-                <h2 id="recent-heading">Recién publicado</h2>
-              </div>
-            </div>
-
-            {avisos.length ? (
-              <div className="grid gap-3">
-                {avisos.map((aviso) => {
-                  const art = demoNoticeArt(aviso.title);
-                  return (
-                    <article key={aviso.id} className="board-notice">
-                      <div className="board-notice__meta">
-                        <div className="board-notice__avatar" aria-hidden="true">E</div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-extrabold text-[#234657]">{demoNoticeAuthor(aviso.title)}</p>
-                          <p className="mt-0.5 text-xs text-[#647780]">
-                            {categoryLabel[aviso.category] ?? aviso.category}<span className="mx-1.5" aria-hidden="true">·</span>{when(aviso.publish_at)}
-                          </p>
-                        </div>
-                        <span className={`board-label ${aviso.featured ? "board-label--pinned" : ""}`}>
-                          {aviso.featured ? "Fijado" : categoryLabel[aviso.category] ?? aviso.category}
-                        </span>
-                      </div>
-                      <div className="board-notice__body">
-                        <h3><Link href={`/avisos/${aviso.id}`} className="hover:text-[#006699]">{aviso.title}</Link></h3>
-                        <p>{aviso.body}</p>
-                      </div>
-                      <Link href={`/avisos/${aviso.id}`} className="block" aria-label={`Abrir aviso: ${aviso.title}`}>
-                        {art ? (
-                          <img src={art} alt={`Cartel: ${aviso.title}`} className="board-notice__image" />
-                        ) : (
-                          <div className="px-[1.1rem] pb-4 pt-2">
-                            <Cover tone={aviso.category} kicker={categoryLabel[aviso.category] ?? aviso.category} title={aviso.title} className="h-44 rounded-lg sm:h-56" />
-                          </div>
-                        )}
-                      </Link>
-                      <Link href={`/avisos/${aviso.id}`} className="board-notice__action">Abrir publicación →</Link>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              !dbDown && <p className={`${card} text-center text-sm text-[#5f6e78]`}>Todavía no hay avisos. Cuando publiquen algo, aparecerá aquí.</p>
-            )}
-          </section>
+          <HomeFeed
+            initialBatch={initialBatch}
+            isAuthenticated={Boolean(user)}
+            publishContext={
+              user && (canPublishAviso || canPublishSpaceEvents || managedClubs.length > 0)
+                ? {
+                    isAuthenticated: true,
+                    canPublishAviso,
+                    canPublishSpaceEvents,
+                    managedClubs,
+                    spaces,
+                    defaultPublishAt: toDatetimeLocal(new Date()),
+                  }
+                : undefined
+            }
+          />
         </div>
 
-        <aside className="board-sidebar grid gap-3 xl:sticky xl:top-24">
-          <section className="board-sidecard">
-            <p className="board-eyebrow">Gente que hace comunidad</p>
-            <h2>Clubes en el tablero</h2>
-            <p className="mt-1 text-sm leading-6 text-[#5f6e78]">Actividades, ideas y equipos para encontrar a tu gente.</p>
-            <hr className="board-sidecard__rule" />
-            <ul className="board-club-list">
-              {clubs.map((club) => (
-                <li key={club.id}>
-                  <Link href={`/clubes/${club.id}`}>
-                    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#d8d9cf] bg-[#f2f1e9] text-sm font-extrabold text-[#24546a]">
-                      {demoClubArt(club.name) ? <img src={demoClubArt(club.name)!} alt="" className="h-full w-full object-cover" /> : club.name.replace("Club de ", "").slice(0, 1)}
-                    </span>
-                    <span className="min-w-0">
-                      <strong className="block truncate text-sm">{club.name}</strong>
-                      <span className="mt-0.5 block text-xs capitalize text-[#647780]">{club.kind}</span>
-                    </span>
-                  </Link>
+        <aside className="board-sidebar grid gap-5 xl:sticky xl:top-24">
+          {/* Clubes populares */}
+          <section className="board-sidecard board-leaderboard" aria-labelledby="popular-clubs-heading">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 id="popular-clubs-heading">Clubes populares</h2>
+              <Link href="/clubes" className="text-xs font-bold text-[#005a87] hover:underline">
+                Ver todos
+              </Link>
+            </div>
+
+            <ol className="grid gap-2.5">
+              {popularClubs.map((club) => (
+                <li key={club.id} className="board-leaderboard__item flex items-center gap-3">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-[#eef3f6] text-xs font-extrabold text-[#1e495e]">
+                    {club.rank}
+                  </span>
+
+                  <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#d6d8ce] bg-[#f2f1e9] text-xs font-extrabold text-[#1e495e]">
+                    {club.logoUrl ? (
+                      <img src={club.logoUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      club.name.replace("Club de ", "").slice(0, 1)
+                    )}
+                  </span>
+
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      href={`/clubes/${club.id}`}
+                      className="block truncate text-sm font-extrabold text-[#173a4c] hover:text-[#006699] hover:underline"
+                    >
+                      {club.name}
+                    </Link>
+                    <p className="truncate text-xs text-[#5e717a]">
+                      {club.kindLabel} · {club.membersCount} {club.membersCount === 1 ? "miembro" : "miembros"}
+                    </p>
+                  </div>
                 </li>
               ))}
-              {clubs.length === 0 && !dbDown && <li className="text-sm text-[#5f6e78]">Cuando haya clubes registrados, aparecerán aquí.</li>}
-            </ul>
-            <Link href="/clubes" className="mt-4 inline-flex min-h-10 items-center font-bold text-[#004d73] hover:underline">Explorar clubes →</Link>
+            </ol>
           </section>
 
-          <section className="board-sidecard border-t-4 border-t-[#d4b64f]">
-            <p className="board-eyebrow">¿Traes una idea?</p>
-            <h2>Propón el siguiente club</h2>
-            <p className="mt-2 text-sm leading-6 text-[#5f6e78]">Cuéntale a la comunidad qué te gustaría armar en ESCOM.</p>
-            <Link href="/clubes#proponer-club" className="mt-3 inline-flex min-h-10 items-center font-bold text-[#004d73] hover:underline">Ver cómo proponer →</Link>
+          {/* Eventos en tendencia */}
+          <section
+            className="board-sidecard board-leaderboard border-t-4 border-t-[#b88917]"
+            aria-labelledby="trending-events-heading"
+          >
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 id="trending-events-heading">Eventos en tendencia</h2>
+              <Link href="/eventos" className="text-xs font-bold text-[#005a87] hover:underline">
+                Ver todos
+              </Link>
+            </div>
+
+            <ol className="grid gap-2.5">
+              {trendingEvents.map((ev) => (
+                <li key={`${ev.eventKind}-${ev.id}`} className="board-leaderboard__item space-y-2">
+                  <div className="flex items-start gap-2.5">
+                    <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md bg-[#faf3dc] text-xs font-extrabold text-[#6e5008]">
+                      {ev.rank}
+                    </span>
+
+                    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#e3d9b8] bg-[#faf5e4] text-[#8c6812]">
+                      {ev.imageUrl ? (
+                        <img src={ev.imageUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                          <rect x="3" y="4" width="14" height="13" rx="2" />
+                          <path d="M7 2.5v3M13 2.5v3M3 8h14" strokeLinecap="round" />
+                        </svg>
+                      )}
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-sm font-extrabold leading-snug text-[#173a4c]">
+                        {ev.title}
+                      </p>
+                      <p className="mt-0.5 break-words text-xs text-[#586d77]">
+                        {ev.location} · {ev.dateFormatted}, {ev.timeFormatted}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pl-[4.75rem]">
+                    <span className="truncate text-xs font-semibold text-[#5e717a]">{ev.organizer}</span>
+                    <AttendButton
+                      eventKind={ev.eventKind}
+                      eventId={ev.id}
+                      initialAttending={ev.viewerAttending}
+                      initialCount={ev.attendeesCount}
+                      isAuthenticated={Boolean(user)}
+                      compact
+                    />
+                  </div>
+                </li>
+              ))}
+            </ol>
           </section>
         </aside>
       </div>

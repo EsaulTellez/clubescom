@@ -1,164 +1,199 @@
-import Link from "next/link";
-import { PageIntro } from "@/components/page-intro";
-import { Cover } from "@/components/cover";
-import { demoNoticeArt } from "@/lib/demo-art";
+import { RealtimeRefresh } from "@/components/realtime-refresh";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
-import { btn, btnGhost, card, input } from "@/lib/ui";
+import { demoNoticeArt, demoNoticeAuthor } from "@/lib/demo-art";
+import { card } from "@/lib/ui";
 import {
-  CATEGORIES,
-  canManageAvisos,
-  categoryLabel,
-  formatWhen,
-  isCategory,
-  likePattern,
-} from "./shared";
+  ComunicadosExplorer,
+  type ComunicadoItem,
+  type KpiRecentActivity,
+} from "./comunicados-explorer";
+import { canManageAvisos, isCategory, toDatetimeLocal, type Category } from "./shared";
 
 export const dynamic = "force-dynamic";
 
-type AvisoCard = {
+type AvisoRow = {
   id: string;
+  author_id: string;
+  author_name: string;
   title: string;
   body: string;
   category: string;
   featured: boolean;
+  is_public: boolean;
+  image_url: string | null;
+  external_url: string | null;
+  views_count: number;
+  link_clicks_count: number;
   publish_at: Date;
+  social_twitter: string | null;
+  social_facebook: string | null;
+  social_copy: string | null;
+};
+
+type InteractionStatsRow = {
+  views_7d: number;
+  clicks_7d: number;
 };
 
 function one(value: string | string[] | undefined) {
   return (Array.isArray(value) ? value[0] : value ?? "").trim();
 }
 
+function formatShortDate(value: Date) {
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "America/Mexico_City",
+  }).format(value);
+}
+
+function formatShortTime(value: Date) {
+  return new Intl.DateTimeFormat("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "America/Mexico_City",
+  }).format(value);
+}
+
 export default async function AvisosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string | string[]; categoria?: string | string[] }>;
+  searchParams: Promise<{
+    q?: string | string[];
+    categoria?: string | string[];
+    aviso?: string | string[];
+  }>;
 }) {
   const params = await searchParams;
   const q = one(params.q);
   const categoria = one(params.categoria);
+  const selectedIdParam = one(params.aviso);
   const category = isCategory(categoria) ? categoria : "";
   const user = await getSession();
-
-  const { rows } = await pool.query<AvisoCard>(
-    `select id, title, body, category, featured, publish_at
-     from avisos
-     where is_public
-       and publish_at <= now()
-       and ($1::text is null or title ilike $1 escape '!' or body ilike $1 escape '!')
-       and ($2::text is null or category = $2)
-     order by publish_at desc`,
-    [q ? likePattern(q) : null, category || null],
+  const canCreate = canManageAvisos(user);
+  const isComunicacionRole = Boolean(
+    user && (user.role === "admin" || (user.role === "moderador" && user.area === "comunicacion")),
   );
 
-  const featured = rows.filter((aviso) => aviso.featured);
-  const filtering = Boolean(q || category);
+  let comunicados: ComunicadoItem[] = [];
+  let recentActivity: KpiRecentActivity = { views7d: 0, clicks7d: 0 };
+  let dbDown = false;
+
+  try {
+    try {
+      await pool.query("select public.trigger_scheduled_avisos()");
+    } catch {
+      // ignore if migration not yet applied
+    }
+
+    const [avisosRes, interactionStatsRes] = await Promise.all([
+      pool.query<AvisoRow>(
+        `select a.id,
+                a.author_id,
+                u.name as author_name,
+                a.title,
+                a.body,
+                a.category,
+                a.featured,
+                a.is_public,
+                a.image_url,
+                a.external_url,
+                a.views_count,
+                a.link_clicks_count,
+                a.publish_at,
+                a.social_twitter,
+                a.social_facebook,
+                a.social_copy
+         from public.avisos a
+         join public.users u on u.id = a.author_id
+         where ((a.is_public or $1::boolean) and a.publish_at <= now())
+            or $2::boolean
+         order by a.publish_at desc`,
+        [Boolean(user), canCreate],
+      ),
+      isComunicacionRole
+        ? pool.query<InteractionStatsRow>(
+            `select
+               count(*) filter (where kind = 'view' and created_at >= now() - interval '7 days')::int as views_7d,
+               count(*) filter (where kind = 'click' and created_at >= now() - interval '7 days')::int as clicks_7d
+             from public.aviso_interactions`,
+          )
+        : Promise.resolve({ rows: [] as InteractionStatsRow[] }),
+    ]);
+
+    const nowMs = Date.now();
+    comunicados = avisosRes.rows.map((row) => {
+      const pubDate = new Date(row.publish_at);
+      const art = row.image_url ?? demoNoticeArt(row.title);
+      const demoAuthor = demoNoticeAuthor(row.title);
+      const authorName =
+        demoAuthor !== "Comunidad ESCOM" ? demoAuthor : row.author_name;
+      const safeCat: Category = isCategory(row.category)
+        ? row.category
+        : "academico";
+      const canEditOrDelete = Boolean(
+        canCreate && (user?.role === "admin" || user?.id === row.author_id),
+      );
+
+      return {
+        id: row.id,
+        authorId: row.author_id,
+        authorName,
+        title: row.title,
+        body: row.body,
+        category: safeCat,
+        featured: row.featured,
+        isPublic: row.is_public,
+        isScheduled: pubDate.getTime() > nowMs,
+        imageUrl: art,
+        externalUrl: row.external_url,
+        viewsCount: row.views_count,
+        linkClicksCount: row.link_clicks_count,
+        publishAtIso: pubDate.toISOString(),
+        publishAtLocal: toDatetimeLocal(pubDate),
+        publishDateFormatted: formatShortDate(pubDate),
+        publishTimeFormatted: `${formatShortTime(pubDate)} hrs`,
+        socialTwitter: row.social_twitter,
+        socialFacebook: row.social_facebook,
+        socialCopy: row.social_copy,
+        canEditOrDelete,
+      };
+    });
+
+    const statsRow = interactionStatsRes.rows[0];
+    if (statsRow) {
+      recentActivity = {
+        views7d: statsRow.views_7d ?? 0,
+        clicks7d: statsRow.clicks_7d ?? 0,
+      };
+    }
+  } catch {
+    dbDown = true;
+  }
 
   return (
-    <div className="space-y-8">
-      <PageIntro kicker="Comunicación institucional" title="Avisos" text="Comunicados y novedades de la comunidad ESCOM." action={
-        canManageAvisos(user) ? (
-          <Link href="/avisos/nuevo" className={btn}>
-            Nuevo aviso
-          </Link>
-        ) : undefined
-      } />
+    <div className="space-y-6">
+      <RealtimeRefresh tables={["avisos"]} />
 
-      <form method="get" className="board-sidecard grid gap-2 p-4 sm:grid-cols-[1fr_12rem_auto] sm:items-center">
-        <input
-          className={input}
-          name="q"
-          defaultValue={q}
-          placeholder="Buscar por título o contenido"
-          aria-label="Buscar avisos"
-        />
-        <select className={input} name="categoria" defaultValue={category} aria-label="Categoría">
-          <option value="">Todas las categorías</option>
-          {CATEGORIES.map((item) => (
-            <option key={item} value={item}>
-              {categoryLabel(item)}
-            </option>
-          ))}
-        </select>
-        <div className="flex gap-2">
-          <button className={btn}>Buscar</button>
-          {filtering && (
-            <Link href="/avisos" className={btnGhost}>
-              Limpiar
-            </Link>
-          )}
-        </div>
-      </form>
+      {dbDown && (
+        <p className={card} role="status">
+          No se pudo conectar con los datos locales. Inicia los servicios del proyecto y vuelve a cargar.
+        </p>
+      )}
 
-      <section className="space-y-3">
-        <div className="board-section-heading"><div><p className="board-eyebrow">Para tener en cuenta</p><h2>Destacados</h2></div></div>
-        {featured.length === 0 ? (
-          <p className="text-sm text-[#667085]">
-            {filtering
-              ? "Ningún aviso destacado coincide con esta búsqueda."
-              : "Todavía no hay avisos destacados."}
-          </p>
-        ) : (
-          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 snap-x snap-mandatory">
-            {featured.map((aviso) => (
-              <Link key={aviso.id} href={`/avisos/${aviso.id}`} className="w-[min(100%,18rem)] shrink-0 snap-start">
-                {demoNoticeArt(aviso.title) ? (
-                  <div className="flex h-52 items-center justify-center overflow-hidden rounded-2xl bg-[#f4f3f0] p-1">
-                    <img src={demoNoticeArt(aviso.title)!} alt={`Cartel: ${aviso.title}`} className="h-full w-full object-contain" />
-                  </div>
-                ) : (
-                  <Cover
-                    tone={aviso.category}
-                    kicker={categoryLabel(aviso.category)}
-                    title={aviso.title}
-                    className="h-52 rounded-2xl"
-                  />
-                )}
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="space-y-3">
-        <div className="board-section-heading"><div><p className="board-eyebrow">Tablero institucional</p><h2>Cronología</h2></div><span className="board-label">{rows.length} {rows.length === 1 ? "aviso" : "avisos"}</span></div>
-        {rows.length === 0 ? (
-          <p className={card}>
-            {filtering
-              ? "No hay avisos que coincidan con esta búsqueda."
-              : "Todavía no hay avisos publicados."}
-          </p>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {rows.map((aviso) => (
-              <Link
-                key={aviso.id}
-                href={`/avisos/${aviso.id}`}
-                className="board-sidecard overflow-hidden border-t-4 border-t-[#006699] hover:border-[#006699]"
-              >
-                {demoNoticeArt(aviso.title) ? (
-                  <img src={demoNoticeArt(aviso.title)!} alt={`Cartel: ${aviso.title}`} className="max-h-80 w-full bg-[#f4f3f0] object-contain" />
-                ) : null}
-                <div className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs uppercase tracking-wide text-[#006699]">
-                    {categoryLabel(aviso.category)}
-                  </p>
-                  {aviso.featured && (
-                    <span className="rounded-full bg-[#e6f3fa] px-2 py-0.5 text-xs text-[#006699]">
-                      Destacado
-                    </span>
-                  )}
-                </div>
-                <h3 className="mt-2 text-lg font-extrabold text-[#1b4053]">{aviso.title}</h3>
-                <p className="mt-2 line-clamp-3 text-sm text-[#667085]">{aviso.body}</p>
-                <p className="mt-4 flex justify-between border-t border-[#e9e6dc] pt-3 text-xs font-bold text-[#647780]"><span>{formatWhen(aviso.publish_at)}</span><span className="text-[#006699]">Abrir aviso →</span></p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+      <ComunicadosExplorer
+        comunicados={comunicados}
+        canCreate={canCreate}
+        showKpis={isComunicacionRole}
+        recentActivity={recentActivity}
+        defaultPublishAt={toDatetimeLocal(new Date())}
+        initialQuery={q}
+        initialCategory={category}
+        initialSelectedId={selectedIdParam}
+      />
     </div>
   );
 }

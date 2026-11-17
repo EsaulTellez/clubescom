@@ -22,24 +22,47 @@ type Row = {
 export default async function ObjetosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kind?: string | string[] }>;
+  searchParams: Promise<{ kind?: string | string[]; tab?: string | string[] }>;
 }) {
   const query = await searchParams;
   const raw = Array.isArray(query.kind) ? query.kind[0] : query.kind;
+  const tabRaw = Array.isArray(query.tab) ? query.tab[0] : query.tab;
+  const isHistory = tabRaw === "historial";
   const kind = raw && isKind(raw) ? raw : null;
   const user = await getSession();
-  const { rows } = await pool.query<Row>(
-    `select id, kind, title, description, place, photo_url, status, created_at
-     from lost_items
-     where status = 'abierto' and ($1::text is null or kind = $1)
-     order by created_at desc`,
-    [kind],
-  );
+
+  const { rows } =
+    isHistory && user
+      ? await pool.query<Row>(
+          `select distinct li.id, li.kind, li.title, li.description, li.place, li.photo_url, li.status, li.created_at
+           from lost_items li
+           left join lost_item_claims c on c.lost_item_id = li.id
+           where (li.reporter_id = $1 or c.claimant_id = $1)
+             and ($2::text is null or li.kind = $2)
+           order by li.created_at desc`,
+          [user.id, kind],
+        )
+      : await pool.query<Row>(
+          `select id, kind, title, description, place, photo_url, status, created_at
+           from lost_items
+           where status = 'abierto' and ($1::text is null or kind = $1)
+           order by created_at desc`,
+          [kind],
+        );
 
   const filters = [
-    { href: "/objetos", label: "Todos", active: !kind },
-    { href: "/objetos?kind=perdido", label: "Perdidos", active: kind === "perdido" },
-    { href: "/objetos?kind=encontrado", label: "Encontrados", active: kind === "encontrado" },
+    { href: "/objetos", label: "Todos abiertos", active: !isHistory && !kind },
+    { href: "/objetos?kind=perdido", label: "Perdidos", active: !isHistory && kind === "perdido" },
+    { href: "/objetos?kind=encontrado", label: "Encontrados", active: !isHistory && kind === "encontrado" },
+    ...(user
+      ? [
+          {
+            href: "/objetos?tab=historial",
+            label: "Mi historial (entregados / cerrados / reclamados)",
+            active: isHistory,
+          },
+        ]
+      : []),
   ];
 
   const lostCount = rows.filter((item) => item.kind === "perdido").length;
@@ -59,7 +82,7 @@ export default async function ObjetosPage({
       />
 
       <section className="grid gap-3 sm:grid-cols-3" aria-label="Resumen de reportes">
-        <div className="board-sidecard p-4"><p className="text-2xl font-extrabold text-[#006699]">{rows.length}</p><p className="mt-1 text-xs font-semibold text-[#667085]">Reportes en esta vista</p></div>
+        <div className="board-sidecard p-4"><p className="text-2xl font-extrabold text-[#006699]">{rows.length}</p><p className="mt-1 text-xs font-semibold text-[#667085]">{isHistory ? "Reportes en tu historial" : "Reportes en esta vista"}</p></div>
         <div className="board-sidecard p-4"><p className="text-2xl font-extrabold text-[#006699]">{lostCount}</p><p className="mt-1 text-xs font-semibold text-[#667085]">Cosas por encontrar</p></div>
         <div className="board-sidecard p-4"><p className="text-2xl font-extrabold text-[#006699]">{foundCount}</p><p className="mt-1 text-xs font-semibold text-[#667085]">Hallazgos publicados</p></div>
       </section>
@@ -74,9 +97,11 @@ export default async function ObjetosPage({
 
       {rows.length === 0 ? (
         <p className={card}>
-          {kind
-            ? "No hay reportes abiertos de este tipo."
-            : "Todavía no hay reportes abiertos. Sé la primera persona en publicar uno."}
+          {isHistory
+            ? "Todavía no tienes objetos reportados, entregados o reclamados en tu historial."
+            : kind
+              ? "No hay reportes abiertos de este tipo."
+              : "Todavía no hay reportes abiertos. Sé la primera persona en publicar uno."}
         </p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

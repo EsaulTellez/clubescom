@@ -19,7 +19,11 @@ type Aviso = {
   featured: boolean;
   is_public: boolean;
   publish_at: Date;
+  external_url: string | null;
   social_copy: string | null;
+  social_twitter: string | null;
+  social_facebook: string | null;
+  image_url: string | null;
 };
 
 export default async function EditarAvisoPage({ params }: { params: Promise<{ id: string }> }) {
@@ -39,19 +43,19 @@ export default async function EditarAvisoPage({ params }: { params: Promise<{ id
   }
 
   const { rows } = await pool.query<Aviso>(
-    `select id, author_id, title, body, category, featured, is_public, publish_at, social_copy
+    `select id, author_id, title, body, category, featured, is_public, publish_at, external_url, social_copy, social_twitter, social_facebook, image_url
      from avisos where id = $1`,
     [id],
   );
   const aviso = rows[0];
   if (!aviso) notFound();
-  if (aviso.author_id !== user.id || !isCategory(aviso.category)) {
+  if ((aviso.author_id !== user.id && user.role !== "admin") || !isCategory(aviso.category)) {
     return (
       <div className="mx-auto max-w-3xl space-y-3">
         <Link href={`/avisos/${id}`} className="text-sm text-[#006699] hover:underline">
           Volver al aviso
         </Link>
-        <p className={card}>Solo puedes editar avisos que publicaste tú.</p>
+        <p className={card}>Solo puedes editar avisos que publicaste tú o con cuenta de administración.</p>
       </div>
     );
   }
@@ -74,7 +78,11 @@ export default async function EditarAvisoPage({ params }: { params: Promise<{ id
             featured: aviso.featured,
             isPublic: aviso.is_public,
             publishAt: toDatetimeLocal(aviso.publish_at),
+            externalUrl: aviso.external_url ?? "",
             socialCopy: aviso.social_copy ?? "",
+            socialTwitter: aviso.social_twitter ?? "",
+            socialFacebook: aviso.social_facebook ?? "",
+            imageUrl: aviso.image_url,
           }}
         />
       </section>

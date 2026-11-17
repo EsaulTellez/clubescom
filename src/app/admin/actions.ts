@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
+import { isStaffArea } from "@/lib/areas";
 import { audit, getSession, type Role } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -35,8 +36,12 @@ export async function setBanned(_prev: FormState, form: FormData): Promise<FormS
 
   const id = String(form.get("user_id") ?? "");
   const banned = String(form.get("banned") ?? "");
+  const reason = String(form.get("reason") ?? "").trim();
   if (!UUID.test(id) || (banned !== "true" && banned !== "false")) {
     return { error: "No se pudo actualizar el veto." };
+  }
+  if (reason.length < 10 || reason.length > 500) {
+    return { error: "Escribe un motivo obligatorio de entre 10 y 500 caracteres." };
   }
   const next = banned === "true";
   const supabase = await createSupabaseServerClient();
@@ -47,15 +52,29 @@ export async function setBanned(_prev: FormState, form: FormData): Promise<FormS
   if (error) return { error: error.message.includes("Solo administración") ? error.message : "No se pudo actualizar el veto." };
   const row = data?.[0];
   if (!row) return { error: "Usuario no encontrado." };
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const secret = process.env.SUPABASE_SECRET_KEY;
+  if (url && secret) {
+    try {
+      const admin = createClient(url, secret, { auth: { autoRefreshToken: false, persistSession: false } });
+      await admin.auth.admin.updateUserById(id, {
+        ban_duration: next ? "87600h" : "none",
+      });
+    } catch {
+      // Best-effort revocation in Supabase Auth alongside DB ban flag
+    }
+  }
+
   await audit(
     actor.id,
     next ? "vetar" : "habilitar",
     "users",
     id,
-    `${row.name}: ${next ? "vetado" : "habilitado"}`,
+    `${row.name}: ${next ? "vetado" : "habilitado"} · Motivo: ${reason}`,
   );
   revalidatePath("/admin");
-  return { ok: next ? "Usuario vetado." : "Veto retirado." };
+  return { ok: next ? "Usuario vetado y sesión revocada." : "Veto retirado." };
 }
 
 export async function setRole(_prev: FormState, form: FormData): Promise<FormState> {
@@ -64,10 +83,10 @@ export async function setRole(_prev: FormState, form: FormData): Promise<FormSta
 
   const id = String(form.get("user_id") ?? "");
   const role = String(form.get("role") ?? "");
-  const area = String(form.get("area") ?? "").trim();
+  const area = String(form.get("area") ?? "").trim().toLowerCase();
   if (!UUID.test(id) || !isRole(role)) return { error: "Elige un rol válido." };
-  if (role === "moderador" && (area.length < 2 || area.length > 80)) {
-    return { error: "Indica el área del moderador (entre 2 y 80 caracteres)." };
+  if (role === "moderador" && !isStaffArea(area)) {
+    return { error: "Selecciona un área institucional válida para el moderador." };
   }
 
   const nextArea = role === "moderador" ? area : null;
@@ -167,4 +186,55 @@ export async function importRoster(_prev: RosterImportState, form: FormData): Pr
   await audit(actor.id, "importar_padron", "auth.users", undefined, `${created} invitaciones creadas de ${rows.length} filas`);
   revalidatePath("/admin");
   return { created, rows: resultRows };
+}
+
+export async function updateSystemSettings(form: FormData) {
+  const actor = await adminUser();
+  if (!actor) return;
+  const threshold = Number.parseInt(String(form.get("club_interest_threshold") ?? "20"), 10);
+  const cooldown = Number.parseInt(String(form.get("forum_cooldown_minutes") ?? "20"), 10);
+  if (!Number.isInteger(threshold) || threshold < 1 || threshold > 100) return;
+  if (!Number.isInteger(cooldown) || cooldown < 0 || cooldown > 120) return;
+
+  await pool.query(
+    `insert into system_settings (key, value_int, label, updated_at)
+     values
+       ('club_interest_threshold', $1, 'Umbral de interesados para promover una propuesta de club', now()),
+       ('forum_cooldown_minutes', $2, 'Minutos de enfriamiento entre preguntas del foro por usuario', now())
+     on conflict (key) do update set value_int = excluded.value_int, updated_at = now()`,
+    [threshold, cooldown],
+  );
+  await audit(actor.id, "configurar_parametros", "system_settings", undefined, `umbral=${threshold}, cooldown=${cooldown}m`);
+  revalidatePath("/admin");
+}
+
+export async function resolvePrivacyRequest(form: FormData) {
+  const actor = await adminUser();
+  if (!actor) return;
+  const id = String(form.get("request_id") ?? "");
+  const status = String(form.get("status") ?? "");
+  const note = String(form.get("resolution_note") ?? "").trim().slice(0, 1000);
+  if (!UUID.test(id) || !["resuelta", "rechazada"].includes(status)) return;
+
+  const updated = await pool.query<{ user_id: string }>(
+    `update privacy_requests
+        set status = $1,
+            resolution_note = $2,
+            resolved_by = $3,
+            resolved_at = now()
+      where id = $4 returning user_id`,
+    [status, note || null, actor.id, id],
+  );
+  if (updated.rows[0]?.user_id) {
+    const supabase = await createSupabaseServerClient();
+    await supabase.rpc("notify_user_event", {
+      p_user_id: updated.rows[0].user_id,
+      p_category: "sistema",
+      p_title: `Solicitud ARCO ${status}`,
+      p_body: note || "Tu solicitud de privacidad fue atendida por Administración.",
+      p_href: "/perfil",
+    });
+  }
+  await audit(actor.id, `arco_${status}`, "privacy_requests", id, note || undefined);
+  revalidatePath("/admin");
 }

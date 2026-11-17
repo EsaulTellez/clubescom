@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#003d5c"/>
+      <stop offset="100%" stop-color="#006699"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="80" y="75" width="1040" height="480" rx="26" fill="#fffdf8" stroke="#cfe3ed" stroke-width="4"/>
+  <rect x="80" y="75" width="1040" height="96" rx="22" fill="#004d73"/>
+  <text x="135" y="133" fill="#ffffff" font-family="sans-serif" font-size="26" font-weight="900" letter-spacing="1.5">GESTIÓN ESCOLAR · CALENDARIO DE REINSCRIPCIÓN</text>
+  <!-- Steps -->
+  <g transform="translate(135, 220)">
+    <rect x="0" y="0" width="280" height="260" rx="18" fill="#f0f7fa" stroke="#b9d8e8" stroke-width="2"/>
+    <circle cx="50" cy="52" r="24" fill="#006699"/><text x="50" y="60" fill="#ffffff" font-family="sans-serif" font-size="22" font-weight="900" text-anchor="middle">1</text>
+    <text x="30" y="120" fill="#14374a" font-family="sans-serif" font-size="24" font-weight="800">Cita en SAES</text>
+    <text x="30" y="160" fill="#496573" font-family="sans-serif" font-size="18">Consulta tu fecha y hora asignada de reinscripción.</text>
+
+    <rect x="325" y="0" width="280" height="260" rx="18" fill="#f0f7fa" stroke="#b9d8e8" stroke-width="2"/>
+    <circle cx="375" cy="52" r="24" fill="#006699"/><text x="375" y="60" fill="#ffffff" font-family="sans-serif" font-size="22" font-weight="900" text-anchor="middle">2</text>
+    <text x="355" y="120" fill="#14374a" font-family="sans-serif" font-size="24" font-weight="800">Sin adeudos</text>
+    <text x="355" y="160" fill="#496573" font-family="sans-serif" font-size="18">Verifica biblioteca y laboratorios antes de tu turno.</text>
+
+    <rect x="650" y="0" width="280" height="260" rx="18" fill="#eaf7f1" stroke="#a6dec5" stroke-width="2"/>
+    <circle cx="700" cy="52" r="24" fill="#165b47"/><text x="700" y="60" fill="#ffffff" font-family="sans-serif" font-size="22" font-weight="900" text-anchor="middle">3</text>
+    <text x="680" y="120" fill="#123d30" font-family="sans-serif" font-size="24" font-weight="800">Comprobante</text>
+    <text x="680" y="160" fill="#3a6356" font-family="sans-serif" font-size="18">Descarga y guarda tu horario firmado del semestre.</text>
+  </g>
+</svg>

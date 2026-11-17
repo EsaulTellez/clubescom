@@ -4,7 +4,7 @@ export const CATEGORIES = ["academico", "social", "tramites"] as const;
 
 export type Category = (typeof CATEGORIES)[number];
 
-export type FormState = { error?: string };
+export type FormState = { error?: string; ok?: boolean; id?: string };
 
 const LABELS: Record<Category, string> = {
   academico: "Académico",
@@ -23,6 +23,31 @@ export function categoryLabel(value: string) {
 export function canManageAvisos(user: Pick<SessionUser, "role" | "area"> | null) {
   if (!user) return false;
   return user.role === "admin" || (user.role === "moderador" && user.area === "comunicacion");
+}
+
+export function parseExternalUrl(raw: string): { url: string | null } | { error: string } {
+  const trimmed = raw.trim();
+  if (!trimmed) return { url: null };
+  if (trimmed.length > 500) {
+    return { error: "El enlace externo no puede exceder los 500 caracteres." };
+  }
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return { error: "El enlace externo debe iniciar con http:// o https://." };
+    }
+    return { url: parsed.toString() };
+  } catch {
+    return { error: "Escribe una URL válida (por ejemplo https://www.escom.ipn.mx/...)." };
+  }
+}
+
+export function linkDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
 }
 
 export function socialTemplate(category: string, title: string, body: string) {

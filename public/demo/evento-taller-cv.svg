@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#142d3d"/>
+      <stop offset="100%" stop-color="#005580"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <!-- Resume card -->
+  <rect x="100" y="90" width="440" height="450" rx="20" fill="#fffdf8" stroke="#9ad1e6" stroke-width="3"/>
+  <rect x="140" y="135" width="76" height="76" rx="16" fill="#006699"/>
+  <text x="178" y="185" fill="#ffffff" font-family="sans-serif" font-size="32" font-weight="900" text-anchor="middle">CV</text>
+  <rect x="240" y="142" width="240" height="22" rx="6" fill="#16384a"/>
+  <rect x="240" y="178" width="170" height="16" rx="5" fill="#5c7887"/>
+  <line x1="140" y1="240" x2="500" y2="240" stroke="#dde6eb" stroke-width="2"/>
+  <rect x="140" y="268" width="140" height="16" rx="4" fill="#006699"/>
+  <rect x="140" y="300" width="340" height="12" rx="4" fill="#8ea3b0"/>
+  <rect x="140" y="324" width="310" height="12" rx="4" fill="#8ea3b0"/>
+  <rect x="140" y="368" width="160" height="16" rx="4" fill="#165b47"/>
+  <rect x="140" y="400" width="340" height="12" rx="4" fill="#8ea3b0"/>
+  <rect x="140" y="424" width="280" height="12" rx="4" fill="#8ea3b0"/>
+  <rect x="140" y="468" width="190" height="36" rx="10" fill="#e6f5ee"/>
+  <text x="235" y="492" fill="#165b47" font-family="sans-serif" font-size="16" font-weight="800" text-anchor="middle">✓ ATS VERIFICADO</text>
+  <!-- Whiteboard right -->
+  <rect x="600" y="90" width="500" height="450" rx="20" fill="#0a1c26" stroke="#4ab3d6" stroke-width="3"/>
+  <text x="640" y="150" fill="#6ee7c7" font-family="monospace" font-size="20" font-weight="800">ENTREVISTA TÉCNICA · MOCK LIVE</text>
+  <text x="640" y="210" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="800">1. Clarificar restricciones</text>
+  <text x="640" y="265" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="800">2. Complejidad temporal O(N)</text>
+  <text x="640" y="320" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="800">3. Casos borde y pruebas</text>
+  <rect x="640" y="375" width="420" height="115" rx="14" fill="#112c3b" stroke="#2d6a82" stroke-width="2"/>
+  <text x="665" y="420" fill="#ffd166" font-family="monospace" font-size="18" font-weight="700">Sala 14 · Edificio 1 · ESCOM</text>
+  <text x="665" y="458" fill="#a8d8ea" font-family="sans-serif" font-size="18">Revisión 1 a 1 de CV y simulacro técnico</text>
+</svg>

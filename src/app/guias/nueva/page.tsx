@@ -14,8 +14,8 @@ export default async function NuevaGuiaPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <Link href="/guias" className="text-sm text-[#006699] hover:underline">
-        Volver a guías
+      <Link href="/foro" className="text-sm text-[#006699] hover:underline">
+        ← Volver a Foro y Guías
       </Link>
       <section className={`${card} space-y-3`}>
         <h1 className="text-2xl font-semibold tracking-tight">Nueva guía</h1>

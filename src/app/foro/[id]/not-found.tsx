@@ -9,7 +9,7 @@ export default function QuestionNotFound() {
         Puede que se haya eliminado o que el enlace esté incompleto.
       </p>
       <Link href="/foro" className="text-sm font-medium text-[#006699] underline">
-        Volver al foro
+        ← Volver a Foro y Guías
       </Link>
     </div>
   );

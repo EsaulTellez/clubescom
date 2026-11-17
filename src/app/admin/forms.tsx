@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { STAFF_AREAS, STAFF_AREA_LABELS } from "@/lib/areas";
 import type { Role } from "@/lib/auth";
 import { btn, btnGhost, input, label } from "@/lib/ui";
 import { setBanned, setRole } from "./actions";
@@ -36,11 +37,22 @@ export function UserControls({
 
   return (
     <div className="space-y-3">
-      <form action={banAction}>
+      <form action={banAction} className="space-y-2 border-b border-[#dcd9ce] pb-3">
         <input type="hidden" name="user_id" value={userId} />
         <input type="hidden" name="banned" value={banned ? "false" : "true"} />
+        <label className={label}>
+          Motivo {banned ? "para retirar veto" : "de baneo"} (obligatorio)
+          <input
+            className={input}
+            name="reason"
+            required
+            minLength={10}
+            maxLength={500}
+            placeholder="Mínimo 10 caracteres para auditoría"
+          />
+        </label>
         <button className={btnGhost} disabled={banPending}>
-          {banned ? "Quitar veto" : "Vetar"}
+          {banned ? "Quitar veto" : "Vetar y cerrar sesión"}
         </button>
         <Feedback state={banState} />
       </form>
@@ -58,13 +70,14 @@ export function UserControls({
         </label>
         <label className={label}>
           Área
-          <input
-            className={input}
-            name="area"
-            defaultValue={area ?? ""}
-            maxLength={80}
-            placeholder="Obligatoria si el rol es moderador"
-          />
+          <select className={input} name="area" defaultValue={area ?? ""}>
+            <option value="">Sin área (solo obligatorio para moderador)</option>
+            {STAFF_AREAS.map((slug) => (
+              <option key={slug} value={slug}>
+                {STAFF_AREA_LABELS[slug]} ({slug})
+              </option>
+            ))}
+          </select>
         </label>
         <Feedback state={roleState} />
         <button className={btn} disabled={rolePending}>

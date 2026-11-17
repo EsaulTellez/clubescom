@@ -9,6 +9,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isKind, type FormState } from "./labels";
 
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const EVIDENCE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function makeHandoffCode() {
@@ -24,11 +25,11 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-async function savePhoto(userId: string, form: FormData): Promise<{ url: string | null } | { error: string }> {
-  const file = form.get("photo");
+async function savePhotoField(userId: string, form: FormData, fieldName: string): Promise<{ url: string | null } | { error: string }> {
+  const file = form.get(fieldName);
   if (!(file instanceof File) || file.size === 0) return { url: null };
-  if (!PHOTO_TYPES.has(file.type)) return { error: "La foto debe ser JPG, PNG o WEBP." };
-  if (file.size > 5_000_000) return { error: "La foto debe pesar menos de 5 MB." };
+  if (!PHOTO_TYPES.has(file.type)) return { error: "Las fotos deben ser JPG, PNG o WEBP." };
+  if (file.size > 5_000_000) return { error: "Cada foto debe pesar menos de 5 MB." };
 
   const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
   const path = `${userId}/lost/${randomBytes(16).toString("hex")}.${extension}`;
@@ -62,8 +63,10 @@ export async function createItem(_prev: FormState, form: FormData): Promise<Form
     return { error: "Para un objeto encontrado, agrega una pregunta y su respuesta privada." };
   }
 
-  const photo = await savePhoto(user.id, form);
-  if ("error" in photo) return { error: photo.error };
+  const photo1 = await savePhotoField(user.id, form, "photo");
+  if ("error" in photo1) return { error: photo1.error };
+  const photo2 = await savePhotoField(user.id, form, "photo_2");
+  if ("error" in photo2) return { error: photo2.error };
 
   const supabase = await createSupabaseServerClient();
   const { data: id, error } = await supabase.rpc("create_lost_item", {
@@ -71,9 +74,10 @@ export async function createItem(_prev: FormState, form: FormData): Promise<Form
     p_title: title,
     p_description: description,
     p_place: place,
-    p_photo_url: photo.url,
+    p_photo_url: photo1.url,
     p_security_question: question,
     p_answer_hash: answer ? hashAnswer(answer) : "",
+    p_photo_url_2: photo2.url,
   });
   if (error || !id) return { error: "No se pudo guardar el reporte. Revisa los datos e intenta otra vez." };
 
@@ -89,22 +93,49 @@ export async function claimItem(_prev: FormState, form: FormData): Promise<FormS
   const id = String(form.get("id") ?? "");
   const answer = String(form.get("answer") ?? "").trim();
   const note = String(form.get("note") ?? "").trim();
+  const evidenceFile = form.get("evidence");
   if (!isUuid(id)) return { error: "No encontramos el reporte." };
   if (answer.length < 2 || answer.length > 120) return { error: "Escribe la respuesta de seguridad." };
 
   const supabase = await createSupabaseServerClient();
+  let evidencePath: string | null = null;
+  if (evidenceFile instanceof File && evidenceFile.size > 0) {
+    if (!EVIDENCE_TYPES.has(evidenceFile.type) || evidenceFile.size > 10 * 1024 * 1024) {
+      return { error: "El comprobante opcional debe ser JPG, PNG, WEBP o PDF de menos de 10 MB." };
+    }
+    const ext =
+      evidenceFile.type === "application/pdf"
+        ? "pdf"
+        : evidenceFile.type === "image/jpeg"
+          ? "jpg"
+          : evidenceFile.type === "image/png"
+            ? "png"
+            : "webp";
+    const path = `${id}/${user.id}/evidence-${randomBytes(8).toString("hex")}.${ext}`;
+    const uploaded = await supabase.storage.from("lost-evidence").upload(path, evidenceFile, {
+      contentType: evidenceFile.type,
+      upsert: false,
+    });
+    if (uploaded.error) return { error: "No se pudo subir el comprobante a Supabase Storage." };
+    evidencePath = path;
+  }
+
   const { data, error } = await supabase.rpc("submit_lost_item_claim", {
     p_item_id: id,
     p_answer_hash: hashAnswer(answer),
     p_note: note || null,
+    p_evidence_path: evidencePath,
   });
+  if (error || !data?.[0]?.claim_id) {
+    if (evidencePath) await supabase.storage.from("lost-evidence").remove([evidencePath]);
+  }
   if (error?.code === "23505") return { error: "Ya enviaste un reclamo para este reporte." };
   if (error) return { error: "No se pudo enviar el reclamo. Comprueba que el reporte siga abierto." };
   if (data?.[0]?.status === "limite") return { error: "Agotaste los tres intentos para este reporte." };
   if (!data?.[0]?.claim_id) return { error: "La respuesta de seguridad no coincide. Tienes hasta tres intentos." };
 
   revalidatePath(`/objetos/${id}`);
-  return { ok: "Respuesta correcta. Quien publicó el hallazgo revisará el reclamo." };
+  return { ok: "Respuesta correcta. Quien publicó el hallazgo revisará el reclamo y tu comprobante." };
 }
 
 export async function reviewClaim(form: FormData) {
@@ -155,17 +186,41 @@ export async function confirmDelivery(form: FormData) {
   redirect(`/objetos/${itemId}?revisado=entregado`);
 }
 
+export async function updateMeetingNote(form: FormData) {
+  const user = await getSession();
+  if (!user) redirect("/entrar");
+  const itemId = String(form.get("item_id") ?? "");
+  const handoffId = String(form.get("handoff_id") ?? "");
+  const note = String(form.get("meeting_note") ?? "").trim().slice(0, 500);
+  if (!isUuid(itemId) || !isUuid(handoffId)) redirect("/objetos");
+
+  const supabase = await createSupabaseServerClient();
+  await supabase.rpc("update_lost_item_meeting_note", {
+    p_handoff_id: handoffId,
+    p_note: note,
+  });
+
+  await audit(user.id, "acordar_entrega", "lost_item_handoffs", handoffId, note || "Sin nota");
+  revalidatePath(`/objetos/${itemId}`);
+  revalidatePath("/notificaciones");
+  redirect(`/objetos/${itemId}?revisado=nota`);
+}
+
 export async function closeItem(form: FormData) {
   const user = await getSession();
   if (!user) redirect("/entrar");
   const id = String(form.get("id") ?? "");
+  const reason = String(form.get("reason") ?? "").trim().slice(0, 300);
   if (!isUuid(id)) redirect("/objetos");
+  const isAdmin = user.role === "admin";
   const updated = await pool.query(
     `update lost_items set status = 'cerrado'
-     where id = $1 and reporter_id = $2 and status = 'abierto'`,
-    [id, user.id],
+     where id = $1 and (reporter_id = $2 or $3::boolean) and status = 'abierto'`,
+    [id, user.id, isAdmin],
   );
-  if (updated.rowCount) await audit(user.id, "cerrar", "lost_items", id);
+  if (updated.rowCount) {
+    await audit(user.id, isAdmin && reason ? "cerrar_spam_falso" : "cerrar", "lost_items", id, reason || undefined);
+  }
   revalidatePath("/objetos");
   revalidatePath(`/objetos/${id}`);
   redirect(`/objetos/${id}`);

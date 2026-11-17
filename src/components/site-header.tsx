@@ -6,8 +6,7 @@ const links = [
   ["Avisos", "/avisos"],
   ["Clubes", "/clubes"],
   ["Objetos", "/objetos"],
-  ["Foro", "/foro"],
-  ["Guías", "/guias"],
+  ["Foro y Guías", "/foro"],
   ["Espacios", "/espacios"],
 ];
 

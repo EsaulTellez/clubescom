@@ -65,6 +65,75 @@ export async function verifyEmail(
   redirect("/");
 }
 
+export async function resendOtp(
+  _previous: AuthState,
+  form: FormData,
+): Promise<AuthState> {
+  const email = emailFrom(form);
+  if (!roleFromEmail(email)) return { error: "Escribe el correo institucional con el que iniciaste tu registro." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+  });
+  if (error) {
+    return { error: "No pudimos reenviar el código. Espera un minuto o revisa tu correo en Mailpit." };
+  }
+  return {
+    ok: "Reenviamos un código nuevo de seis dígitos (válido por 15 minutos). Revisa Mailpit.",
+  };
+}
+
+export async function updateOwnProfile(
+  _previous: AuthState,
+  form: FormData,
+): Promise<AuthState> {
+  const user = await getSession();
+  if (!user) return { error: "Inicia sesión para editar tu perfil." };
+  const name = String(form.get("name") ?? "").trim();
+  const boleta = String(form.get("boleta") ?? "").trim();
+  if (name.length < 3 || name.length > 120) return { error: "El nombre debe tener entre 3 y 120 caracteres." };
+  if (boleta && (boleta.length < 4 || boleta.length > 32 || !/^[A-Za-z0-9-]+$/.test(boleta))) {
+    return { error: "La boleta o número de empleado debe tener entre 4 y 32 caracteres alfanuméricos." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_my_profile", {
+    p_name: name,
+    p_boleta: boleta || null,
+  });
+  if (error) return { error: "No se pudo actualizar el perfil." };
+
+  await audit(user.id, "editar_perfil", "users", user.id, `${user.name} → ${name}`);
+  return { ok: "Perfil actualizado." };
+}
+
+export async function submitPrivacyRequest(
+  _previous: AuthState,
+  form: FormData,
+): Promise<AuthState> {
+  const user = await getSession();
+  if (!user) return { error: "Inicia sesión para enviar una solicitud ARCO o reporte de privacidad." };
+  const kind = String(form.get("kind") ?? "").trim();
+  const detail = String(form.get("detail") ?? "").trim();
+  if (!["rectificacion", "oposicion", "cancelacion", "incidente"].includes(kind)) {
+    return { error: "Selecciona un tipo de solicitud válido." };
+  }
+  if (detail.length < 10 || detail.length > 2000) {
+    return { error: "Describe tu solicitud con entre 10 y 2000 caracteres." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("privacy_requests")
+    .insert({ user_id: user.id, kind, detail });
+  if (error) return { error: "No se pudo registrar la solicitud." };
+
+  await audit(user.id, "solicitud_arco", "privacy_requests", user.id, kind);
+  return { ok: "Solicitud registrada. El Oficial de Privacidad y Administración la revisarán." };
+}
+
 export async function login(
   _previous: AuthState,
   form: FormData,

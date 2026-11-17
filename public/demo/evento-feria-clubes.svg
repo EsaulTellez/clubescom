@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f3c4c"/>
+      <stop offset="50%" stop-color="#165b4c"/>
+      <stop offset="100%" stop-color="#1d4e6e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <!-- 4 category cards -->
+  <g transform="translate(80, 110)">
+    <rect x="0" y="0" width="240" height="410" rx="22" fill="#0b2833" stroke="#4fd1c5" stroke-width="3"/>
+    <circle cx="120" cy="115" r="46" fill="#134e4a"/>
+    <text x="120" y="130" fill="#6ee7b7" font-family="monospace" font-size="34" font-weight="900" text-anchor="middle">&lt;/&gt;</text>
+    <text x="120" y="230" fill="#ffffff" font-family="sans-serif" font-size="24" font-weight="800" text-anchor="middle">Algoritmia</text>
+    <text x="120" y="268" fill="#9cdbd3" font-family="sans-serif" font-size="16" font-weight="600" text-anchor="middle">ICPC &amp; Estructuras</text>
+
+    <rect x="266" y="0" width="240" height="410" rx="22" fill="#0b2833" stroke="#63b3ed" stroke-width="3"/>
+    <circle cx="386" cy="115" r="46" fill="#133d59"/>
+    <text x="386" y="130" fill="#90cdf4" font-family="monospace" font-size="32" font-weight="900" text-anchor="middle">PCB</text>
+    <text x="386" y="230" fill="#ffffff" font-family="sans-serif" font-size="24" font-weight="800" text-anchor="middle">Robótica</text>
+    <text x="386" y="268" fill="#a3d5f7" font-family="sans-serif" font-size="16" font-weight="600" text-anchor="middle">Prototipos y Sumo</text>
+
+    <rect x="532" y="0" width="240" height="410" rx="22" fill="#0b2833" stroke="#f6ad55" stroke-width="3"/>
+    <circle cx="652" cy="115" r="46" fill="#4a3219"/>
+    <text x="652" y="130" fill="#fbd38d" font-family="sans-serif" font-size="32" font-weight="900" text-anchor="middle">35mm</text>
+    <text x="652" y="230" fill="#ffffff" font-family="sans-serif" font-size="24" font-weight="800" text-anchor="middle">Cultura y Cine</text>
+    <text x="652" y="268" fill="#f6e0b5" font-family="sans-serif" font-size="16" font-weight="600" text-anchor="middle">Proyecciones y Arte</text>
+
+    <rect x="798" y="0" width="240" height="410" rx="22" fill="#0b2833" stroke="#68d391" stroke-width="3"/>
+    <circle cx="918" cy="115" r="46" fill="#19472a"/>
+    <text x="918" y="130" fill="#9ae6b4" font-family="sans-serif" font-size="30" font-weight="900" text-anchor="middle">XI</text>
+    <text x="918" y="230" fill="#ffffff" font-family="sans-serif" font-size="24" font-weight="800" text-anchor="middle">Deportes</text>
+    <text x="918" y="268" fill="#b8f2cc" font-family="sans-serif" font-size="16" font-weight="600" text-anchor="middle">Torneos en Canchas</text>
+  </g>
+</svg>

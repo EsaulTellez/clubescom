@@ -5,10 +5,19 @@ import { pool } from "@/lib/db";
 import { card, input } from "@/lib/ui";
 import { reviewAppeal, registerStrike } from "./actions";
 import { MODERATION_AREAS, moderationAreaLabel, suspensionLabel } from "./shared";
+import { StrikeUserPicker } from "./user-picker";
 
 export const dynamic = "force-dynamic";
 
-type Search = Promise<{ error?: string; guardada?: string; resuelta?: string }>;
+type Search = Promise<{
+  error?: string;
+  guardada?: string;
+  resuelta?: string;
+  user_id?: string;
+  area?: string;
+  source_type?: string;
+  reason?: string;
+}>;
 type Person = { id: string; name: string; role: string; area: string | null };
 type Strike = { id: string; user_name: string; area: string; reason: string; source_type: string; created_at: Date; strike_total: number };
 type Suspension = { id: string; user_name: string; area: string; strike_count: number; duration: string | null; starts_at: Date; ends_at: Date | null; is_permanent: boolean };
@@ -72,25 +81,20 @@ export default async function ModeracionPage({ searchParams }: { searchParams: S
           <h2 className="mt-1 text-xl font-extrabold text-[#173142]">Nueva infracción</h2>
         </div>
         <form action={registerStrike} className="grid gap-4 md:grid-cols-2">
-          <label className="grid gap-1.5 text-sm font-bold">Cuenta involucrada
-            <select required name="user_id" defaultValue="" className={input}>
-              <option value="" disabled>Selecciona una persona</option>
-              {peopleResult.rows.map((person) => <option key={person.id} value={person.id}>{person.name} · {person.role}{person.area ? ` · ${person.area}` : ""}</option>)}
-            </select>
-          </label>
+          <StrikeUserPicker people={peopleResult.rows} defaultUserId={params.user_id ?? ""} />
           <label className="grid gap-1.5 text-sm font-bold">Área del contenido
-            <select required name="area" defaultValue={user.area ?? areaChoices[0]?.id} className={input} disabled={user.role === "moderador"}>
+            <select required name="area" defaultValue={user.area ?? params.area ?? areaChoices[0]?.id} className={input} disabled={user.role === "moderador"}>
               {areaChoices.map((area) => <option key={area.id} value={area.id}>{area.label}</option>)}
             </select>
             {user.role === "moderador" && <input type="hidden" name="area" value={user.area ?? ""} />}
           </label>
           <label className="grid gap-1.5 text-sm font-bold">Tipo de contenido
-            <select name="source_type" className={input} defaultValue="foro">
+            <select name="source_type" className={input} defaultValue={params.source_type ?? "foro"}>
               <option value="foro">Foro</option><option value="guia">Guía</option><option value="aviso">Aviso</option><option value="club">Club</option><option value="objeto">Objeto perdido</option><option value="otro">Otro</option>
             </select>
           </label>
           <label className="grid gap-1.5 text-sm font-bold md:col-span-2">Motivo y contexto
-            <textarea required minLength={8} maxLength={1000} name="reason" rows={4} className={`${input} resize-y`} placeholder="Describe qué ocurrió y por qué corresponde registrar una infracción." />
+            <textarea required minLength={8} maxLength={1000} name="reason" rows={4} defaultValue={params.reason ?? ""} className={`${input} resize-y`} placeholder="Describe qué ocurrió y por qué corresponde registrar una infracción." />
           </label>
           <p className="text-xs leading-5 text-[#5d7079] md:col-span-2">Escalera vigente: 3 infracciones → 1 mes; 6 → 3 meses; 9 → 6 meses; 12 o más → permanente. El conteo es acumulado durante la vida de la cuenta, como quedó definido para la demo.</p>
           <button className="min-h-11 w-fit rounded-md bg-[#006699] px-4 py-2 text-sm font-extrabold text-white hover:bg-[#004d73]">Registrar infracción</button>

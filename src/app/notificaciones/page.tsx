@@ -23,6 +23,8 @@ type Prefs = {
   email_clubs: boolean;
   email_forum: boolean;
   email_lost: boolean;
+  inapp_guides: boolean;
+  inapp_notices: boolean;
 };
 
 function formatWhen(value: Date) {
@@ -46,7 +48,7 @@ export default async function NotificacionesPage() {
       [user.id],
     ),
     pool.query<Prefs>(
-      `select email_clubs, email_forum, email_lost
+      `select email_clubs, email_forum, email_lost, inapp_guides, inapp_notices
        from notification_prefs
        where user_id = $1`,
       [user.id],
@@ -58,6 +60,8 @@ export default async function NotificacionesPage() {
     email_clubs: true,
     email_forum: true,
     email_lost: true,
+    inapp_guides: true,
+    inapp_notices: true,
   };
 
   return (

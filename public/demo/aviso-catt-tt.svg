@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#192f42"/>
+      <stop offset="100%" stop-color="#004d73"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="90" y="80" width="1020" height="470" rx="26" fill="#0d2130" stroke="#4ba3c7" stroke-width="3"/>
+  <rect x="145" y="135" width="340" height="40" rx="8" fill="#173d56" stroke="#66c2e8" stroke-width="1.5"/>
+  <text x="315" y="161" fill="#8ce0ff" font-family="sans-serif" font-size="16" font-weight="800" text-anchor="middle" letter-spacing="2">COMISIÓN DE TRABAJO TERMINAL · CATT</text>
+  <text x="145" y="245" fill="#ffffff" font-family="sans-serif" font-size="44" font-weight="900">Recepción de Protocolos TT 2026-B</text>
+  <text x="145" y="300" fill="#b8d8e8" font-family="sans-serif" font-size="22">Entrega de protocolos con firmas de directores y sinodales hasta las 18:00 hrs.</text>
+  <g transform="translate(145, 350)" font-family="monospace" font-size="20" font-weight="700">
+    <rect x="0" y="0" width="280" height="110" rx="16" fill="#133147" stroke="#397899" stroke-width="2"/>
+    <text x="28" y="45" fill="#ffd166">01 · PROTOCOLO</text>
+    <text x="28" y="80" fill="#ffffff" font-family="sans-serif" font-size="18">Formato CATT vigente</text>
+
+    <rect x="310" y="0" width="280" height="110" rx="16" fill="#133147" stroke="#397899" stroke-width="2"/>
+    <text x="338" y="45" fill="#5ef0c4">02 · AVALES</text>
+    <text x="338" y="80" fill="#ffffff" font-family="sans-serif" font-size="18">Directores y sinodales</text>
+
+    <rect x="620" y="0" width="290" height="110" rx="16" fill="#133147" stroke="#397899" stroke-width="2"/>
+    <text x="648" y="45" fill="#7dd3fc">03 · REGISTRO</text>
+    <text x="648" y="80" fill="#ffffff" font-family="sans-serif" font-size="18">Acuse y asignación</text>
+  </g>
+</svg>

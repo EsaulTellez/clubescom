@@ -11,6 +11,19 @@ export async function GET(request: Request) {
     if (/^[\s]*[=+@\-\t]/.test(text)) text = "'" + text;
     return `"${text.replaceAll('"', '""')}"`;
   };
-  const rows = [["fecha_utc", "usuario", "accion", "entidad", "id_entidad", "detalle"], ...logs.rows.map((l) => [l.created_at.toISOString(), l.actor_name, l.action, l.entity, l.entity_id, l.detail])];
+  const rows = [
+    ["fecha_utc", "usuario", "accion", "entidad", "id_entidad", "valor_anterior", "valor_nuevo", "ip", "detalle"],
+    ...logs.rows.map((l) => [
+      l.created_at.toISOString(),
+      l.actor_name,
+      l.action,
+      l.entity,
+      l.entity_id,
+      l.old_value,
+      l.new_value,
+      l.ip_address,
+      l.detail,
+    ]),
+  ];
   return new Response("\ufeff" + rows.map((row) => row.map(cell).join(",")).join("\r\n"), { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="auditoria-escom.csv"', "Cache-Control": "no-store" } });
 }

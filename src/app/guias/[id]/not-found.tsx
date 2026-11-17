@@ -8,8 +8,8 @@ export default function GuideNotFound() {
       <p className="text-sm text-[#667085]">
         Puede que se haya eliminado o que el enlace esté incompleto.
       </p>
-      <Link href="/guias" className="text-sm font-medium text-[#006699] underline">
-        Volver a guías
+      <Link href="/foro" className="text-sm font-medium text-[#006699] underline">
+        ← Volver a Foro y Guías
       </Link>
     </div>
   );

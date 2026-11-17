@@ -1,3 +1,5 @@
+import type { SessionUser } from "@/lib/auth";
+
 export type ClubState = { error?: string; success?: string };
 
 export const KINDS = ["academico", "cultural", "deportivo"] as const;
@@ -10,15 +12,15 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  abierta: "Abierta",
-  en_documentacion: "Documentación",
-  en_validacion: "Asesor confirmado",
-  cita_pendiente: "Cita solicitada",
+  abierta: "En votación",
+  en_documentacion: "Documentación y coordinador",
+  en_validacion: "Expediente listo",
+  cita_pendiente: "Solicitud formal · Cita pendiente",
   cita_confirmada: "Cita confirmada",
   incompleta: "Requiere corrección",
   en_seguimiento: "En seguimiento",
-  con_asesor: "Con asesor",
-  registrado: "Registrado",
+  con_asesor: "Con coordinador",
+  registrado: "Club registrado",
   pendiente: "Pendiente",
   aceptada: "Aceptada",
   rechazada: "Rechazada",
@@ -49,4 +51,46 @@ export function safeHttpUrl(value: string | null | undefined) {
 
 export function interestLabel(count: number) {
   return count === 1 ? "1 interesado" : `${count} interesados`;
+}
+
+export function canModerateClubKind(
+  user: Pick<SessionUser, "role" | "area"> | null | undefined,
+  kind: string,
+): boolean {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  if (user.role !== "moderador") return false;
+  if (kind === "academico") {
+    return user.area === "subdireccion_academica" || user.area === "clubes_academicos";
+  }
+  if (kind === "cultural" || kind === "deportivo") {
+    return user.area === "clubes_culturales";
+  }
+  return false;
+}
+
+export function canManageAnyClubs(
+  user: Pick<SessionUser, "role" | "area"> | null | undefined,
+): boolean {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  if (user.role !== "moderador") return false;
+  return ["subdireccion_academica", "clubes_academicos", "clubes_culturales"].includes(
+    user.area ?? "",
+  );
+}
+
+export function allowedClubKinds(
+  user: Pick<SessionUser, "role" | "area"> | null | undefined,
+): ClubKind[] {
+  if (!user) return [];
+  if (user.role === "admin") return [...KINDS];
+  if (user.role !== "moderador") return [];
+  if (user.area === "subdireccion_academica" || user.area === "clubes_academicos") {
+    return ["academico"];
+  }
+  if (user.area === "clubes_culturales") {
+    return ["cultural", "deportivo"];
+  }
+  return [];
 }

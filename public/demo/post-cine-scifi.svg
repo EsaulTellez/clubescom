@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#121c2d"/>
+      <stop offset="55%" stop-color="#1b3048"/>
+      <stop offset="100%" stop-color="#0d4a63"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <!-- Film strip top & bottom -->
+  <rect x="0" y="28" width="1200" height="44" fill="#091019"/>
+  <rect x="0" y="558" width="1200" height="44" fill="#091019"/>
+  <g fill="#d9e6f2" fill-opacity="0.35">
+    <rect x="40" y="38" width="32" height="24" rx="4"/><rect x="100" y="38" width="32" height="24" rx="4"/><rect x="160" y="38" width="32" height="24" rx="4"/><rect x="220" y="38" width="32" height="24" rx="4"/><rect x="280" y="38" width="32" height="24" rx="4"/><rect x="340" y="38" width="32" height="24" rx="4"/><rect x="400" y="38" width="32" height="24" rx="4"/><rect x="460" y="38" width="32" height="24" rx="4"/><rect x="520" y="38" width="32" height="24" rx="4"/><rect x="580" y="38" width="32" height="24" rx="4"/><rect x="640" y="38" width="32" height="24" rx="4"/><rect x="700" y="38" width="32" height="24" rx="4"/><rect x="760" y="38" width="32" height="24" rx="4"/><rect x="820" y="38" width="32" height="24" rx="4"/><rect x="880" y="38" width="32" height="24" rx="4"/><rect x="940" y="38" width="32" height="24" rx="4"/><rect x="1000" y="38" width="32" height="24" rx="4"/><rect x="1060" y="38" width="32" height="24" rx="4"/><rect x="1120" y="38" width="32" height="24" rx="4"/>
+    <rect x="40" y="568" width="32" height="24" rx="4"/><rect x="100" y="568" width="32" height="24" rx="4"/><rect x="160" y="568" width="32" height="24" rx="4"/><rect x="220" y="568" width="32" height="24" rx="4"/><rect x="280" y="568" width="32" height="24" rx="4"/><rect x="340" y="568" width="32" height="24" rx="4"/><rect x="400" y="568" width="32" height="24" rx="4"/><rect x="460" y="568" width="32" height="24" rx="4"/><rect x="520" y="568" width="32" height="24" rx="4"/><rect x="580" y="568" width="32" height="24" rx="4"/><rect x="640" y="568" width="32" height="24" rx="4"/><rect x="700" y="568" width="32" height="24" rx="4"/><rect x="760" y="568" width="32" height="24" rx="4"/><rect x="820" y="568" width="32" height="24" rx="4"/><rect x="880" y="568" width="32" height="24" rx="4"/><rect x="940" y="568" width="32" height="24" rx="4"/><rect x="1000" y="568" width="32" height="24" rx="4"/><rect x="1060" y="568" width="32" height="24" rx="4"/><rect x="1120" y="568" width="32" height="24" rx="4"/>
+  </g>
+  <!-- Sci-fi projection screen -->
+  <rect x="140" y="120" width="920" height="390" rx="22" fill="#0b1623" stroke="#57b8d9" stroke-width="3"/>
+  <circle cx="600" cy="295" r="115" fill="#133b54" stroke="#7ce0ff" stroke-width="3"/>
+  <circle cx="600" cy="295" r="68" fill="#091f2e" stroke="#f4c95d" stroke-width="4"/>
+  <circle cx="600" cy="295" r="24" fill="#ff5a47"/>
+  <text x="600" y="468" fill="#ffffff" font-family="sans-serif" font-size="24" font-weight="800" text-anchor="middle" letter-spacing="3">CICLO DE CIENCIA FICCIÓN · SALA 14 · VIERNES 17:00</text>
+</svg>

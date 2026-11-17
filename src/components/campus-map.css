@@ -1,49 +1,284 @@
-.model-viewport { position: relative; height: clamp(440px, 70vh, 780px); overflow: hidden; border: 1px solid #cadbd9; border-radius: 20px; background: linear-gradient(#e4f0ef, #d0e5e0); perspective: 1800px; cursor: grab; touch-action: none; }
+.model-viewport {
+  position: relative;
+  height: clamp(460px, 68vh, 680px);
+  overflow: hidden;
+  border: 1px solid #bfd2d0;
+  border-radius: 20px;
+  background: radial-gradient(circle at 50% 25%, #eef6f6 0%, #d8e9e6 55%, #c2dad6 100%);
+  perspective: 1800px;
+  cursor: grab;
+  touch-action: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 10px 28px -12px rgba(18, 50, 67, 0.18);
+}
 .model-viewport:active { cursor: grabbing; }
-.model-world { position: absolute; left: 50%; top: 50%; width: 1000px; height: 1300px; transform-style: preserve-3d; }
+.model-viewport:focus-visible { outline: 3px solid #006699; outline-offset: 2px; }
+
+.model-world {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1000px;
+  height: 1300px;
+  transform-style: preserve-3d;
+  transition: transform 90ms ease-out;
+}
+.model-world.is-dragging {
+  transition: none;
+}
 .model-world * { transform-style: preserve-3d; }
 .model-group { position: absolute; inset: 0; pointer-events: none; }
-.model-box, .model-face, .model-ground, .model-tree, .model-car, .model-label, .room-tile { position: absolute; }
+.model-box, .model-face, .model-ground, .model-tree-3d, .model-car, .model-label, .room-tile, .gov-hitbox { position: absolute; }
 .model-box { transform-style: preserve-3d; pointer-events: none; }
-.model-face { box-sizing: border-box; border: 1px solid rgba(88, 99, 95, .3); }
-.model-top { inset: 0; box-shadow: inset 0 0 0 2px #eeeeea; }
+.model-face, .model-ground { pointer-events: none; }
+.model-face { box-sizing: border-box; border: 1px solid rgba(72, 85, 82, 0.28); }
+.model-top { inset: 0; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.55); }
 .model-front, .model-back { left: 0; top: 0; width: 100%; transform-origin: top; }
 .model-left, .model-right { left: 0; top: 0; height: 100%; transform-origin: left; }
-.school-block .model-front, .school-block .model-back, .school-block .model-left, .school-block .model-right { background-image: linear-gradient(to bottom, #e4e7df, #cdd3ca) !important; }
-.model-base { background: #a4c696; border: 6px solid #d4dfcb; box-shadow: 0 12px 18px #6f958a80; }
-.parking { background: #888e89; border: 10px solid #b3b5a7; border-radius: 50px 50px 32px 22px; }
-.parking-island { position: absolute; left: 49px; width: 100px; height: 110px; background: #a5bd92; border-radius: 20px; border: 6px solid #cdcbb5; }
-.island-a { top: 24px; }.island-b { top: 205px; }.island-c { top: 386px; }.island-d { top: 567px; }
-.parking-south { background: #c5bd9d; border: 8px solid #bbb49b; }
-.model-car { width: 11px; height: 21px; border-radius: 3px; border: 1px solid #738382; transform: translateZ(3px); }
-.plaza, .paving { background: #d8d4c5; border: 2px solid #e9e4d3; }
-.plaza { background: repeating-linear-gradient(90deg, #d7d3c5 0 22px, #cfcbbf 23px 24px); }
-.walkway { background: #c8c4b7; }
-.court { background: #78a384; border: 5px solid #d5dbcc; }
-.court-lines { position: absolute; inset: 12px; border: 2px solid #e8efdf; }
-.court-lines::after { content: ''; position: absolute; top: 50%; width: 100%; border-top: 2px solid #e8efdf; }
-.model-tree { width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #7caa72, #41764d 75%); box-shadow: 5px 8px 4px #3a604970; }
-.palapa .model-top { border-radius: 50%; box-shadow: 0 0 0 2px #8c9893; }
-.courtyard { background: #a5bd95; border: 3px solid #d2cabc; }
-.courtyard span { display: block; width: 19px; height: 19px; border-radius: 50%; background: #e9e9dd; margin: 25px auto; }
-.solar { transform: translateZ(80px); background: repeating-linear-gradient(90deg,#354e67 0 9px,#7890a2 10px 11px); border: 2px solid #a0aeb1; }
-.model-label { font: 700 13px sans-serif; letter-spacing: .08em; color: #34484c; pointer-events: none; }
-.room-tile { padding: 0; border: 1px solid #78969a; background: #f3f1e5; color: #344b53; cursor: pointer; pointer-events: auto; font: bold 12px sans-serif; }
-.room-tile:hover, .room-tile:focus-visible { background: #c6e7eb; outline: 3px solid #006699; }
-.room-tile.selected { background: #ffcf64; border: 3px solid #a66b00; }
-.model-north { position: absolute; right: 16px; top: 12px; border-radius: 6px; background: #ffffffd9; padding: 5px 9px; font-size: 12px; color: #2d5665; font-weight: 800; }
 
-/* Fachadas sólidas: los corredores se dibujan con geometría separada. */
-.government-block .model-front, .government-block .model-back, .government-block .model-left, .government-block .model-right { background: #e4e7e0 !important; }
-.auditorium-block .model-front, .auditorium-block .model-back, .auditorium-block .model-left, .auditorium-block .model-right { background: #e1e4dc !important; }
+/* Fachadas realistas con ventanales para edificios académicos */
+.school-block .model-front,
+.school-block .model-back,
+.school-block .model-left,
+.school-block .model-right {
+  background-color: #dde2da !important;
+  background-image:
+    linear-gradient(to bottom, rgba(255,255,255,0.45) 0px, rgba(44,76,94,0.38) 5px, rgba(44,76,94,0.38) 14px, rgba(210,216,208,0.9) 15px),
+    repeating-linear-gradient(90deg, rgba(120,135,130,0.45) 0 3px, rgba(186,212,222,0.55) 3px 16px) !important;
+}
+
+/* Base del campus con textura de césped realista y bordes de banqueta */
+.model-base {
+  background:
+    radial-gradient(circle at 20% 30%, rgba(168, 206, 148, 0.65), transparent 40%),
+    radial-gradient(circle at 75% 70%, rgba(132, 179, 118, 0.55), transparent 45%),
+    repeating-linear-gradient(45deg, #98bf89 0 14px, #92b983 14px 28px);
+  border: 8px solid #d4ddd0;
+  border-radius: 18px;
+  box-shadow: 0 22px 38px rgba(48, 76, 68, 0.42), 0 4px 0 #8a9b8e;
+}
+
+.parking {
+  background:
+    repeating-linear-gradient(0deg, transparent 0 18px, rgba(255,255,255,0.38) 18px 20px),
+    linear-gradient(180deg, #767d79, #68706c);
+  border: 10px solid #b6b8aa;
+  border-radius: 50px 50px 32px 22px;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.22);
+}
+.parking-island {
+  position: absolute;
+  left: 49px;
+  width: 100px;
+  height: 110px;
+  background: radial-gradient(circle at 40% 40%, #a9c496, #84a673);
+  border-radius: 20px;
+  border: 6px solid #d2d0bc;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.18);
+}
+.island-a { top: 24px; }
+.island-b { top: 205px; }
+.island-c { top: 386px; }
+.island-d { top: 567px; }
+.parking-south {
+  background: linear-gradient(180deg, #bfb798, #afa787);
+  border: 8px solid #b8b197;
+  border-radius: 14px;
+}
+
+.plaza, .paving {
+  background: #dbd7c8;
+  border: 2px solid #ece7d8;
+}
+.plaza {
+  background:
+    repeating-linear-gradient(0deg, rgba(165, 160, 145, 0.25) 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(90deg, #dcd8ca 0 22px, #cfcbbf 22px 24px);
+  box-shadow: inset 0 0 12px rgba(120, 114, 96, 0.18);
+}
+.walkway {
+  background: repeating-linear-gradient(90deg, #ccc8bb 0 18px, #c2beb0 18px 20px);
+  border: 1px solid #dcd8cb;
+}
+.court {
+  background: linear-gradient(135deg, #6fa080, #5c8e6e);
+  border: 5px solid #d8dfd0;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.15);
+}
+.court-lines { position: absolute; inset: 12px; border: 2px solid #edf2e6; }
+.court-lines::after { content: ''; position: absolute; top: 50%; width: 100%; border-top: 2px solid #edf2e6; }
+
+/* Árboles 3D multicapa con tronco, sombra y follaje volumétrico */
+.model-tree-3d {
+  width: 34px;
+  height: 34px;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+.tree-shadow {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(28, 52, 34, 0.42) 20%, rgba(28, 52, 34, 0) 72%);
+  transform: translateZ(1px) translate(5px, 7px);
+}
+.tree-canopy-layer {
+  position: absolute;
+  border-radius: 50%;
+  box-shadow: inset -4px -5px 8px rgba(20, 48, 26, 0.45), inset 3px 3px 6px rgba(196, 235, 178, 0.45);
+  border: 1px solid rgba(45, 86, 52, 0.35);
+}
+.tree-plane-x,
+.tree-plane-y {
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 28px;
+  height: 22px;
+  border-radius: 50% 50% 42% 42%;
+  transform-origin: bottom center;
+  opacity: 0.92;
+}
+.tree-plane-x {
+  transform: translateY(-7px) translateZ(9px) rotateX(90deg);
+}
+.tree-plane-y {
+  transform: translateX(0px) translateY(-7px) translateZ(9px) rotateY(90deg);
+}
+
+.palapa .model-top {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #7f8c86, inset 0 2px 4px rgba(255,255,255,0.6);
+}
+.courtyard {
+  background: radial-gradient(circle at 50% 50%, #b4cc9e, #94b282);
+  border: 3px solid #d2cabc;
+}
+.courtyard span {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f5f5ec, #cfd4c8);
+  border: 2px solid #b8beb2;
+  margin: 24px auto;
+}
+.solar {
+  transform: translateZ(80px);
+  background: repeating-linear-gradient(90deg, #274059 0 9px, #68859c 9px 11px);
+  border: 2px solid #9fb0b5;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+}
+.model-label {
+  font: 800 11px/1.1 system-ui, -apple-system, sans-serif;
+  letter-spacing: 0.07em;
+  color: #1f3942;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.92);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Mosaicos seleccionables de salones, cubículos y espacios de Gobierno */
+.room-tile {
+  padding: 2px;
+  border: 1.5px solid #698991;
+  border-radius: 4px;
+  background: rgba(246, 244, 232, 0.94);
+  color: #1c3944;
+  cursor: pointer;
+  pointer-events: auto;
+  font: 800 10px/1.1 system-ui, -apple-system, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(18, 48, 68, 0.18);
+  transition: background-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+}
+.room-tile:hover,
+.room-tile:focus-visible {
+  background: #bfe6ef;
+  border-color: #006699;
+  outline: 2px solid #006699;
+  z-index: 20;
+}
+.room-tile.has-official {
+  background: #e1f3ee;
+  border-color: #0d7a5f;
+  color: #094e3c;
+}
+.room-tile.has-suggestion {
+  background: #fef5dc;
+  border-color: #c27d19;
+  color: #6e4305;
+}
+.room-tile.selected {
+  background: #ffcf52 !important;
+  border: 2.5px solid #995c00 !important;
+  color: #1b2a30 !important;
+  box-shadow: 0 0 0 3px rgba(255, 207, 82, 0.45), 0 4px 10px rgba(0, 0, 0, 0.25);
+  z-index: 30;
+}
+
+/* Zonas interactivas transparentes en Edificio de Gobierno (sin texto flotante, dejan ver el 3D) */
+.gov-hitbox {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  background: transparent;
+  border: 1.5px solid transparent;
+  border-radius: 4px;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+.gov-hitbox:hover,
+.gov-hitbox:focus-visible {
+  background: rgba(0, 102, 153, 0.16);
+  border-color: rgba(0, 102, 153, 0.78);
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+.gov-hitbox.selected {
+  background: rgba(255, 207, 82, 0.22);
+  border: 2px solid #d98200;
+  box-shadow: 0 0 0 2px rgba(255, 207, 82, 0.4), inset 0 0 10px rgba(255, 207, 82, 0.25);
+}
+
+/* Detalles 3D mini dentro de Planta Baja de Gobierno */
+.bbva-mini-cap .model-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 900 5px/1 system-ui, -apple-system, sans-serif;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.7);
+}
+.stair-landing-round .model-top {
+  border-radius: 14px 14px 2px 2px;
+}
+
+/* Fachadas de Gobierno y Auditorio */
+.government-block .model-front,
+.government-block .model-back,
+.government-block .model-left,
+.government-block .model-right {
+  background-color: #e6e9e1 !important;
+  background-image:
+    linear-gradient(to bottom, rgba(255,255,255,0.5) 0px, rgba(48,82,102,0.32) 6px, rgba(48,82,102,0.32) 16px, rgba(226,229,220,0.95) 17px),
+    repeating-linear-gradient(90deg, rgba(140,148,140,0.4) 0 4px, rgba(190,214,224,0.5) 4px 18px) !important;
+}
+.auditorium-block .model-front,
+.auditorium-block .model-back,
+.auditorium-block .model-left,
+.auditorium-block .model-right {
+  background: linear-gradient(180deg, #eceee6, #d6dbd2) !important;
+}
 
 .north-courts { display: flex; flex-direction: column; gap: 5px; padding: 5px; background: #b4c1b1; border: 3px solid #e5e8dc; }
-.north-court { position: relative; flex: 1; background: #6e9b85; border: 2px solid #eef3e7; }
+.north-court { position: relative; flex: 1; background: #64967d; border: 2px solid #eef3e7; }
 .north-court::after { content: ""; position: absolute; top: 50%; left: 0; width: 100%; border-top: 2px solid #eef3e7; }
 .north-court span { position: absolute; border: 1px solid #eef3e7; border-radius: 50%; width: 15px; height: 15px; left: calc(50% - 7px); top: calc(50% - 7px); }
-.landmark-label { font-size: 9px; letter-spacing: 0; color: #263f45; }
+.landmark-label { font-size: 9px; letter-spacing: 0.02em; color: #1e373d; }
 
 .exercise-area { background: #a9c69b; border: 2px solid #b7cfaa; }
-.orange-path { background: #d8896a; }
-
-.model-viewport:focus-visible { outline: 3px solid #006699; outline-offset: 3px; }
+.orange-path { background: linear-gradient(90deg, #d8896a, #c97858); border-top: 1px solid #e7a68c; border-bottom: 1px solid #b16346; }

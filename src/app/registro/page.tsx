@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { RegisterForm, VerifyForm } from "@/components/auth-forms";
-import { register, verifyEmail } from "@/lib/auth-actions";
+import { register, resendOtp, verifyEmail } from "@/lib/auth-actions";
 import { card } from "@/lib/ui";
 
 export default function RegistroPage() {
@@ -17,7 +17,7 @@ export default function RegistroPage() {
       </section>
       <section className={card}>
         <h2 className="mb-3 text-xl font-semibold">Confirmar código</h2>
-        <VerifyForm action={verifyEmail} />
+        <VerifyForm action={verifyEmail} resendAction={resendOtp} />
       </section>
     </div>
   );

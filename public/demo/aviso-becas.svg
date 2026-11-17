@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#133b4e"/>
+      <stop offset="100%" stop-color="#1b6b55"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="90" y="80" width="1020" height="470" rx="26" fill="#fffefa" stroke="#c8dfd7" stroke-width="4"/>
+  <rect x="145" y="135" width="240" height="38" rx="8" fill="#e6f5ee"/>
+  <text x="265" y="160" fill="#165b47" font-family="sans-serif" font-size="16" font-weight="800" text-anchor="middle" letter-spacing="1.5">BECAS ESCOM · IPN</text>
+  <text x="145" y="235" fill="#14374a" font-family="sans-serif" font-size="42" font-weight="900">Validación de Expediente Digital</text>
+  <text x="145" y="285" fill="#4f6773" font-family="sans-serif" font-size="22">Revisa que tus archivos PDF sean legibles antes del cierre de ventanilla:</text>
+  <g transform="translate(145, 330)" font-family="sans-serif" font-size="22" font-weight="700" fill="#183b4e">
+    <rect x="0" y="0" width="420" height="64" rx="14" fill="#f2f8fa" stroke="#c5dce6" stroke-width="2"/>
+    <text x="28" y="40">✓ Constancia de estudios vigente</text>
+    <rect x="460" y="0" width="440" height="64" rx="14" fill="#f2f8fa" stroke="#c5dce6" stroke-width="2"/>
+    <text x="488" y="40">✓ Comprobante de ingresos (PDF)</text>
+    <rect x="0" y="86" width="900" height="64" rx="14" fill="#eef8f4" stroke="#b7e0d0" stroke-width="2"/>
+    <text x="28" y="126" fill="#165b47">✓ Acuse de solicitud firmado digitalmente en el sistema institucional</text>
+  </g>
+</svg>

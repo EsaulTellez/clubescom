@@ -74,6 +74,7 @@ export default async function NuevoAvisoPage() {
               featured: false,
               isPublic: true,
               publishAt: toDatetimeLocal(new Date()),
+              externalUrl: "",
               socialCopy: "",
             }}
           />

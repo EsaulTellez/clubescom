@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0b2838"/>
+      <stop offset="100%" stop-color="#0f4c5c"/>
+    </linearGradient>
+    <pattern id="bp" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#6fd3e8" stroke-opacity="0.1" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#bp)"/>
+  <!-- PCB Traces -->
+  <g stroke="#29a3be" stroke-width="4" stroke-linecap="round" opacity="0.55">
+    <path d="M 100 140 H 280 L 330 190 H 460"/>
+    <path d="M 100 480 H 250 L 310 420 H 460"/>
+    <path d="M 740 190 H 890 L 950 130 H 1100"/>
+    <path d="M 740 430 H 880 L 940 490 H 1100"/>
+  </g>
+  <!-- Robot Chassis top-down blueprint -->
+  <rect x="370" y="135" width="460" height="360" rx="44" fill="#103647" stroke="#5ad2eb" stroke-width="4"/>
+  <rect x="415" y="185" width="370" height="260" rx="20" fill="#09212c" stroke="#2c7a8f" stroke-width="2"/>
+  <!-- Wheels -->
+  <rect x="330" y="175" width="36" height="110" rx="10" fill="#1d2b32" stroke="#8ce3f5" stroke-width="3"/>
+  <rect x="330" y="345" width="36" height="110" rx="10" fill="#1d2b32" stroke="#8ce3f5" stroke-width="3"/>
+  <rect x="834" y="175" width="36" height="110" rx="10" fill="#1d2b32" stroke="#8ce3f5" stroke-width="3"/>
+  <rect x="834" y="345" width="36" height="110" rx="10" fill="#1d2b32" stroke="#8ce3f5" stroke-width="3"/>
+  <!-- Ultrasonic sensor HC-SR04 at front -->
+  <rect x="490" y="96" width="220" height="52" rx="12" fill="#006699" stroke="#9be7ff" stroke-width="3"/>
+  <circle cx="545" cy="122" r="20" fill="#082431" stroke="#b5f0ff" stroke-width="3"/>
+  <circle cx="655" cy="122" r="20" fill="#082431" stroke="#b5f0ff" stroke-width="3"/>
+  <!-- Ultrasonic wave arcs -->
+  <path d="M 520 68 Q 600 28 680 68" stroke="#53f0c7" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <path d="M 485 45 Q 600 -5 715 45" stroke="#53f0c7" stroke-width="3" stroke-linecap="round" stroke-dasharray="10 8" fill="none" opacity="0.8"/>
+  <!-- Microcontroller chip -->
+  <rect x="510" y="245" width="180" height="140" rx="14" fill="#124559" stroke="#6ee7c7" stroke-width="3"/>
+  <text x="600" y="310" fill="#ffffff" font-family="monospace" font-size="24" font-weight="800" text-anchor="middle">ESP32 / PWM</text>
+  <text x="600" y="342" fill="#8ce3f5" font-family="monospace" font-size="16" font-weight="700" text-anchor="middle">HC-SR04 · 40kHz</text>
+</svg>

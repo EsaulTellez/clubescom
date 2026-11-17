@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0b2922"/>
+      <stop offset="100%" stop-color="#0e4557"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <!-- Binary Tree / Segment Tree visual -->
+  <g stroke="#4fd1c5" stroke-width="4">
+    <line x1="600" y1="120" x2="390" y2="250"/>
+    <line x1="600" y1="120" x2="810" y2="250"/>
+    <line x1="390" y1="250" x2="270" y2="395"/>
+    <line x1="390" y1="250" x2="510" y2="395"/>
+    <line x1="810" y1="250" x2="690" y2="395"/>
+    <line x1="810" y1="250" x2="930" y2="395"/>
+  </g>
+  <g font-family="monospace" font-size="22" font-weight="800" text-anchor="middle">
+    <circle cx="600" cy="120" r="44" fill="#135c49" stroke="#6ee7b7" stroke-width="4"/>
+    <text x="600" y="128" fill="#ffffff">[1..8]</text>
+    <circle cx="390" cy="250" r="40" fill="#114b5f" stroke="#7dd3fc" stroke-width="3.5"/>
+    <text x="390" y="258" fill="#ffffff">[1..4]</text>
+    <circle cx="810" cy="250" r="40" fill="#114b5f" stroke="#7dd3fc" stroke-width="3.5"/>
+    <text x="810" y="258" fill="#ffffff">[5..8]</text>
+    <circle cx="270" cy="395" r="36" fill="#0d3544" stroke="#6ee7b7" stroke-width="3"/>
+    <text x="270" y="403" fill="#a7f3d0">[1..2]</text>
+    <circle cx="510" cy="395" r="36" fill="#0d3544" stroke="#6ee7b7" stroke-width="3"/>
+    <text x="510" y="403" fill="#a7f3d0">[3..4]</text>
+    <circle cx="690" cy="395" r="36" fill="#0d3544" stroke="#6ee7b7" stroke-width="3"/>
+    <text x="690" y="403" fill="#a7f3d0">[5..6]</text>
+    <circle cx="930" cy="395" r="36" fill="#0d3544" stroke="#6ee7b7" stroke-width="3"/>
+    <text x="930" y="403" fill="#a7f3d0">[7..8]</text>
+  </g>
+  <rect x="250" y="490" width="700" height="64" rx="16" fill="#081e26" stroke="#38b2ac" stroke-width="2"/>
+  <text x="600" y="530" fill="#ffffff" font-family="sans-serif" font-size="22" font-weight="800" text-anchor="middle">MARATÓN DE ESTRUCTURAS DE DATOS · ÁRBOLES, HEAPS Y DP</text>
+</svg>

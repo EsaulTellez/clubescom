@@ -6,13 +6,14 @@ import { card } from "@/lib/ui";
 export default async function EntrarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ actualizada?: string }>;
+  searchParams: Promise<{ actualizada?: string; inactividad?: string }>;
 }) {
-  const { actualizada } = await searchParams;
+  const { actualizada, inactividad } = await searchParams;
   return (
     <div className={`${card} mx-auto max-w-md space-y-4`}>
       <h1 className="text-xl font-semibold">Entrar</h1>
       {actualizada === "1" && <p className="text-sm text-[#1C1416]">Contraseña actualizada. Ya puedes iniciar sesión.</p>}
+      {inactividad === "1" && <p role="status" className="rounded-lg bg-[#f4e7b5] p-3 text-xs font-semibold text-[#58491e]">Tu sesión se cerró automáticamente por inactividad (RNF-05). Vuelve a iniciar sesión.</p>}
       <LoginForm action={login} />
       <p className="text-sm">
         <Link href="/recuperar" className="underline">

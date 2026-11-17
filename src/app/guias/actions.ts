@@ -1,9 +1,12 @@
 "use server";
 
+import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { GoogleGenAI } from "@google/genai";
 import { audit, getSession } from "@/lib/auth";
 import { pool, type SecureClient } from "@/lib/db";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { asSteps, isArea, isStaff, isUuid, type GuideFaq, type GuideStep } from "./shared";
 
 export type GuideState = { error?: string };
@@ -54,6 +57,184 @@ function parsePairs(raw: string, kind: "pasos" | "preguntas") {
   return { pairs };
 }
 
+function heuristicParseSourceText(text: string): {
+  title: string;
+  summary: string;
+  steps: string;
+  faqs: string;
+} {
+  const paragraphs = text
+    .replace(/\r/g, "")
+    .split(/\n{2,}|\n(?=\d+[\.\)]|-|\*)/)
+    .map((p) => p.replace(/\s+/g, " ").trim())
+    .filter((p) => p.length > 6);
+
+  const first = paragraphs[0] ?? "Trámite ESCOM";
+  const title = first.slice(0, 80);
+  const summary = (paragraphs[1] ?? first).slice(0, 300);
+  const stepLines: string[] = [];
+  const faqLines: string[] = [];
+
+  for (const p of paragraphs.slice(1, 15)) {
+    if (p.includes("?")) {
+      const [qPart, ...rest] = p.split("?");
+      const q = `${qPart.trim()}?`;
+      const a = rest.join("?").trim() || "Consulta los detalles en ventanilla del área.";
+      faqLines.push(`${q.slice(0, 140)} | ${a.slice(0, 400)}`);
+    } else {
+      const clean = p.replace(/^(\d+[\.\)]|-|\*)\s*/, "");
+      const colonIdx = clean.indexOf(":");
+      if (colonIdx > 2 && colonIdx < 60) {
+        stepLines.push(`${clean.slice(0, colonIdx).trim()} | ${clean.slice(colonIdx + 1).trim()}`);
+      } else {
+        stepLines.push(`Paso ${stepLines.length + 1} | ${clean.slice(0, 400)}`);
+      }
+    }
+  }
+
+  if (stepLines.length === 0) {
+    stepLines.push(`Revisa los requisitos | ${summary}`);
+  }
+
+  return {
+    title,
+    summary,
+    steps: stepLines.slice(0, 12).join("\n"),
+    faqs: faqLines.slice(0, 6).join("\n"),
+  };
+}
+
+export async function parseGuideDocumentDraft(form: FormData): Promise<{
+  title?: string;
+  summary?: string;
+  steps?: string;
+  faqs?: string;
+  notice?: string;
+  error?: string;
+}> {
+  const user = await getSession();
+  if (!user || !isStaff(user.role)) {
+    return { error: "Solo moderación y administración pueden procesar documentos." };
+  }
+  const file = form.get("source_doc");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Selecciona un archivo TXT, PDF o DOCX para extraer el borrador." };
+  }
+  if (file.size > 15 * 1024 * 1024) {
+    return { error: "El documento debe pesar menos de 15 MB." };
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const nameLower = file.name.toLowerCase();
+  const isPdf = file.type === "application/pdf" || nameLower.endsWith(".pdf");
+  const isTxt = file.type.startsWith("text/") || nameLower.endsWith(".txt") || nameLower.endsWith(".md");
+  const isDocx =
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    nameLower.endsWith(".docx") ||
+    nameLower.endsWith(".doc");
+
+  if (!isPdf && !isTxt && !isDocx) {
+    return { error: "Formato no compatible. Usa PDF, DOCX o TXT." };
+  }
+
+  let extractedText = "";
+  if (isTxt) {
+    extractedText = buffer.toString("utf-8");
+  } else {
+    extractedText = buffer
+      .toString("utf-8")
+      .replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñ¿¡\n\r]/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (apiKey) {
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+      if (isPdf) {
+        parts.push({
+          inlineData: {
+            mimeType: "application/pdf",
+            data: buffer.toString("base64"),
+          },
+        });
+      } else {
+        parts.push({ text: extractedText.slice(0, 20000) });
+      }
+      parts.push({
+        text: `Extrae una guía interactiva de trámite para alumnos de ESCOM IPN en español de México a partir del documento proporcionado. Devuelve estrictamente un JSON con:
+"title": título breve del trámite,
+"summary": resumen de 1 a 2 oraciones,
+"steps": arreglo de objetos {"title": "...", "body": "..."},
+"faqs": arreglo de objetos {"q": "...", "a": "..."}`,
+      });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: parts,
+        config: { responseMimeType: "application/json" },
+      });
+      const parsed = JSON.parse(response.text?.trim() ?? "{}") as {
+        title?: string;
+        summary?: string;
+        steps?: { title?: string; body?: string }[];
+        faqs?: { q?: string; a?: string }[];
+      };
+      const stepsStr = (parsed.steps ?? [])
+        .filter((s) => s.title && s.body)
+        .map((s) => `${s.title!.replace(/\|/g, "-").trim()} | ${s.body!.replace(/\s+/g, " ").trim()}`)
+        .join("\n");
+      const faqsStr = (parsed.faqs ?? [])
+        .filter((f) => f.q && f.a)
+        .map((f) => `${f.q!.replace(/\|/g, "-").trim()} | ${f.a!.replace(/\s+/g, " ").trim()}`)
+        .join("\n");
+      if (stepsStr) {
+        return {
+          title: parsed.title?.trim() || file.name.replace(/\.[^.]+$/, ""),
+          summary: parsed.summary?.trim() || "Borrador generado a partir del documento.",
+          steps: stepsStr,
+          faqs: faqsStr,
+          notice: "Borrador extraído con Google GenAI. Revisa y edita los pasos antes de publicar.",
+        };
+      }
+    } catch {
+      // Fallback to local extraction below
+    }
+  }
+
+  const fallback = heuristicParseSourceText(extractedText || file.name.replace(/\.[^.]+$/, ""));
+  return {
+    ...fallback,
+    title: fallback.title || file.name.replace(/\.[^.]+$/, ""),
+    notice:
+      "Borrador estructurado generado localmente a partir del archivo. Revisa y ajusta los pasos antes de publicar.",
+  };
+}
+
+async function uploadGuideAttachment(
+  userId: string,
+  form: FormData,
+): Promise<{ url: string | null; name: string | null } | { error: string }> {
+  const file = form.get("attachment");
+  if (!(file instanceof File) || file.size === 0) return { url: null, name: null };
+  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+    return { error: "El formato descargable adjunto (RF-12) debe ser un archivo PDF." };
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    return { error: "El PDF adjunto debe pesar 10 MB o menos." };
+  }
+  const path = `${userId}/guides/${randomBytes(10).toString("hex")}.pdf`;
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.storage.from("public-media").upload(path, file, {
+    contentType: "application/pdf",
+    upsert: false,
+  });
+  if (error) return { error: "No se pudo subir el PDF adjunto a Supabase Storage." };
+  const { data } = supabase.storage.from("public-media").getPublicUrl(path);
+  return { url: data.publicUrl, name: file.name.slice(0, 120) };
+}
+
 export async function publishGuide(
   _prev: GuideState,
   form: FormData,
@@ -101,11 +282,14 @@ export async function publishGuide(
     }));
   }
 
+  const uploaded = await uploadGuideAttachment(user.id, form);
+  if ("error" in uploaded) return { error: uploaded.error };
+
   const id = await withTx(async (client) => {
     const inserted = await client.query<{ id: string }>(
-      `insert into guides (author_id, area, title, summary, steps, faqs)
-       values ($1, $2, $3, $4, $5::jsonb, $6::jsonb) returning id`,
-      [user.id, area, title, summary, JSON.stringify(steps), JSON.stringify(faqs)],
+      `insert into guides (author_id, area, title, summary, steps, faqs, attachment_url, attachment_name)
+       values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8) returning id`,
+      [user.id, area, title, summary, JSON.stringify(steps), JSON.stringify(faqs), uploaded.url, uploaded.name],
     );
     const guideId = inserted.rows[0].id;
     await client.query(
@@ -126,28 +310,80 @@ export async function editGuide(_prev: GuideState, form: FormData): Promise<Guid
   const expectedVersion = Number(form.get("version"));
   const title = String(form.get("title") ?? "").trim();
   const summary = String(form.get("summary") ?? "").trim();
+  const stepsJson = String(form.get("steps_json") ?? "");
+  const faqsJson = String(form.get("faqs_json") ?? "");
+
   if (!user || !isStaff(user.role) || !isUuid(id)) return { error: "No tienes permiso para editar esta guía." };
   if (!Number.isInteger(expectedVersion) || expectedVersion < 1) return { error: "Recarga la guía antes de editarla." };
   if (title.length < 4 || title.length > 180 || summary.length < 8 || summary.length > 800) return { error: "Revisa la longitud del título y del resumen." };
 
+  const uploaded = await uploadGuideAttachment(user.id, form);
+  if ("error" in uploaded) return { error: uploaded.error };
+
   const result = await withTx(async (client) => {
-    const found = await client.query<{ area: string; version: number; steps: unknown }>(
-      "select area, version, steps from guides where id = $1 for update", [id],
+    const found = await client.query<{ area: string; version: number; steps: unknown; faqs: unknown }>(
+      "select area, version, steps, faqs from guides where id = $1 for update", [id],
     );
     const guide = found.rows[0];
     if (!guide || (user.role !== "admin" && user.area !== guide.area)) return "permission";
     if (guide.version !== expectedVersion) return "version";
-    const steps = asSteps(guide.steps).map((_, index) => ({
-      title: String(form.get(`step_title_${index}`) ?? "").trim(),
-      body: String(form.get(`step_body_${index}`) ?? "").trim(),
-    }));
-    if (!steps.length || steps.some((step) => !step.title || step.title.length > 160 || !step.body || step.body.length > 2000)) return "steps";
+
+    let steps: GuideStep[] = [];
+    if (stepsJson) {
+      try {
+        const parsed = JSON.parse(stepsJson) as { title?: string; body?: string }[];
+        if (Array.isArray(parsed)) {
+          steps = parsed.map((s) => ({
+            title: String(s.title ?? "").trim(),
+            body: String(s.body ?? "").trim(),
+          }));
+        }
+      } catch {
+        return "steps";
+      }
+    } else {
+      steps = asSteps(guide.steps).map((_, index) => ({
+        title: String(form.get(`step_title_${index}`) ?? "").trim(),
+        body: String(form.get(`step_body_${index}`) ?? "").trim(),
+      }));
+    }
+
+    if (!steps.length || steps.length > 30 || steps.some((step) => !step.title || step.title.length > 160 || !step.body || step.body.length > 2000)) {
+      return "steps";
+    }
+
+    let faqs: GuideFaq[] = [];
+    if (faqsJson) {
+      try {
+        const parsedFaqs = JSON.parse(faqsJson) as { q?: string; a?: string }[];
+        if (Array.isArray(parsedFaqs)) {
+          faqs = parsedFaqs
+            .map((f) => ({ q: String(f.q ?? "").trim(), a: String(f.a ?? "").trim() }))
+            .filter((f) => f.q && f.a);
+        }
+      } catch {
+        return "steps";
+      }
+    }
+
     await client.query(
       `insert into guide_versions (guide_id, version, edited_by, title, summary, steps, faqs, change_note)
        select id, version, $2, title, summary, steps, faqs, 'Versión anterior' from guides where id = $1
        on conflict (guide_id, version) do nothing`, [id, user.id],
     );
-    await client.query("update guides set title = $2, summary = $3, steps = $4::jsonb, version = version + 1, updated_at = now() where id = $1", [id, title, summary, JSON.stringify(steps)]);
+    await client.query(
+      `update guides
+          set title = $2,
+              summary = $3,
+              steps = $4::jsonb,
+              faqs = $5::jsonb,
+              attachment_url = coalesce($6, attachment_url),
+              attachment_name = coalesce($7, attachment_name),
+              version = version + 1,
+              updated_at = now()
+        where id = $1`,
+      [id, title, summary, JSON.stringify(steps), JSON.stringify(faqs), uploaded.url, uploaded.name],
+    );
     await client.query(
       `insert into guide_versions (guide_id, version, edited_by, title, summary, steps, faqs, change_note)
        select id, version, $2, title, summary, steps, faqs, 'Edición de guía' from guides where id = $1`, [id, user.id],
@@ -209,6 +445,7 @@ export async function reviewSuggestion(form: FormData) {
 
   const id = String(form.get("id") ?? "");
   const decision = String(form.get("decision") ?? "");
+  const reviewNote = String(form.get("review_note") ?? "").trim().slice(0, 500);
   if (!isUuid(id) || (decision !== "aceptar" && decision !== "rechazar")) {
     redirect("/guias");
   }
@@ -217,11 +454,12 @@ export async function reviewSuggestion(form: FormData) {
     const suggestion = await client.query<{
       id: string;
       guide_id: string;
+      user_id: string;
       step_index: number;
       body: string;
       status: string;
     }>(
-      `select id, guide_id, step_index, body, status
+      `select id, guide_id, user_id, step_index, body, status
        from guide_suggestions
        where id = $1
        for update`,
@@ -230,15 +468,20 @@ export async function reviewSuggestion(form: FormData) {
     const row = suggestion.rows[0];
     if (!row) return null;
     if (row.status !== "pendiente") {
-      return { guideId: row.guide_id, action: null };
+      return { guideId: row.guide_id, authorId: row.user_id, action: null };
     }
 
     if (decision === "rechazar") {
       await client.query(
-        "update guide_suggestions set status = 'rechazada' where id = $1",
-        [id],
+        `update guide_suggestions
+            set status = 'rechazada',
+                reviewed_by = $2,
+                reviewed_at = now(),
+                review_note = $3
+          where id = $1`,
+        [id, user.id, reviewNote || "No fue posible aplicar la sugerencia en esta versión."],
       );
-      return { guideId: row.guide_id, action: "guide.suggestion.reject" as const };
+      return { guideId: row.guide_id, authorId: row.user_id, action: "guide.suggestion.reject" as const };
     }
 
     const guide = await client.query<{ steps: unknown }>(
@@ -267,15 +510,31 @@ export async function reviewSuggestion(form: FormData) {
       [row.guide_id, user.id, `Sugerencia aceptada en el paso ${row.step_index + 1}`],
     );
     await client.query(
-      "update guide_suggestions set status = 'aceptada' where id = $1",
-      [id],
+      `update guide_suggestions
+          set status = 'aceptada',
+              reviewed_by = $2,
+              reviewed_at = now(),
+              review_note = $3
+        where id = $1`,
+      [id, user.id, reviewNote || null],
     );
-    return { guideId: row.guide_id, action: "guide.suggestion.accept" as const };
+    return { guideId: row.guide_id, authorId: row.user_id, action: "guide.suggestion.accept" as const };
   });
 
   if (!reviewed) redirect("/guias");
   if (reviewed.action) {
-    await audit(user.id, reviewed.action, "guide_suggestions", id);
+    const supabase = await createSupabaseServerClient();
+    await supabase.rpc("notify_user_event", {
+      p_user_id: reviewed.authorId,
+      p_category: "guias",
+      p_title: reviewed.action === "guide.suggestion.accept" ? "Tu sugerencia fue aceptada" : "Tu sugerencia fue revisada",
+      p_body:
+        reviewed.action === "guide.suggestion.accept"
+          ? reviewNote || "Se incorporó tu aporte en la guía y apareces como colaborador."
+          : reviewNote || "El área revisó tu sugerencia y dejó una nota.",
+      p_href: `/guias/${reviewed.guideId}`,
+    });
+    await audit(user.id, reviewed.action, "guide_suggestions", id, reviewNote || undefined);
   }
   revalidatePath("/guias");
   revalidatePath(`/guias/${reviewed.guideId}`);
@@ -354,22 +613,39 @@ export async function voteGuideAnswer(form: FormData) {
   redirect(`/guias/${guideId}#respuesta-${answerId}`);
 }
 
-export async function trackGuideStep(guideId: string, stepIndex: number) {
+export async function saveGuideProgress(guideId: string, completedSteps: number[], newlyCompletedStep?: number) {
   const user = await getSession();
-  if (!user || !isUuid(guideId) || !Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex > 29) return;
-  const guide = await pool.query<{ steps: unknown }>("select steps from guides where id = $1", [guideId]);
-  if (!guide.rows[0] || stepIndex >= asSteps(guide.rows[0].steps).length) return;
+  if (!user || !isUuid(guideId)) return;
+  const cleanSteps = [...new Set(completedSteps.filter((n) => Number.isInteger(n) && n >= 0 && n < 30))].sort((a, b) => a - b);
   await pool.query(
-    "insert into guide_analytics_events (guide_id, user_id, event_type, step_index) values ($1, $2, 'step_complete', $3)",
-    [guideId, user.id, stepIndex],
+    `insert into guide_progress (user_id, guide_id, completed_steps, updated_at)
+     values ($1, $2, $3::jsonb, now())
+     on conflict (user_id, guide_id) do update
+       set completed_steps = excluded.completed_steps,
+           updated_at = now()`,
+    [user.id, guideId, JSON.stringify(cleanSteps)],
   );
+  if (newlyCompletedStep !== undefined && Number.isInteger(newlyCompletedStep) && newlyCompletedStep >= 0 && newlyCompletedStep < 30) {
+    await pool.query(
+      "insert into guide_analytics_events (guide_id, user_id, event_type, step_index) values ($1, $2, 'step_complete', $3)",
+      [guideId, user.id, newlyCompletedStep],
+    );
+  }
+}
+
+export async function trackGuideStep(guideId: string, stepIndex: number) {
+  await saveGuideProgress(guideId, [stepIndex], stepIndex);
 }
 
 export async function deleteGuide(form: FormData) {
   const user = await getSession();
   const id = String(form.get("id") ?? "");
   if (!user || !isUuid(id)) redirect("/guias");
-  const result = await pool.query("delete from guides where id = $1 and author_id = $2 returning id", [id, user.id]);
+  const result = await pool.query("delete from guides where id = $1 and (author_id = $2 or $3::boolean) returning id", [
+    id,
+    user.id,
+    user.role === "admin",
+  ]);
   if (result.rowCount) await audit(user.id, "guide.delete", "guides", id);
   revalidatePath("/guias");
   redirect("/guias");

@@ -35,8 +35,12 @@ export function ReportForm() {
         <input className={`${input} mt-1`} name="place" required minLength={2} maxLength={160} placeholder="Edificio, salón o zona" />
       </label>
       <label className={label}>
-        Foto (opcional, JPG, PNG o WEBP · máx. 5 MB)
+        Foto 1 (opcional, JPG, PNG o WEBP · máx. 5 MB)
         <input className={`${input} mt-1`} name="photo" type="file" accept="image/jpeg,image/png,image/webp" />
+      </label>
+      <label className={label}>
+        Foto 2 (opcional · segundo ángulo o detalle · CU-21)
+        <input className={`${input} mt-1`} name="photo_2" type="file" accept="image/jpeg,image/png,image/webp" />
       </label>
       <label className={label}>
         Pregunta de seguridad (obligatoria si encontraste el objeto)

@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "crypto";
+import { headers } from "next/headers";
 import { pool } from "./db";
 import { createSupabaseServerClient } from "./supabase/server";
 
@@ -87,10 +88,30 @@ export async function audit(
   entity: string,
   entityId?: string,
   detail?: string,
+  extra?: { oldValue?: string | null; newValue?: string | null },
 ) {
+  let ipAddress = "127.0.0.1";
+  try {
+    const hdrs = await headers();
+    ipAddress =
+      hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      hdrs.get("x-real-ip")?.trim() ||
+      "127.0.0.1";
+  } catch {
+    ipAddress = "127.0.0.1";
+  }
+
+  let oldVal = extra?.oldValue ?? null;
+  let newVal = extra?.newValue ?? null;
+  if (!oldVal && !newVal && detail && detail.includes("→")) {
+    const [left, right] = detail.split("→").map((s) => s.trim());
+    oldVal = left || null;
+    newVal = right || null;
+  }
+
   await pool.query(
-    `insert into audit_logs (actor_id, action, entity, entity_id, detail)
-     values ($1, $2, $3, $4, $5)`,
-    [actorId, action, entity, entityId ?? null, detail ?? null],
+    `insert into audit_logs (actor_id, action, entity, entity_id, detail, old_value, new_value, ip_address)
+     values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [actorId, action, entity, entityId ?? null, detail ?? null, oldVal, newVal, ipAddress],
   );
 }

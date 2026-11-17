@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#141e28"/>
+      <stop offset="100%" stop-color="#0d3b4f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <!-- Dohyo Sumo Ring -->
+  <circle cx="600" cy="315" r="235" fill="#0c151c" stroke="#ffffff" stroke-width="14"/>
+  <circle cx="600" cy="315" r="175" fill="none" stroke="#2c5364" stroke-width="2" stroke-dasharray="10 8"/>
+  <!-- Shikiri lines -->
+  <rect x="530" y="255" width="16" height="120" rx="4" fill="#ffd166"/>
+  <rect x="654" y="255" width="16" height="120" rx="4" fill="#ffd166"/>
+  <!-- Left Robot -->
+  <rect x="370" y="245" width="125" height="140" rx="18" fill="#006699" stroke="#80dfff" stroke-width="4"/>
+  <rect x="475" y="235" width="26" height="160" rx="6" fill="#c2dfe8"/>
+  <!-- Right Robot -->
+  <rect x="705" y="245" width="125" height="140" rx="18" fill="#165b47" stroke="#6ee7b7" stroke-width="4"/>
+  <rect x="699" y="235" width="26" height="160" rx="6" fill="#c2dfe8"/>
+  <text x="110" y="105" fill="#7dd3fc" font-family="sans-serif" font-size="22" font-weight="900" letter-spacing="2">CLUB DE ROBÓTICA ESCOM · EL DOMO</text>
+  <text x="110" y="565" fill="#ffffff" font-family="sans-serif" font-size="24" font-weight="800">Exhibición de Robots Velocistas y Sumo Autónomo</text>
+</svg>

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
-import { btn, btnGhost, card } from "@/lib/ui";
+import { btn, btnGhost, card, input, label } from "@/lib/ui";
 import { deleteGuide, deleteSuggestion, reviewSuggestion, suggestImprovement } from "../actions";
 import {
   areaLabel,
@@ -25,6 +25,8 @@ type GuideRow = {
   summary: string;
   steps: unknown;
   faqs: unknown;
+  attachment_url: string | null;
+  attachment_name: string | null;
   created_at: Date;
   author_name: string;
   author_id: string;
@@ -32,24 +34,32 @@ type GuideRow = {
 
 type Suggestion = {
   id: string;
+  user_id: string;
   step_index: number;
   body: string;
   status: string;
+  review_note: string | null;
+  reviewed_at: Date | null;
   created_at: Date;
   author_name: string;
+  reviewer_name: string | null;
 };
 
 export default async function GuidePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ days?: string }>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
   if (!isUuid(id)) notFound();
 
   const user = await getSession();
   const guideResult = await pool.query<GuideRow>(
-    `select g.id, g.author_id, g.area, g.title, g.summary, g.steps, g.faqs, g.created_at, u.name as author_name
+    `select g.id, g.author_id, g.area, g.title, g.summary, g.steps, g.faqs,
+            g.attachment_url, g.attachment_name, g.created_at, u.name as author_name
      from guides g
      join users u on u.id = g.author_id
      where g.id = $1`,
@@ -58,8 +68,17 @@ export default async function GuidePage({
   const guide = guideResult.rows[0];
   if (!guide) notFound();
 
+  let initialDone: number[] = [];
   if (user) {
     await pool.query("insert into guide_analytics_events (guide_id, user_id, event_type) values ($1, $2, 'view')", [id, user.id]);
+    const prog = await pool.query<{ completed_steps: unknown }>(
+      "select completed_steps from guide_progress where user_id = $1 and guide_id = $2",
+      [user.id, id],
+    );
+    const rawDone = prog.rows[0]?.completed_steps;
+    if (Array.isArray(rawDone)) {
+      initialDone = rawDone.filter((n): n is number => typeof n === "number");
+    }
   }
 
   const questionRows = await pool.query<Omit<StepQuestion, "answers">>(
@@ -79,9 +98,11 @@ export default async function GuidePage({
   }));
 
   const suggestions = await pool.query<Suggestion>(
-    `select s.id, s.step_index, s.body, s.status, s.created_at, u.name as author_name
+    `select s.id, s.user_id, s.step_index, s.body, s.status, s.review_note, s.reviewed_at, s.created_at,
+            u.name as author_name, rev.name as reviewer_name
      from guide_suggestions s
      join users u on u.id = s.user_id
+     left join users rev on rev.id = s.reviewed_by
      where s.guide_id = $1
      order by s.created_at asc`,
     [id],
@@ -92,30 +113,58 @@ export default async function GuidePage({
      where v.guide_id = $1 order by v.version desc`, [id],
   );
 
+  const collaborators = Array.from(
+    new Set(
+      suggestions.rows
+        .filter((s) => s.status === "aceptada")
+        .map((s) => s.author_name),
+    ),
+  );
+
   const steps = asSteps(guide.steps);
   const faqs = asFaqs(guide.faqs);
   const staff = user ? (user.role === "admin" || (user.role === "moderador" && user.area === guide.area)) : false;
-  let guideMetrics: { views: number; readers: number; completions: number; stepIndex: number; stepReaders: number }[] = [];
+
+  const filterDays = query.days === "7" ? 7 : query.days === "30" ? 30 : 0;
+  let totalViews = 0;
+  let totalReaders = 0;
+  let totalCompletions = 0;
+  let stepFunnel: { index: number; title: string; completions: number; people: number; dropoffPct: number }[] = [];
+
   if (staff) {
     const metrics = await pool.query<{ event_type: string; step_index: number | null; total: string; people: string }>(
       `select event_type, step_index, count(*)::text as total, count(distinct user_id)::text as people
-       from guide_analytics_events where guide_id = $1 group by event_type, step_index`, [id],
+       from guide_analytics_events
+       where guide_id = $1
+         and ($2::int = 0 or occurred_at >= now() - ($2::text || ' days')::interval)
+       group by event_type, step_index`,
+      [id, filterDays],
     );
     const views = metrics.rows.find((row) => row.event_type === "view" && row.step_index === null);
     const completions = metrics.rows.filter((row) => row.event_type === "step_complete");
-    guideMetrics = [{
-      views: Number(views?.total ?? 0), readers: Number(views?.people ?? 0),
-      completions: completions.reduce((sum, row) => sum + Number(row.total), 0),
-      stepIndex: -1, stepReaders: 0,
-    }, ...completions.filter((row) => Number(row.people) >= 5).map((row) => ({
-      views: 0, readers: 0, completions: Number(row.total), stepIndex: Number(row.step_index), stepReaders: Number(row.people),
-    }))];
+    totalViews = Number(views?.total ?? 0);
+    totalReaders = Number(views?.people ?? 0);
+    totalCompletions = completions.reduce((sum, row) => sum + Number(row.total), 0);
+
+    stepFunnel = steps.map((step, idx) => {
+      const row = completions.find((c) => Number(c.step_index) === idx);
+      const peopleCount = Number(row?.people ?? 0);
+      const totalCount = Number(row?.total ?? 0);
+      const dropoff = totalReaders > 0 ? Math.max(0, Math.round(((totalReaders - peopleCount) / totalReaders) * 100)) : 0;
+      return {
+        index: idx,
+        title: step.title,
+        completions: totalCount,
+        people: peopleCount,
+        dropoffPct: dropoff,
+      };
+    });
   }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <Link href="/guias" className="text-sm text-[#006699] hover:underline">
-        Volver a guías
+      <Link href="/foro" className="text-sm text-[#006699] hover:underline">
+        ← Volver a Foro y Guías
       </Link>
 
       <header className="board-sidecard space-y-2 border-t-4 border-t-[#006699] p-5 sm:p-6">
@@ -125,21 +174,65 @@ export default async function GuidePage({
         <p className="mt-3 text-xs text-[#667085]">
           {guide.author_name} · {formatDate(guide.created_at)}
         </p>
+        {guide.attachment_url && (
+          <div className="pt-2">
+            <a
+              href={guide.attachment_url}
+              target="_blank"
+              rel="noreferrer"
+              download={guide.attachment_name ?? "formato-tramite.pdf"}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#006699] bg-[#e6f3fa] px-3 py-2 text-xs font-bold text-[#004d73] hover:bg-[#d2eaf7]"
+            >
+              📄 Descargar PDF adjunto del trámite ({guide.attachment_name ?? "Formato oficial"})
+            </a>
+          </div>
+        )}
       </header>
 
-      {staff && <div className="flex flex-wrap gap-2"><Link href={`/guias/${guide.id}/editar`} className={btnGhost}>Editar guía</Link>{user?.id === guide.author_id && <form action={deleteGuide}><input type="hidden" name="id" value={guide.id} /><button className={btnGhost}>Eliminar mi guía</button></form>}</div>}
+      {collaborators.length > 0 && (
+        <section className="rounded-2xl border border-[#d5e4ee] bg-white p-4">
+          <p className="text-xs font-extrabold uppercase tracking-wide text-[#006699]">
+            Colaboradores de la comunidad (CU-GUA-02-01)
+          </p>
+          <p className="mt-1 text-xs text-[#667085]">
+            Personas cuyas sugerencias de mejora fueron verificadas e integradas en esta guía:
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {collaborators.map((name) => (
+              <span key={name} className="rounded-full bg-[#e6f3fa] px-3 py-1 text-xs font-bold text-[#004d73]">
+                ✦ {name}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {staff && (
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/guias/${guide.id}/editar`} className={btnGhost}>
+            Editar guía (pasos, orden y FAQ)
+          </Link>
+          {(user?.id === guide.author_id || user?.role === "admin") && (
+            <form action={deleteGuide}>
+              <input type="hidden" name="id" value={guide.id} />
+              <button className={btnGhost}>Eliminar guía</button>
+            </form>
+          )}
+        </div>
+      )}
+
       <section className="space-y-4">
         <div>
           <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">En corto</p>
           <h2 className="mt-1 text-2xl font-extrabold tracking-tight">Sigue la guía a tu ritmo</h2>
         </div>
-        <GuideSteps steps={steps} guideId={guide.id} />
+        <GuideSteps steps={steps} guideId={guide.id} initialDone={initialDone} signedIn={Boolean(user)} />
       </section>
 
       {steps.length > 0 && <section className="space-y-4">
         <div>
           <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">Comunidad</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight">Sugerencias por paso</h2>
+          <h2 className="mt-1 text-2xl font-extrabold tracking-tight">Sugerencias y dudas por paso</h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {steps.map((step, index) => {
@@ -157,11 +250,22 @@ export default async function GuidePage({
                     <span className="text-[#667085]">{formatDate(suggestion.created_at)}</span>
                   </div>
                   <p className="mt-2 whitespace-pre-wrap text-sm">{suggestion.body}</p>
+                  {suggestion.review_note && (
+                    <p className="mt-1 text-xs text-[#526170]">
+                      Nota de revisión{suggestion.reviewer_name ? ` (${suggestion.reviewer_name})` : ""}: {suggestion.review_note}
+                    </p>
+                  )}
                   {staff && <form action={deleteSuggestion} className="mt-2"><input type="hidden" name="id" value={suggestion.id} /><input type="hidden" name="guideId" value={guide.id} /><button className="text-xs font-bold text-[#8C1D18]">Eliminar sugerencia {suggestion.status === "aceptada" ? "(conserva la nota aplicada)" : ""}</button></form>}
-                  {staff && suggestion.status === "pendiente" && <form action={reviewSuggestion} className="mt-3 flex flex-wrap gap-2">
+                  {staff && suggestion.status === "pendiente" && <form action={reviewSuggestion} className="mt-3 space-y-2 border-t border-[#d5e4ee] pt-2">
                     <input type="hidden" name="id" value={suggestion.id} />
-                    <button className={btn} name="decision" value="aceptar">Aceptar</button>
-                    <button className={btnGhost} name="decision" value="rechazar">Rechazar</button>
+                    <label className={label}>
+                      Nota o motivo para el alumno (opcional al aceptar, recomendado al rechazar)
+                      <input className={input} name="review_note" maxLength={500} placeholder="Motivo de aceptación o rechazo" />
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button className={btn} name="decision" value="aceptar">Aceptar e integrar</button>
+                      <button className={btnGhost} name="decision" value="rechazar">Rechazar</button>
+                    </div>
                   </form>}
                 </div>)}
                 {user ? <SuggestForm action={suggestImprovement} guideId={guide.id} stepIndex={index} /> : <p className="text-sm text-[#667085]"><Link href="/entrar" className="font-semibold text-[#006699] underline">Inicia sesión</Link> para sugerir una mejora.</p>}
@@ -171,14 +275,44 @@ export default async function GuidePage({
         </div>
       </section>}
 
-      {staff && <section className="rounded-3xl border border-[#b7d4e4] bg-[#f2f8fb] p-5">
-        <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">Uso de la guía · vista de área</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl bg-white p-4"><p className="text-xs text-[#667085]">Lecturas con sesión</p><p className="mt-1 text-2xl font-extrabold">{guideMetrics[0]?.views ?? 0}</p></div>
-          <div className="rounded-2xl bg-white p-4"><p className="text-xs text-[#667085]">Personas distintas</p><p className="mt-1 text-2xl font-extrabold">{guideMetrics[0]?.readers ?? 0}</p></div>
-          <div className="rounded-2xl bg-white p-4"><p className="text-xs text-[#667085]">Pasos marcados</p><p className="mt-1 text-2xl font-extrabold">{guideMetrics[0]?.completions ?? 0}</p></div>
+      {staff && <section id="analiticas" className="space-y-4 rounded-3xl border border-[#b7d4e4] bg-[#f2f8fb] p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">Panel de analíticas · CU-12</p>
+            <h2 className="text-lg font-extrabold text-[#1b4053]">Uso y abandono por paso</h2>
+          </div>
+          <div className="flex gap-1.5 text-xs">
+            <Link href={`/guias/${guide.id}#analiticas`} className={`rounded-full px-3 py-1 font-bold ${filterDays === 0 ? "bg-[#006699] text-white" : "bg-white text-[#004d73]"}`}>Todo el historial</Link>
+            <Link href={`/guias/${guide.id}?days=30#analiticas`} className={`rounded-full px-3 py-1 font-bold ${filterDays === 30 ? "bg-[#006699] text-white" : "bg-white text-[#004d73]"}`}>Últimos 30 días</Link>
+            <Link href={`/guias/${guide.id}?days=7#analiticas`} className={`rounded-full px-3 py-1 font-bold ${filterDays === 7 ? "bg-[#006699] text-white" : "bg-white text-[#004d73]"}`}>Últimos 7 días</Link>
+          </div>
         </div>
-        {guideMetrics.slice(1).length > 0 && <p className="mt-3 text-sm text-[#52636d]">Pasos con 5 o más personas: {guideMetrics.slice(1).map((metric) => `${metric.stepIndex + 1} (${metric.stepReaders})`).join(" · ")}</p>}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-white p-4"><p className="text-xs text-[#667085]">Lecturas con sesión</p><p className="mt-1 text-2xl font-extrabold">{totalViews}</p></div>
+          <div className="rounded-2xl bg-white p-4"><p className="text-xs text-[#667085]">Personas distintas</p><p className="mt-1 text-2xl font-extrabold">{totalReaders}</p></div>
+          <div className="rounded-2xl bg-white p-4"><p className="text-xs text-[#667085]">Pasos completados</p><p className="mt-1 text-2xl font-extrabold">{totalCompletions}</p></div>
+        </div>
+        <div className="space-y-2 rounded-2xl bg-white p-4">
+          <p className="text-xs font-extrabold uppercase text-[#004d73]">Embudo de avance y tasa de abandono por paso</p>
+          <ul className="space-y-2 text-xs">
+            {stepFunnel.map((item) => (
+              <li key={item.index} className="space-y-1 border-t border-[#edf2f5] pt-2 first:border-0 first:pt-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold text-[#1b4053]">Paso {item.index + 1}: {item.title}</span>
+                  <span className="text-[#52636d]">
+                    {item.people} lectores completaron · Abandono estimado: <strong>{item.dropoffPct}%</strong>
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-[#e6f3fa]">
+                  <div
+                    className="h-full rounded-full bg-[#006699]"
+                    style={{ width: `${Math.max(4, 100 - item.dropoffPct)}%` }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>}
 
       {versions.rows.length > 0 && <section className="board-sidecard space-y-3 p-5">

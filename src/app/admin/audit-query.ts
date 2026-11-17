@@ -12,8 +12,19 @@ export function readAuditFilters(params: Record<string, string | string[] | unde
   return { actor: one("actor"), entity: one("entity"), from: date("from"), to: date("to") };
 }
 export async function getAuditLogs(f: AuditFilters) {
-  return pool.query<{ id: string; action: string; entity: string; entity_id: string | null; detail: string | null; created_at: Date; actor_name: string | null }>(
-    `select l.id, l.action, l.entity, l.entity_id, l.detail, l.created_at, u.name as actor_name
+  return pool.query<{
+    id: string;
+    action: string;
+    entity: string;
+    entity_id: string | null;
+    detail: string | null;
+    old_value: string | null;
+    new_value: string | null;
+    ip_address: string | null;
+    created_at: Date;
+    actor_name: string | null;
+  }>(
+    `select l.id, l.action, l.entity, l.entity_id, l.detail, l.old_value, l.new_value, l.ip_address, l.created_at, u.name as actor_name
      from audit_logs l left join users u on u.id = l.actor_id
      where ($1 = '' or u.name ilike '%' || $1 || '%')
        and ($2 = '' or l.entity ilike '%' || $2 || '%')

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { logout } from "@/lib/auth-actions";
 import type { SessionUser } from "@/lib/auth";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const links = [
   { href: "/", label: "Inicio", icon: "home" },
@@ -11,8 +13,7 @@ const links = [
   { href: "/clubes", label: "Clubes", icon: "people" },
   { href: "/eventos", label: "Eventos", icon: "calendar" },
   { href: "/mapa", label: "Mapa", icon: "map" },
-  { href: "/foro", label: "Foro", icon: "chat" },
-  { href: "/guias", label: "Guías", icon: "book" },
+  { href: "/foro", label: "Foro y Guías", icon: "book" },
   { href: "/objetos", label: "Objetos", icon: "bag" },
 ];
 
@@ -33,19 +34,24 @@ function Icon({ name }: { name: string }) {
 
 function NavItems({ pathname, mobile = false }: { pathname: string; mobile?: boolean }) {
   return (
-    <nav aria-label={mobile ? "Navegación principal móvil" : "Navegación principal"} className={mobile ? "flex w-full items-stretch gap-1 overflow-x-auto" : "mx-auto flex w-full max-w-[1480px] items-center gap-1 overflow-x-auto px-4 sm:px-7"}>
+    <nav aria-label={mobile ? "Navegación principal móvil" : "Navegación principal"} className={mobile ? "flex w-full items-stretch gap-1 overflow-x-auto" : "mx-auto flex w-full max-w-[1780px] items-center gap-1 overflow-x-auto px-4 sm:px-6 lg:px-10"}>
       {links.map((link) => {
-        const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+        const active =
+          link.href === "/"
+            ? pathname === "/"
+            : link.href === "/foro"
+              ? pathname.startsWith("/foro") || pathname.startsWith("/guias")
+              : pathname.startsWith(link.href);
         return (
           <Link
             key={link.href}
             href={link.href}
             aria-current={active ? "page" : undefined}
             title={link.label}
-            className={`${mobile ? "min-h-12 min-w-[3.3rem] flex-1 flex-col gap-1 px-1 py-1.5" : "min-h-11 shrink-0 gap-2 px-3 py-2"} flex items-center justify-center rounded-md text-[#50636d] transition-colors hover:bg-[#e9efef] hover:text-[#004d73] ${active ? "bg-[#e5eff1] font-extrabold text-[#004d73]" : "font-semibold"}`}
+            className={`${mobile ? "min-h-12 min-w-[3.5rem] flex-1 flex-col gap-1 px-1 py-1.5" : "min-h-11 shrink-0 gap-2 px-3 py-2"} flex items-center justify-center rounded-md text-[#50636d] transition-colors hover:bg-[#e9efef] hover:text-[#004d73] ${active ? "bg-[#e5eff1] font-extrabold text-[#004d73]" : "font-semibold"}`}
           >
             <Icon name={link.icon}/>
-            <span className={mobile ? "text-[11px] font-bold leading-none" : "text-sm"}>{link.label}</span>
+            <span className={mobile ? "text-center text-[10px] font-bold leading-tight whitespace-nowrap" : "text-sm"}>{link.label}</span>
           </Link>
         );
       })}
@@ -53,23 +59,114 @@ function NavItems({ pathname, mobile = false }: { pathname: string; mobile?: boo
   );
 }
 
-export function AppShell({ user, children }: { user: SessionUser | null; children: React.ReactNode }) {
+const IDLE_LIMIT_MS = 30 * 60 * 1000;
+const IDLE_WARN_MS = 28 * 60 * 1000;
+
+export function AppShell({
+  user,
+  initialUnread = 0,
+  children,
+}: {
+  user: SessionUser | null;
+  initialUnread?: number;
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [realtimeUnread, setRealtimeUnread] = useState<number | null>(null);
+  const [idleWarning, setIdleWarning] = useState(false);
+  const unread = pathname === "/notificaciones" ? 0 : (realtimeUnread ?? initialUnread);
+
+  useEffect(() => {
+    if (!user) return;
+    let supabase: ReturnType<typeof createSupabaseBrowserClient> | null = null;
+    try {
+      supabase = createSupabaseBrowserClient();
+    } catch {
+      return;
+    }
+    const refreshCount = async () => {
+      if (!supabase) return;
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("read", false);
+      if (typeof count === "number") setRealtimeUnread(count);
+    };
+    const channel = supabase
+      .channel(`header-notifs-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
+        () => {
+          void refreshCount();
+          router.refresh();
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase?.removeChannel(channel);
+    };
+  }, [user, router]);
+
+  useEffect(() => {
+    if (!user) return;
+    let warnTimer: ReturnType<typeof setTimeout>;
+    let logoutTimer: ReturnType<typeof setTimeout>;
+
+    const resetTimers = () => {
+      setIdleWarning(false);
+      clearTimeout(warnTimer);
+      clearTimeout(logoutTimer);
+      warnTimer = setTimeout(() => setIdleWarning(true), IDLE_WARN_MS);
+      logoutTimer = setTimeout(async () => {
+        try {
+          const supabase = createSupabaseBrowserClient();
+          await supabase.auth.signOut();
+        } catch {
+          // ignore
+        }
+        router.push("/entrar?inactividad=1");
+        router.refresh();
+      }, IDLE_LIMIT_MS);
+    };
+
+    const events = ["pointerdown", "keydown", "scroll", "touchstart"] as const;
+    for (const ev of events) window.addEventListener(ev, resetTimers, { passive: true });
+    resetTimers();
+
+    return () => {
+      clearTimeout(warnTimer);
+      clearTimeout(logoutTimer);
+      for (const ev of events) window.removeEventListener(ev, resetTimers);
+    };
+  }, [user, router]);
 
   return (
     <div className="min-h-screen text-[#173142]">
+      {idleWarning && (
+        <div role="alert" className="bg-[#f4e7b5] px-4 py-2 text-center text-xs font-bold text-[#58491e]">
+          Tu sesión se cerrará en menos de 2 minutos por inactividad (RNF-05). Mueve el cursor o presiona una tecla para continuar.
+        </div>
+      )}
       <header className="sticky top-0 z-30 border-b border-[#dcd9ce] bg-[#fffdf7]">
-        <div className="mx-auto flex h-[62px] max-w-[1480px] items-center gap-4 px-4 sm:px-7">
+        <div className="mx-auto flex h-[62px] max-w-[1780px] items-center gap-4 px-4 sm:px-6 lg:px-10">
           <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="ESCOM, inicio">
             <img src="/brand/escudo-escom.png" alt="ESCOM IPN" className="h-7 w-auto sm:h-8" />
             <span className="hidden border-l border-[#d8d5ca] pl-2.5 text-[.68rem] font-extrabold tracking-[.14em] text-[#43616e] sm:inline">COMUNIDAD</span>
           </Link>
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
             {user ? <>
-              <Link href="/notificaciones" aria-label="Notificaciones" title="Notificaciones" className="grid h-10 w-10 place-items-center rounded-md text-[#526974] transition hover:bg-[#e9efef] hover:text-[#004d73]">
+              <Link href="/notificaciones" aria-label={unread > 0 ? `Notificaciones (${unread} sin leer)` : "Notificaciones"} title="Notificaciones" className="relative grid h-10 w-10 place-items-center rounded-md text-[#526974] transition hover:bg-[#e9efef] hover:text-[#004d73]">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+                {unread > 0 && (
+                  <span className="absolute right-1 top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-[#006699] px-1 text-[10px] font-extrabold leading-none text-white">
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                )}
               </Link>
-              {(user.role === "admin" || user.role === "moderador") && <Link href="/admin" className="hidden rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73] sm:inline">Panel</Link>}
+              {user.role === "admin" && <Link href="/admin" className="hidden rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73] sm:inline">Panel</Link>}
               {(user.role === "admin" || user.role === "moderador") && <Link href="/moderacion" className="hidden rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73] sm:inline">Moderación</Link>}
               <Link href="/perfil" className="flex min-h-10 items-center gap-2 rounded-md border border-[#e3e0d6] bg-white px-2">
                 <span className="grid h-7 w-7 place-items-center rounded-md bg-[#e5eff1] text-xs font-extrabold text-[#004d73]">{user.name.slice(0, 1)}</span>
@@ -87,7 +184,7 @@ export function AppShell({ user, children }: { user: SessionUser | null; childre
         </div>
       </header>
 
-      <main className="mx-auto min-h-[calc(100vh-106px)] max-w-[1480px] px-4 pb-28 pt-6 sm:px-7 sm:pt-8 lg:pb-12">{children}</main>
+      <main className="mx-auto min-h-[calc(100vh-106px)] max-w-[1780px] px-4 pb-28 pt-5 sm:px-6 sm:pt-7 lg:px-10 lg:pb-12">{children}</main>
 
       <div className="fixed inset-x-2 bottom-2 z-40 rounded-xl border border-[#dcd9ce] bg-[#fffdf7] p-1 shadow-[0_8px_24px_rgba(23,49,66,.13)] lg:hidden">
         <NavItems pathname={pathname} mobile />

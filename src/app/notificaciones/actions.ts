@@ -36,19 +36,24 @@ export async function savePrefs(_prev: FormState, form: FormData): Promise<FormS
   const user = await getSession();
   if (!user) redirect("/entrar");
   await pool.query(
-    `insert into notification_prefs (user_id, email_clubs, email_forum, email_lost)
-     values ($1, $2, $3, $4)
+    `insert into notification_prefs (user_id, email_clubs, email_forum, email_lost, inapp_guides, inapp_notices)
+     values ($1, $2, $3, $4, $5, $6)
      on conflict (user_id) do update set
        email_clubs = excluded.email_clubs,
        email_forum = excluded.email_forum,
-       email_lost = excluded.email_lost`,
+       email_lost = excluded.email_lost,
+       inapp_guides = excluded.inapp_guides,
+       inapp_notices = excluded.inapp_notices,
+       updated_at = now()`,
     [
       user.id,
       form.get("email_clubs") === "on",
       form.get("email_forum") === "on",
       form.get("email_lost") === "on",
+      form.get("inapp_guides") === "on",
+      form.get("inapp_notices") === "on",
     ],
   );
   revalidatePath("/notificaciones");
-  return { ok: "Preferencias guardadas." };
+  return { ok: "Preferencias de notificaciones in-app guardadas." };
 }
