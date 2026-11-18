@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { audit, getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
+import { clubEventVenueArea } from "../espacios/shared";
 import { sendMail } from "@/lib/mailer";
 import { uploadPublicImage } from "@/lib/storage";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -1024,8 +1025,10 @@ export async function createClubEvent(_prev: ClubState, form: FormData): Promise
   const uploaded = await uploadPublicImage(user.id, "club-events", form.get("image"));
   if ("error" in uploaded) return { error: uploaded.error };
 
-  const status = isStaff ? "aprobado" : "pendiente";
-  const approvedBy = isStaff ? user.id : null;
+  const venueArea = clubEventVenueArea(location);
+  const canApprove = isStaff && (!venueArea || user.role === "admin" || user.area === venueArea);
+  const status = canApprove ? "aprobado" : "pendiente";
+  const approvedBy = canApprove ? user.id : null;
 
   await pool.query(
     `insert into club_events (club_id, created_by, title, description, starts_at, location, approval_status, approved_by, image_url)
@@ -1036,9 +1039,9 @@ export async function createClubEvent(_prev: ClubState, form: FormData): Promise
   await audit(user.id, "crear_evento_club", "club_events", clubId, title);
   refresh(undefined, clubId);
   return {
-    success: isStaff
+    success: canApprove
       ? "Evento del club publicado y aprobado en la cartelera."
-      : "Evento enviado. Quedará visible en la cartelera cuando la coordinación de clubes lo apruebe.",
+      : "Evento enviado. Quedará visible en la cartelera cuando el área responsable lo apruebe.",
   };
 }
 
@@ -1052,20 +1055,15 @@ export async function reviewClubEvent(_prev: ClubState, form: FormData): Promise
     return { error: "Decisión inválida." };
   }
 
-  const clubRes = await pool.query<{ kind: string }>("select kind from clubs where id = $1", [clubId]);
-  const club = clubRes.rows[0];
-  if (!club || !canModerateClubKind(user, club.kind)) {
-    return { error: "Solo la coordinación correspondiente de clubes o administración puede aprobar eventos." };
-  }
-
-  await pool.query(
+  const updated = await pool.query(
     `update club_events
         set approval_status = $1,
             approved_by = case when $1 = 'aprobado' then $2::uuid else null end
-      where id = $3 and club_id = $4`,
+      where id = $3 and club_id = $4 and approval_status = 'pendiente'
+        and private.can_review_club_event(club_id, location)`,
     [decision, user.id, eventId, clubId],
   );
-
+  if (!updated.rowCount) return { error: "El evento ya fue revisado o corresponde a otra área." };
   await audit(user.id, `evento_club_${decision}`, "club_events", eventId, clubId);
   refresh(undefined, clubId);
   return { success: decision === "aprobado" ? "Evento aprobado." : "Evento rechazado." };
@@ -1089,9 +1087,12 @@ export async function deleteClubEvent(_prev: ClubState, form: FormData): Promise
   const isManager =
     (user.role === "alumno" && user.id === club.leader_id) ||
     (user.role === "profesor" && user.id === club.advisor_id);
-  if (!isStaff && !isManager) return { error: "Sin permiso para eliminar este evento." };
-
-  await pool.query("delete from club_events where id = $1 and club_id = $2", [eventId, clubId]);
+  const deleted = await pool.query(
+    `delete from club_events where id = $1 and club_id = $2
+       and ($3 or private.can_review_club_event(club_id, location))`,
+    [eventId, clubId, isManager || isStaff],
+  );
+  if (!deleted.rowCount) return { error: "Sin permiso para eliminar este evento." };
   await audit(user.id, "eliminar_evento_club", "club_events", eventId, clubId);
   refresh(undefined, clubId);
   return { success: "Evento eliminado." };

@@ -8,23 +8,11 @@ La ESCOM tiene avisos, trámites, clubes, espacios y objetos perdidos repartidos
 
 ## Actores y roles
 
-La sección 3.3 nombra cinco actores. En `db/schema.sql` el enum `user_role` solo tiene cuatro valores. El visitante no tiene fila: es quien entra sin cookie de sesión.
+El visitante consulta las publicaciones públicas sin crear cuenta. Los alumnos pueden estar fuera de un club, pertenecer como integrantes o moderar el club que los tiene como responsable. El profesor asesor también modera su club. Las designaciones se guardan en `clubs.leader_id` y `clubs.advisor_id`; las afiliaciones están en `memberships`.
 
-| Actor del Word | Rol en la base | Cómo entra |
-| --- | --- | --- |
-| Alumno | `alumno` | Correo `@alumno.ipn.mx`. `roleFromEmail` en `src/lib/auth.ts`. |
-| Profesor | `profesor` | Correo `@ipn.mx`. |
-| Moderador | `moderador` | Lo asigna un admin. El área va en `users.area` (texto libre). |
-| Administrador general | `admin` | Lo asigna un admin o el seed. |
-| Usuario anónimo | sin rol | Lee avisos públicos, clubes, guías y el mapa. No publica. |
+El superadministrador asigna los roles de alumno, profesor, moderador y administrador desde el panel. Los moderadores institucionales tienen un área en `users.area`. Becas, CATT y Gestión Escolar atienden sus propios trámites y guías. Becas también gestiona eventos del Auditorio. Subdirección Académica gestiona clubes académicos y eventos de Sala 14. Comunicación publica avisos. Se conservan las áreas de Clubes Académicos, Clubes Culturales y Deportivos, y Prefectura.
 
-Áreas que el seed y el código usan de verdad (`scripts/seed.mjs`):
-
-- `comunicacion`: publica avisos (`canManageAvisos` en `src/app/avisos/shared.ts`).
-- `clubes_academicos`: registra una propuesta que ya tiene asesor (`canModerate` en `src/app/clubes/actions.ts`).
-- `gestion_escolar`, `becas`, `catt`: etiquetas de guías y del foro (`src/app/guias/shared.ts`, `src/app/foro/shared.ts`). El moderador de esa área no queda atado por código al editar solo lo suyo.
-- `prefectura`, `clubes_culturales`: cuentas de demostración. Ninguna pantalla les da un permiso distinto.
-- `general`: etiqueta de pregunta o guía, no un área de usuario.
+La cuenta de operación tiene acceso administrativo a los módulos y puede activar su propio perfil de alumno o profesor. La superadministración y el cambio de perfil requieren atributos concedidos en el servidor para una cuenta concreta. La creación de una cuenta institucional ordinaria asigna alumno o profesor por dominio.
 
 ## Módulos en alcance (sección 1.4)
 

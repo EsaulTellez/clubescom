@@ -125,8 +125,8 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
        from clubs c
        left join users leader on leader.id = c.leader_id
        left join users advisor on advisor.id = c.advisor_id
-       where c.id = $1`,
-      [id],
+       where c.id = $1 and (not $2 or c.kind = 'academico')`,
+      [id, user?.role === "moderador" && user.area === "subdireccion_academica"],
     );
     club = result.rows[0];
     if (club) {
@@ -172,6 +172,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
               `select ce.id, ce.title, ce.description, ce.location, ce.starts_at, ce.approval_status, ce.image_url,
                       0::int as attendees_count, false as user_attending
                from club_events ce where ce.club_id = $1 and ce.approval_status = 'pendiente'
+                 and private.can_review_club_event(ce.club_id, ce.location)
                order by ce.starts_at asc`,
               [id],
             )

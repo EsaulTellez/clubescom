@@ -79,7 +79,7 @@ export async function setBanned(_prev: FormState, form: FormData): Promise<FormS
 
 export async function setRole(_prev: FormState, form: FormData): Promise<FormState> {
   const actor = await adminUser();
-  if (!actor) return { error: "Solo una cuenta de administración puede cambiar roles." };
+  if (!actor?.isSuperadmin) return { error: "Solo superadministración puede cambiar roles." };
 
   const id = String(form.get("user_id") ?? "");
   const role = String(form.get("role") ?? "");
@@ -90,13 +90,13 @@ export async function setRole(_prev: FormState, form: FormData): Promise<FormSta
   }
 
   const nextArea = role === "moderador" ? area : null;
-  const current = await pool.query<{ name: string; role: Role; area: string | null }>(
-    "select name, role, area from users where id = $1",
+  const current = await pool.query<{ name: string; role: Role; area: string | null; can_switch_profile: boolean }>(
+    "select name, role, area, can_switch_profile from users where id = $1",
     [id],
   );
   const row = current.rows[0];
   if (!row) return { error: "Usuario no encontrado." };
-  if (row.role === role && (row.area ?? null) === nextArea) return { ok: "Sin cambios." };
+  if (!row.can_switch_profile && row.role === role && (row.area ?? null) === nextArea) return { ok: "Sin cambios." };
 
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("admin_set_user_role", {

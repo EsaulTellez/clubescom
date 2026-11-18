@@ -149,13 +149,13 @@ export function canModerateForumQuestion(
   if (user.area === area) return true;
   if (
     (area === "clubes" || requestKind === "nuevo_club") &&
-    ["subdireccion_academica", "clubes_academicos", "clubes_culturales"].includes(user.area ?? "")
+    ["clubes_academicos", "clubes_culturales"].includes(user.area ?? "")
   ) {
     return true;
   }
   if (
     (area === "infraestructura" || requestKind === "cambio_info") &&
-    ["prefectura", "subdireccion_academica"].includes(user.area ?? "")
+    user.area === "prefectura"
   ) {
     return true;
   }

@@ -11,6 +11,8 @@ export type SessionUser = {
   name: string;
   boleta: string | null;
   role: Role;
+  isSuperadmin: boolean;
+  canSwitchProfile: boolean;
   area: string | null;
 };
 
@@ -45,7 +47,7 @@ export async function getSession(): Promise<SessionUser | null> {
     await Promise.all([
       supabase
         .from("users")
-        .select("id, name, role, area")
+        .select("id, name, role, area, is_superadmin, can_switch_profile")
         .eq("id", userId)
         .maybeSingle(),
       supabase.rpc("get_my_private_data"),
@@ -74,6 +76,8 @@ export async function getSession(): Promise<SessionUser | null> {
     name: profile.name,
     boleta: privateRows?.[0]?.boleta ?? null,
     role: profile.role,
+    canSwitchProfile: profile.can_switch_profile === true,
+    isSuperadmin: profile.is_superadmin === true,
     area: profile.area,
   };
 }

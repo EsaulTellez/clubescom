@@ -23,6 +23,15 @@ const password = "Escom2026!";
 const people = [
   ["daniel.alumno@alumno.ipn.mx", "Daniel Díaz Ramírez", "2023630001", "alumno", null],
   ["esaul.alumno@alumno.ipn.mx", "Esaul Téllez De La Cruz", "2023630002", "alumno", null],
+  ["alumna.libre@alumno.ipn.mx", "Valeria Luna", "2023630010", "alumno", null],
+  ["robotica.alumno@alumno.ipn.mx", "Iván Salas", "2023630011", "alumno", null],
+  ["cine.alumna@alumno.ipn.mx", "Lucía Méndez", "2023630012", "alumno", null],
+  ["futbol.alumno@alumno.ipn.mx", "Omar Ríos", "2023630013", "alumno", null],
+  ["robotica.profesor@ipn.mx", "Arturo Pineda", "EMP-101", "profesor", null],
+  ["cine.profesora@ipn.mx", "Ana Vidal", "EMP-102", "profesor", null],
+  ["futbol.profesor@ipn.mx", "Pablo Lara", "EMP-103", "profesor", null],
+  ["operacion@ipn.mx", "Operación ESCOM", "EMP-002", "admin", null],
+  ["superadmin@ipn.mx", "Superadministración ESCOM", "EMP-003", "admin", null],
   ["profesor@ipn.mx", "Profesor Asesor", "EMP-100", "profesor", null],
   ["comunicacion@ipn.mx", "Elizabeth Moreno", "EMP-200", "moderador", "comunicacion"],
   ["gestion@ipn.mx", "Erick Fernández", "EMP-201", "moderador", "gestion_escolar"],
@@ -60,8 +69,8 @@ for (const [email, name, boleta, role, area] of people) {
   const id = await findOrCreateUser(email, name, boleta);
   ids.set(email, id);
   await pool.query(
-    `update public.users set name = $2, role = $3::public.user_role, area = $4, is_active = true, banned = false where id = $1`,
-    [id, name, role, area],
+    `update public.users set name = $2, role = $3::public.user_role, area = $4, is_superadmin = $5, can_switch_profile = $6 where id = $1`,
+    [id, name, role, area, email === "superadmin@ipn.mx", email === "operacion@ipn.mx"],
   );
   await pool.query(
     `update private.user_private set email = $2, boleta = $3 where user_id = $1`,
@@ -80,6 +89,67 @@ const culturalesMod = id("culturales@ipn.mx");
 const becasMod = id("becas@ipn.mx");
 const cattMod = id("catt@ipn.mx");
 const adminId = id("admin@ipn.mx");
+
+await pool.query(`
+  insert into public.clubs (name, kind, description, schedule, leader_id, advisor_id, logo_url, contact_email, contact_info)
+  select v.name, v.kind, v.description, v.schedule, $1, $2, v.logo_url, v.contact_email, v.contact_info
+  from (values
+    ('Club de Algoritmia', 'academico', 'Práctica de programación competitiva, estructuras de datos, entrenamiento para ICPC y acompañamiento para principiantes.', 'Martes y jueves · 16:00', '/demo/club-algoritmia.webp', 'algoritmia.escom@ipn.mx', 'Laboratorio 4, Edificio 1 · Atención presencial en horario de sesiones'),
+    ('Club de Robótica', 'academico', 'Electrónica, diseño de PCB, prototipos autónomos y competencias nacionales para toda la comunidad.', 'Miércoles · 15:00', null, 'robotica.escom@ipn.mx', 'Taller de Electrónica, Edificio 2 · Cubículo 2112'),
+    ('Club de Cine', 'cultural', 'Funciones semanales, análisis cinematográfico y conversación abierta en Sala 14.', 'Viernes · 17:00', null, 'cine.escom@ipn.mx', 'Sala 14, Edificio 1 · Viernes 17:00 hrs'),
+    ('Club de Fútbol', 'deportivo', 'Entrenamiento táctico y torneos internos en las canchas de Zacatenco.', 'Lunes y jueves · 15:30', null, 'futbol.escom@ipn.mx', 'Canchas deportivas de ESCOM · Lunes y jueves 15:30 hrs')
+  ) as v(name, kind, description, schedule, logo_url, contact_email, contact_info)
+  where not exists (select 1 from public.clubs c where c.name = v.name)
+`, [student, professor]);
+
+await pool.query(`
+  update public.clubs c
+  set contact_email = coalesce(c.contact_email, v.contact_email),
+      contact_info = coalesce(c.contact_info, v.contact_info)
+  from (values
+    ('Club de Algoritmia', 'algoritmia.escom@ipn.mx', 'Laboratorio 4, Edificio 1 · Atención presencial en horario de sesiones'),
+    ('Club de Robótica', 'robotica.escom@ipn.mx', 'Taller de Electrónica, Edificio 2 · Cubículo 2112'),
+    ('Club de Cine', 'cine.escom@ipn.mx', 'Sala 14, Edificio 1 · Viernes 17:00 hrs'),
+    ('Club de Fútbol', 'futbol.escom@ipn.mx', 'Canchas deportivas de ESCOM · Lunes y jueves 15:30 hrs')
+  ) as v(name, contact_email, contact_info)
+  where c.name = v.name
+`);
+
+// Las instalaciones anteriores asignaban estos tres clubes a la misma pareja de demo.
+const coordinators = [
+  ["Club de Robótica", "robotica.alumno@alumno.ipn.mx", "robotica.profesor@ipn.mx"],
+  ["Club de Cine", "cine.alumna@alumno.ipn.mx", "cine.profesora@ipn.mx"],
+  ["Club de Fútbol", "futbol.alumno@alumno.ipn.mx", "futbol.profesor@ipn.mx"],
+];
+for (const [name, leader, advisor] of coordinators) {
+  await pool.query(
+    `update public.clubs set leader_id = $2, advisor_id = $3
+     where name = $1 and leader_id = $4 and advisor_id = $5`,
+    [name, id(leader), id(advisor), student, professor],
+  );
+}
+
+const clubMemberships = [
+  ["Club de Algoritmia", [student, secondStudent, professor]],
+  ...coordinators.map(([name, leader, advisor]) => [name, [id(leader), id(advisor), secondStudent]]),
+];
+for (const [clubName, memberList] of clubMemberships) {
+  for (const memberId of memberList) {
+    if (!memberId) continue;
+    await pool.query(
+      `insert into public.memberships (club_id, user_id, status)
+       select c.id, $2, 'aceptada' from public.clubs c where c.name = $1
+       on conflict (club_id, user_id) do update set status = 'aceptada'`,
+      [clubName, memberId],
+    );
+  }
+}
+
+if (process.argv.includes("--users-only")) {
+  await pool.end();
+  console.log(`Cuentas y clubes de demo listos: ${people.length} perfiles.`);
+  process.exit(0);
+}
 
 await pool.query(`
   insert into public.avisos (author_id, title, body, category, featured, image_url, social_copy, publish_at)
@@ -115,49 +185,6 @@ await pool.query(`
      published_triggered = true
 `);
 
-await pool.query(`
-  insert into public.clubs (name, kind, description, schedule, leader_id, advisor_id, logo_url, contact_email, contact_info)
-  select v.name, v.kind, v.description, v.schedule, $1, $2, v.logo_url, v.contact_email, v.contact_info
-  from (values
-    ('Club de Algoritmia', 'academico', 'Práctica de programación competitiva, estructuras de datos, entrenamiento para ICPC y acompañamiento para principiantes.', 'Martes y jueves · 16:00', '/demo/club-algoritmia.webp', 'algoritmia.escom@ipn.mx', 'Laboratorio 4, Edificio 1 · Atención presencial en horario de sesiones'),
-    ('Club de Robótica', 'academico', 'Electrónica, diseño de PCB, prototipos autónomos y competencias nacionales para toda la comunidad.', 'Miércoles · 15:00', null, 'robotica.escom@ipn.mx', 'Taller de Electrónica, Edificio 2 · Cubículo 2112'),
-    ('Club de Cine', 'cultural', 'Funciones semanales, análisis cinematográfico y conversación abierta en Sala 14.', 'Viernes · 17:00', null, 'cine.escom@ipn.mx', 'Sala 14, Edificio 1 · Viernes 17:00 hrs'),
-    ('Club de Fútbol', 'deportivo', 'Entrenamiento táctico y torneos internos en las canchas de Zacatenco.', 'Lunes y jueves · 15:30', null, 'futbol.escom@ipn.mx', 'Canchas deportivas de ESCOM · Lunes y jueves 15:30 hrs')
-  ) as v(name, kind, description, schedule, logo_url, contact_email, contact_info)
-  where not exists (select 1 from public.clubs c where c.name = v.name)
-`, [student, professor]);
-
-await pool.query(`
-  update public.clubs c
-  set contact_email = coalesce(c.contact_email, v.contact_email),
-      contact_info = coalesce(c.contact_info, v.contact_info)
-  from (values
-    ('Club de Algoritmia', 'algoritmia.escom@ipn.mx', 'Laboratorio 4, Edificio 1 · Atención presencial en horario de sesiones'),
-    ('Club de Robótica', 'robotica.escom@ipn.mx', 'Taller de Electrónica, Edificio 2 · Cubículo 2112'),
-    ('Club de Cine', 'cine.escom@ipn.mx', 'Sala 14, Edificio 1 · Viernes 17:00 hrs'),
-    ('Club de Fútbol', 'futbol.escom@ipn.mx', 'Canchas deportivas de ESCOM · Lunes y jueves 15:30 hrs')
-  ) as v(name, contact_email, contact_info)
-  where c.name = v.name
-`);
-
-const clubMemberships = [
-  ["Club de Algoritmia", [student, secondStudent, professor, comms, gestion, clubesMod, becasMod]],
-  ["Club de Robótica", [student, secondStudent, professor, cattMod, adminId]],
-  ["Club de Fútbol", [secondStudent, gestion, becasMod, culturalesMod]],
-  ["Club de Cine", [student, culturalesMod, comms]],
-];
-for (const [clubName, memberList] of clubMemberships) {
-  for (const memberId of memberList) {
-    if (!memberId) continue;
-    await pool.query(
-      `insert into public.memberships (club_id, user_id, status)
-       select c.id, $2, 'aceptada' from public.clubs c where c.name = $1
-       on conflict (club_id, user_id) do update set status = 'aceptada'`,
-      [clubName, memberId],
-    );
-  }
-}
-
 const clubPostsSeed = [
   ["Club de Algoritmia", "Entrenamiento de grafos: BFS, DFS y Dijkstra", "Esta semana resolveremos problemas tipo ICPC sobre caminos mínimos y árboles generadores en el laboratorio. No necesitas experiencia previa: tendremos un bloque introductorio y otro avanzado con retroalimentación en vivo.", 3, "/demo/post-grafos-icpc.svg"],
   ["Club de Robótica", "Armado de chasis y pruebas de sensores ultrasónicos", "El miércoles abrimos sesión de taller para calibrar motores y sensores del prototipo seguidor de línea. Trae tu multímetro si cuentas con uno; aquí prestamos cautines y placas de prueba.", 8, "/demo/post-robotica-chasis.svg"],
@@ -168,11 +195,11 @@ const clubPostsSeed = [
 for (const [clubName, title, body, hoursAgo, imageUrl] of clubPostsSeed) {
   await pool.query(
     `insert into public.club_posts (club_id, author_id, title, body, image_url, created_at)
-     select c.id, $2, $3, $4, $6, now() - ($5 || ' hours')::interval
+     select c.id, c.leader_id, $2, $3, $5, now() - ($4 || ' hours')::interval
      from public.clubs c
      where c.name = $1
-       and not exists (select 1 from public.club_posts p where p.club_id = c.id and p.title = $3)`,
-    [clubName, student, title, body, String(hoursAgo), imageUrl],
+       and not exists (select 1 from public.club_posts p where p.club_id = c.id and p.title = $2)`,
+    [clubName, title, body, String(hoursAgo), imageUrl],
   );
   await pool.query(
     `update public.club_posts set image_url = coalesce(image_url, $2) where title = $1`,
@@ -189,11 +216,11 @@ const clubEventsSeed = [
 for (const [clubName, title, description, location, intervalStr, imageUrl] of clubEventsSeed) {
   await pool.query(
     `insert into public.club_events (club_id, created_by, title, description, location, starts_at, approval_status, approved_by, image_url)
-     select c.id, $2, $3, $4, $5, date_trunc('hour', now()) + $6::interval, 'aprobado', $7, $8
+     select c.id, c.leader_id, $2, $3, $4, date_trunc('hour', now()) + $5::interval, 'aprobado', $6, $7
      from public.clubs c
      where c.name = $1
-       and not exists (select 1 from public.club_events e where e.club_id = c.id and e.title = $3)`,
-    [clubName, student, title, description, location, intervalStr, clubesMod, imageUrl],
+       and not exists (select 1 from public.club_events e where e.club_id = c.id and e.title = $2)`,
+    [clubName, title, description, location, intervalStr, ["Club de Cine", "Club de Fútbol"].includes(clubName) ? culturalesMod : clubesMod, imageUrl],
   );
   await pool.query(
     `update public.club_events set image_url = coalesce(image_url, $2) where title = $1`,
@@ -785,7 +812,7 @@ for (const [spaceName, title, description, startInterval, endInterval, imageUrl,
      from public.spaces s
      where s.name = $1
        and not exists (select 1 from public.space_events e where e.space_id = s.id and e.title = $2)`,
-    [spaceName, title, description, startInterval, endInterval, comms, imageUrl, speaker],
+    [spaceName, title, description, startInterval, endInterval, spaceName === "Auditorio" ? becasMod : spaceName === "Sala 14" ? id("subdireccion@ipn.mx") : adminId, imageUrl, speaker],
   );
   await pool.query(
     `update public.space_events set image_url = coalesce(image_url, $2), speaker = coalesce(speaker, $3) where title = $1`,

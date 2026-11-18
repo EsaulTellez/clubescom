@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { officeModules } from "@/lib/areas";
 import { audit, getSession } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { MODERATION_AREAS } from "./shared";
@@ -18,6 +19,9 @@ function message(error: unknown) {
 export async function registerStrike(form: FormData) {
   const actor = await getSession();
   if (!actor || (actor.role !== "admin" && actor.role !== "moderador")) redirect("/entrar");
+
+  const modules = officeModules(actor);
+  if (modules) redirect(modules[0]);
 
   const userId = String(form.get("user_id") ?? "");
   const reason = String(form.get("reason") ?? "").trim();

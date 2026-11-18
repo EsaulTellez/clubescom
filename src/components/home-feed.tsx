@@ -280,7 +280,7 @@ export function HomeFeed({
                         />
                       </button>
                       <span className="pointer-events-none absolute top-3 left-3 rounded border border-[#004d73] bg-[#004d73] px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wider text-white">
-                        Cartelera ESCOM
+                        Eventos ESCOM
                       </span>
                     </div>
                   ) : null}
@@ -290,7 +290,7 @@ export function HomeFeed({
                       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs font-bold">
                         {!item.imageUrl && (
                           <span className="inline-flex max-w-full items-center rounded border border-[#004d73] bg-[#004d73] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wider text-white">
-                            Cartelera
+                            Eventos
                           </span>
                         )}
                         {item.eventStartsAtFormatted && (
@@ -346,7 +346,7 @@ export function HomeFeed({
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#dce5ea] bg-[#f8fafb] px-5 py-2.5 text-xs font-bold text-[#005a87] sm:px-6">
                     {item.clubName && <span className="text-[#586d77]">{item.clubName}</span>}
                     <Link href="/eventos" className="ml-auto shrink-0 hover:underline">
-                      Ver en cartelera →
+                      Ver en eventos →
                     </Link>
                   </div>
                 </article>

@@ -110,8 +110,8 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
          left join users advisor on advisor.id = p.advisor_id
          left join users pending_adv on pending_adv.id = p.pending_advisor_id
          left join clubs c on c.proposal_id = p.id
-         where p.id = $1`,
-        [id],
+         where p.id = $1 and (not $2 or p.kind = 'academico')`,
+        [id, user?.role === "moderador" && user.area === "subdireccion_academica"],
       ),
       pool.query<{ key: string; value_int: number }>(
         `select key, value_int from system_settings where key in ('club_interest_threshold', 'club_claim_inactivity_days')`,

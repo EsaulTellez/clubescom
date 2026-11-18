@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { officeModules } from "@/lib/areas";
 import { logout } from "@/lib/auth-actions";
 import type { SessionUser } from "@/lib/auth";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -32,10 +33,10 @@ function Icon({ name }: { name: string }) {
   return <svg {...common} aria-hidden="true">{paths[name]}</svg>;
 }
 
-function NavItems({ pathname, mobile = false }: { pathname: string; mobile?: boolean }) {
+function NavItems({ pathname, modules, mobile = false }: { pathname: string; modules: readonly string[] | null; mobile?: boolean }) {
   return (
     <nav aria-label={mobile ? "Navegación principal móvil" : "Navegación principal"} className={mobile ? "flex w-full items-stretch gap-1 overflow-x-auto" : "mx-auto flex w-full max-w-[1780px] items-center gap-1 overflow-x-auto px-4 sm:px-6 lg:px-10"}>
-      {links.map((link) => {
+      {links.filter((link) => !modules || modules.includes(link.href)).map((link) => {
         const active =
           link.href === "/"
             ? pathname === "/"
@@ -72,6 +73,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const modules = officeModules(user);
   const router = useRouter();
   const [realtimeUnread, setRealtimeUnread] = useState<number | null>(null);
   const [idleWarning, setIdleWarning] = useState(false);
@@ -152,7 +154,7 @@ export function AppShell({
       )}
       <header className="sticky top-0 z-30 border-t-[3px] border-t-[#173e50] border-b border-[#c4c8bf] bg-[#fffdf7]">
         <div className="mx-auto flex h-[62px] max-w-[1780px] items-center gap-4 px-4 sm:px-6 lg:px-10">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="ESCOM, inicio">
+          <Link href={modules?.[0] ?? "/"} className="flex shrink-0 items-center gap-2.5" aria-label="ESCOM, inicio">
             <img src="/brand/escudo-escom.png" alt="ESCOM IPN" className="h-7 w-auto sm:h-8" />
             <span className="border-l border-[#d8d5ca] pl-2.5 text-base font-bold tracking-tight text-[#244753] sm:text-xl">Comunidad</span>
           </Link>
@@ -166,8 +168,8 @@ export function AppShell({
                   </span>
                 )}
               </Link>
-              {user.role === "admin" && <Link href="/admin" className="hidden rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73] sm:inline">Panel</Link>}
-              {(user.role === "admin" || user.role === "moderador") && <Link href="/moderacion" className="hidden rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73] sm:inline">Moderación</Link>}
+              {user.role === "admin" && <Link href="/admin" className="rounded-md px-2 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73]">Panel</Link>}
+              {(user.role === "admin" || (user.role === "moderador" && !modules)) && <Link href="/moderacion" className="hidden rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73] sm:inline">Moderación</Link>}
               <Link href="/perfil" className="flex min-h-10 items-center gap-2 rounded-md border border-[#e3e0d6] bg-white px-2">
                 <span className="grid h-7 w-7 place-items-center rounded-md bg-[#e5eff1] text-xs font-extrabold text-[#004d73]">{user.name.slice(0, 1)}</span>
                 <span className="hidden max-w-28 truncate text-sm font-bold sm:block">{user.name.split(" ")[0]}</span>
@@ -180,14 +182,14 @@ export function AppShell({
           </div>
         </div>
         <div className="hidden border-t border-[#e9e6dc] lg:block">
-          <NavItems pathname={pathname} />
+          <NavItems modules={modules} pathname={pathname} />
         </div>
       </header>
 
       <main className="mx-auto min-h-[calc(100vh-106px)] max-w-[1780px] px-4 pb-28 pt-5 sm:px-6 sm:pt-7 lg:px-10 lg:pb-12">{children}</main>
 
       <div className="fixed inset-x-2 bottom-2 z-40 rounded-sm border border-[#dcd9ce] bg-[#fffdf7] p-1 shadow-[0_8px_24px_rgba(23,49,66,.13)] lg:hidden">
-        <NavItems pathname={pathname} mobile />
+        <NavItems modules={modules} pathname={pathname} mobile />
       </div>
     </div>
   );

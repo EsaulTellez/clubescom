@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
-import { canManageSpaceByName, canPublishAnySpaceEvents } from "../espacios/shared";
+import { officeEventSpace, clubEventVenueArea, canManageSpaceByName, canPublishAnySpaceEvents } from "../espacios/shared";
 import { EventBoard } from "./event-board";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +43,7 @@ function currentMonth() {
 export default async function EspaciosPage() {
   const user = await getSession();
   const viewerId = user?.id ?? null;
+  const officeSpace = officeEventSpace(user);
   const canPublishEvents = canPublishAnySpaceEvents(user);
   const [spaces, events, pendingEvents] = await Promise.all([
     pool.query<Space>("select id, name, kind, building, description from spaces order by name"),
@@ -70,7 +71,8 @@ export default async function EspaciosPage() {
         from public.space_events e
         join public.spaces s on s.id = e.space_id
         where e.approval_status = 'aprobado'
-          and e.is_public = true
+          and (e.is_public or ($3 and (s.name = $2 or $4)))
+          and ($2::text is null or s.name = $2)
           and e.starts_at >= now() - interval '12 hours'
 
         union all
@@ -96,11 +98,12 @@ export default async function EspaciosPage() {
         from public.club_events ce
         join public.clubs c on c.id = ce.club_id and c.active = true
         where ce.approval_status = 'aprobado'
+          and ($2::text is null or lower(trim(split_part(ce.location, '·', 1))) = lower($2))
           and ce.starts_at >= now() - interval '12 hours'
       ) cartelera
       order by starts_at asc
       `,
-      [viewerId],
+      [viewerId, officeSpace ?? null, canPublishEvents, user?.role === "admin"],
     ),
     canPublishEvents
       ? pool.query<RawCarteleraEvent>(`
@@ -121,8 +124,16 @@ export default async function EspaciosPage() {
             false as viewer_attending
           from public.space_events e
           join public.spaces s on s.id = e.space_id
-          where e.approval_status = 'pendiente'
-          order by e.starts_at asc
+          where e.approval_status = 'pendiente' and private.can_manage_space_event(e.space_id)
+          union all
+          select ce.id::text, 'club', ce.title, ce.description, ce.starts_at, null,
+                 trim(split_part(ce.location, '·', 1)), null, null, ce.club_id::text, c.name,
+                 ce.image_url, 0, false
+          from public.club_events ce join public.clubs c on c.id = ce.club_id
+          where c.active and ce.approval_status = 'pendiente'
+            and private.club_event_venue_area(ce.location) is not null
+            and private.can_review_club_event(ce.club_id, ce.location)
+          order by starts_at asc
         `)
       : Promise.resolve({ rows: [] as RawCarteleraEvent[] }),
   ]);
@@ -130,9 +141,6 @@ export default async function EspaciosPage() {
   const publishableSpaces = canPublishEvents
     ? spaces.rows.filter((space) => canManageSpaceByName(user, space.name))
     : spaces.rows;
-  const filteredPending = pendingEvents.rows.filter((event) =>
-    canManageSpaceByName(user, event.space_name),
-  );
 
   return (
     <div className="space-y-6">
@@ -153,9 +161,9 @@ export default async function EspaciosPage() {
           attendeesCount: event.attendees_count,
           viewerAttending: event.viewer_attending,
           canManageEvent:
-            event.event_kind === "space" && canManageSpaceByName(user, event.space_name),
+            (event.event_kind === "space" || !!clubEventVenueArea(event.space_name)) && canManageSpaceByName(user, event.space_name),
         }))}
-        pendingEvents={filteredPending.map((event) => ({
+        pendingEvents={pendingEvents.rows.map((event) => ({
           id: event.id,
           eventKind: event.event_kind,
           title: event.title,
@@ -171,9 +179,10 @@ export default async function EspaciosPage() {
           attendeesCount: 0,
           viewerAttending: false,
         }))}
+        spaceNames={(officeSpace ? publishableSpaces : spaces.rows).map((space) => space.name)}
         spaces={publishableSpaces}
         canPublishEvents={canPublishEvents}
-        canSubmitForReview={Boolean(user)}
+        canSubmitForReview={user?.role === "alumno" || user?.role === "profesor"}
         isAuthenticated={Boolean(user)}
         currentMonth={currentMonth()}
       />

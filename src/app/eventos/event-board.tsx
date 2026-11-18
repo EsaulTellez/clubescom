@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ClubEventReviewButtons, DeleteClubEventButton } from "../clubes/forms";
 import { AttendButton } from "@/components/attend-button";
 import { btn, btnGhost, card } from "@/lib/ui";
 import { deleteSpaceEvent, reviewSpaceEvent } from "../espacios/actions";
@@ -117,7 +118,8 @@ function EventCard({ event, featured = false, isAuthenticated, canDelete, openPo
         <div className="mt-auto pt-5">
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-[#bdb7a8] pt-3">
             <AttendButton eventKind={event.eventKind} eventId={event.id} initialAttending={event.viewerAttending} initialCount={event.attendeesCount} isAuthenticated={isAuthenticated} />
-            {canDelete && (
+            {canDelete && event.clubId && <DeleteClubEventButton clubId={event.clubId} eventId={event.id} />}
+            {canDelete && event.eventKind === "space" && (
               <form action={deleteSpaceEvent}>
                 <input type="hidden" name="id" value={event.id} />
                 <button className="text-xs font-bold text-[#8c2925] hover:underline">Eliminar evento</button>
@@ -143,6 +145,7 @@ export function EventBoard({
   events,
   pendingEvents = [],
   spaces,
+  spaceNames,
   canPublishEvents,
   canSubmitForReview = false,
   isAuthenticated = false,
@@ -151,6 +154,7 @@ export function EventBoard({
   events: EventItem[];
   pendingEvents?: EventItem[];
   spaces: Space[];
+  spaceNames: string[];
   canPublishEvents: boolean;
   canSubmitForReview?: boolean;
   isAuthenticated?: boolean;
@@ -203,20 +207,15 @@ export function EventBoard({
   }, [inMonth]);
 
   const spaceTabs = useMemo(() => {
-    const coreSpaces = ["Auditorio", "Sala 14", "El domo", "Canchas de fútbol", "Canchas de voleibol"];
-    const extraSpaces = spaces
-      .map((s) => s.name)
-      .filter((name) => !coreSpaces.includes(name));
-    const allNames = [...coreSpaces, ...extraSpaces];
     return [
-      { name: "Cartelera general", value: "all", count: events.length },
-      ...allNames.map((name) => ({
+      { name: "Todos los espacios", value: "all", count: events.length },
+      ...spaceNames.map((name) => ({
         name,
         value: name,
         count: events.filter((e) => e.spaceName === name).length,
       })),
     ];
-  }, [events, spaces]);
+  }, [events, spaceNames]);
 
   const [year, monthNumber] = month.split("-").map(Number);
   const blanks = (new Date(year, monthNumber - 1, 1).getDay() + 6) % 7;
@@ -282,14 +281,14 @@ export function EventBoard({
           <div className="flex flex-wrap items-baseline justify-between gap-4 border-b border-dashed border-[#cfc9b8] pb-4">
             <div className="flex flex-wrap items-baseline gap-3">
               <h1 className="font-serif text-3xl font-bold uppercase tracking-[-0.03em] text-[#132c3d] sm:text-4xl">
-                Cartelera ESCOM
+                Eventos ESCOM
               </h1>
               <span className="rounded border border-[#c7c0ae] bg-[#f4efe1] px-2.5 py-0.5 text-xs font-extrabold uppercase tracking-wider text-[#3a5260]">
                 {selectedDay
                   ? longDate(selectedDay)
                   : next7DaysOnly
                     ? "Próximos 7 días"
-                    : `${inMonth.length} funciones en el mes`}
+                    : `${inMonth.length} ${inMonth.length === 1 ? "evento" : "eventos"} en el mes`}
               </span>
             </div>
 
@@ -303,13 +302,13 @@ export function EventBoard({
                 }}
                 className="text-xs font-extrabold text-[#006699] underline decoration-dotted underline-offset-4 hover:text-[#004d73]"
               >
-                Ver toda la cartelera del mes
+                Ver todos los eventos del mes
               </button>
             )}
           </div>
 
           <nav
-            aria-label="Filtrar cartelera por espacio"
+            aria-label="Filtrar eventos por espacio"
             className="mt-3.5 flex flex-wrap items-center gap-2"
           >
             {spaceTabs.map((item) => {
@@ -441,7 +440,7 @@ export function EventBoard({
                   {monthLabel(month)}
                 </h2>
                 <p className="text-[11px] font-bold text-[#5f6e78]">
-                  {inMonth.length} {inMonth.length === 1 ? "función" : "funciones"}
+                  {inMonth.length} {inMonth.length === 1 ? "evento" : "eventos"}
                 </p>
               </div>
               <button
@@ -553,7 +552,7 @@ export function EventBoard({
                         <p className="mt-1 text-[11px] text-[#536974]">{ev.description}</p>
                       )}
                     </div>
-                    <form action={reviewSpaceEvent} className="flex flex-wrap gap-1.5">
+                    {ev.clubId ? <ClubEventReviewButtons clubId={ev.clubId} eventId={ev.id} /> : <form action={reviewSpaceEvent} className="flex flex-wrap gap-1.5">
                       <input type="hidden" name="id" value={ev.id} />
                       <button name="decision" value="aprobado" className={btn}>
                         Aprobar y publicar
@@ -561,7 +560,7 @@ export function EventBoard({
                       <button name="decision" value="rechazado" className={btnGhost}>
                         Rechazar
                       </button>
-                    </form>
+                    </form>}
                   </li>
                 ))}
               </ul>

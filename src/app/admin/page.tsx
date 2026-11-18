@@ -34,6 +34,7 @@ type Person = {
   role: Role;
   area: string | null;
   banned: boolean;
+  is_superadmin: boolean;
 };
 
 type PrivacyRequestRow = {
@@ -253,18 +254,19 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                       <p className="font-medium">{person.name}</p>
                       <p className="text-[#667085]">{person.email}</p>
                       <p className="text-[#667085]">
-                        {ROLE_LABEL[person.role]}
+                        {person.is_superadmin ? "Superadministrador" : ROLE_LABEL[person.role]}
                         {person.area ? ` · ${person.area}` : ""}
                       </p>
                     </td>
                     <td className="py-3 pr-3">{person.banned ? "Vetado" : "Activo"}</td>
                     <td className="py-3">
-                      <UserControls
+                      {person.is_superadmin ? "Cuenta protegida" : <UserControls
+                        canAssignRoles={user.isSuperadmin}
                         userId={person.id}
                         role={person.role}
                         area={person.area}
                         banned={person.banned}
-                      />
+                      />}
                     </td>
                   </tr>
                 ))}

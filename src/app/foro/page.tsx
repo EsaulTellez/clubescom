@@ -1,3 +1,4 @@
+import { procedureOffice } from "@/lib/areas";
 import { RealtimeRefresh } from "@/components/realtime-refresh";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
@@ -230,7 +231,7 @@ export default async function ForoPage({
               }
             : null
         }
-        initialArea={initialArea}
+        initialArea={procedureOffice(user) ?? initialArea}
         initialQuery={initialQuery}
         initialView={initialView}
         initialDudaId={initialDudaId}

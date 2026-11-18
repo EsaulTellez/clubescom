@@ -117,10 +117,14 @@ export async function addSpaceEvent(_prev: FormState, form: FormData): Promise<F
     return { error: "Para eventos en Auditorio o Sala 14 indica el nombre del ponente." };
   }
 
+  const isStaffPublisher = canManageSpaceByName(user, spaceName);
+  if (!isStaffPublisher && user.role === "moderador") {
+    return { error: "Tu área no gestiona eventos en este espacio." };
+  }
+
   const uploaded = await uploadPublicImage(user.id, "space-events", form.get("image"));
   if ("error" in uploaded) return { error: uploaded.error };
 
-  const isStaffPublisher = canManageSpaceByName(user, spaceName);
   const status = isStaffPublisher ? "aprobado" : "pendiente";
   const authorizedBy = isStaffPublisher ? user.id : null;
 

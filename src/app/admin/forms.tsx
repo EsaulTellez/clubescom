@@ -22,11 +22,13 @@ function Feedback({ state }: { state: FormState }) {
 }
 
 export function UserControls({
+  canAssignRoles,
   userId,
   role,
   area,
   banned,
 }: {
+  canAssignRoles: boolean;
   userId: string;
   role: Role;
   area: string | null;
@@ -56,7 +58,7 @@ export function UserControls({
         </button>
         <Feedback state={banState} />
       </form>
-      <form action={roleAction} className="space-y-2">
+      {canAssignRoles && <form action={roleAction} className="space-y-2">
         <input type="hidden" name="user_id" value={userId} />
         <label className={label}>
           Rol
@@ -83,7 +85,7 @@ export function UserControls({
         <button className={btn} disabled={rolePending}>
           Guardar rol
         </button>
-      </form>
+      </form>}
     </div>
   );
 }

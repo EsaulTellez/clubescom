@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { officeModules } from "@/lib/areas";
 import { getSession } from "@/lib/auth";
 import { getHomeFeedBatch, type FeedMode } from "@/lib/feed";
 
@@ -9,6 +10,7 @@ const VALID_MODES: FeedMode[] = ["para_ti", "clubes", "avisos", "foro", "eventos
 export async function GET(request: NextRequest) {
   try {
     const user = await getSession();
+    if (officeModules(user)) return NextResponse.json({ error: "El inicio de tu área está en su módulo." }, { status: 403 });
     const { searchParams } = request.nextUrl;
     const offset = Number.parseInt(searchParams.get("offset") ?? "0", 10) || 0;
     const limit = Number.parseInt(searchParams.get("limit") ?? "5", 10) || 5;

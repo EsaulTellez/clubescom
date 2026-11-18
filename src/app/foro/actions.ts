@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { procedureOffice } from "@/lib/areas";
 import { audit, getSession } from "@/lib/auth";
 import { pool, type SecureClient } from "@/lib/db";
 import { uploadPublicImage } from "@/lib/storage";
@@ -80,6 +81,10 @@ export async function publishQuestion(
   const title = String(form.get("title") ?? "").trim();
   const body = String(form.get("body") ?? "").trim();
 
+  const office = procedureOffice(user);
+  if (office && (office !== area || !["pregunta", "actualizar_guia"].includes(requestKind))) {
+    return { error: "Elige un trámite de tu área." };
+  }
   if (!isArea(area)) return { error: "Elige un área válida." };
   if (title.length < 8 || title.length > 180) {
     return { error: "El título debe tener entre 8 y 180 caracteres." };

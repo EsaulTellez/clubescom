@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { staffAreaLabel } from "@/lib/areas";
-import { deleteAccount } from "@/lib/auth-actions";
+import { deleteAccount, switchOperatingProfile } from "@/lib/auth-actions";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btnGhost, card } from "@/lib/ui";
@@ -38,11 +38,23 @@ export default async function PerfilPage() {
         <h1 className="text-xl font-semibold">{user.name}</h1>
         <p className="text-sm text-[#667085]">{user.email}</p>
         <p className="text-sm">
-          Rol: <strong className="capitalize">{user.role}</strong>
+          Rol: <strong className="capitalize">{user.isSuperadmin ? "Superadministrador" : user.role}</strong>
           {user.area ? ` · ${staffAreaLabel(user.area)}` : ""}
         </p>
         <p className="text-sm">Boleta / Empleado: {user.boleta ?? "—"}</p>
 
+        {user.canSwitchProfile && (
+          <form action={switchOperatingProfile} className="flex flex-wrap items-end gap-3">
+            <label className="grid gap-1 text-sm font-semibold">Perfil de operación
+              <select name="role" defaultValue={user.role} className="rounded border p-2">
+                <option value="admin">Administración de módulos</option>
+                <option value="alumno">Alumno</option>
+                <option value="profesor">Profesor</option>
+              </select>
+            </label>
+            <button className={btnGhost}>Cambiar perfil</button>
+          </form>
+        )}
         <div className="space-y-2 pt-2">
           <h2 className="text-sm font-semibold">Insignias obtenidas ({badges.rows.length})</h2>
           {badges.rows.length ? (

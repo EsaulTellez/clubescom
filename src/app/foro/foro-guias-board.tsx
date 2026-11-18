@@ -1,5 +1,6 @@
 "use client";
 
+import { officeModules, procedureOffice } from "@/lib/areas";
 import { CatalogSearch } from "@/components/catalog-search";
 
 import Link from "next/link";
@@ -258,7 +259,8 @@ export function ForoGuiasBoard({
     }
   }, [initialDudaId, initialGuiaId]);
 
-  const isStaff = Boolean(viewer && (viewer.role === "admin" || viewer.role === "moderador"));
+  const office = procedureOffice(viewer);
+  const hasDisciplinaryPanel = !officeModules(viewer);
   const canCreateGuide = Boolean(
     viewer &&
       (viewer.role === "admin" ||
@@ -361,10 +363,10 @@ export function ForoGuiasBoard({
       kindFilter === "all" &&
       (filteredGuides.length > 0 || Boolean(cleanQuery) || filteredQuestions.length === 0));
   const showForumSection = viewMode === "todo" || viewMode === "oficiales" || viewMode === "abiertas";
-  const hasActiveFilters = areaFilter !== "all" || kindFilter !== "all" || viewMode !== "todo" || Boolean(cleanQuery);
+  const hasActiveFilters = areaFilter !== (office ?? "all") || kindFilter !== "all" || viewMode !== "todo" || Boolean(cleanQuery);
 
   function resetAllFilters() {
-    setAreaFilter("all");
+    setAreaFilter(office ?? "all");
     setKindFilter("all");
     setViewMode("todo");
     setQuery("");
@@ -547,7 +549,7 @@ export function ForoGuiasBoard({
   }
 
   function jumpToQuestion(questionId: string) {
-    setAreaFilter("all");
+    setAreaFilter(office ?? "all");
     setViewMode("todo");
     setQuery("");
     setExpandedThreads((prev) => ({ ...prev, [questionId]: true }));
@@ -632,8 +634,8 @@ export function ForoGuiasBoard({
               Área
               <select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)}
                 className={`${input} mt-1 block`}>
-                <option value="all">Todas las áreas ({areaCounts.all})</option>
-                {AREAS.map((area) => <option key={area.id} value={area.id}>{area.label} ({areaCounts[area.id] ?? 0})</option>)}
+                {!office && <option value="all">Todas las áreas ({areaCounts.all})</option>}
+                {AREAS.filter((area) => !office || area.id === office).map((area) => <option key={area.id} value={area.id}>{area.label} ({areaCounts[area.id] ?? 0})</option>)}
               </select>
             </label>
             {viewMode !== "guias" && (
@@ -1035,7 +1037,7 @@ export function ForoGuiasBoard({
                               )}
 
                               {/* Acciones de moderación cuando aplican */}
-                              {(canModerateQuestion || (isStaff && viewer?.id !== q.authorId)) && (
+                              {(canModerateQuestion) && (
                                 <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
                                   {canModerateQuestion && (
                                     <button
@@ -1046,7 +1048,7 @@ export function ForoGuiasBoard({
                                       {q.isPinned ? "Desfijar" : "📌 Fijar"}
                                     </button>
                                   )}
-                                  {isStaff && viewer?.id !== q.authorId && (
+                                  {canModerateQuestion && hasDisciplinaryPanel && viewer?.id !== q.authorId && (
                                     <Link
                                       href={`/moderacion?user_id=${q.authorId}&area=${q.area}&source_type=foro&reason=${encodeURIComponent(`Pregunta en foro: ${q.title}`)}`}
                                       className="font-bold text-[#8a3528] underline"
@@ -1244,7 +1246,7 @@ export function ForoGuiasBoard({
                                         </p>
 
                                         {(canModerateQuestion && !ans.official) ||
-                                        (isStaff && viewer?.id !== ans.authorId) ? (
+                                        (canModerateQuestion && hasDisciplinaryPanel && viewer?.id !== ans.authorId) ? (
                                           <div className="mt-2.5 flex flex-wrap items-center gap-3 text-xs">
                                             {canModerateQuestion && !ans.official && (
                                               <button
@@ -1255,7 +1257,7 @@ export function ForoGuiasBoard({
                                                 Marcar como respuesta oficial
                                               </button>
                                             )}
-                                            {isStaff && viewer?.id !== ans.authorId && (
+                                            {canModerateQuestion && hasDisciplinaryPanel && viewer?.id !== ans.authorId && (
                                               <Link
                                                 href={`/moderacion?user_id=${ans.authorId}&area=${q.area}&source_type=foro&reason=${encodeURIComponent(`Respuesta en «${q.title}»: ${ans.body.slice(0, 120)}`)}`}
                                                 className="font-bold text-[#8a3528] underline"
@@ -1350,6 +1352,7 @@ export function ForoGuiasBoard({
             {viewer ? (
               <div className="mt-3">
                 <QuestionForm
+                  office={office}
                   action={publishQuestion}
                   defaultArea={areaFilter !== "all" ? areaFilter : undefined}
                   guides={guides.map((g) => ({ id: g.id, title: g.title, area: g.area }))}

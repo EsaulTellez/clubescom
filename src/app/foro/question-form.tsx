@@ -10,11 +10,13 @@ import { AREAS, REQUEST_KINDS, isArea, type RequestKind } from "./shared";
 export function QuestionForm({
   action,
   defaultArea,
+  office,
   guides = [],
   onSelectQuestion,
 }: {
   action: (state: QuestionState, form: FormData) => Promise<QuestionState>;
   defaultArea?: string;
+  office?: string | null;
   guides?: { id: string; title: string; area: string }[];
   onSelectQuestion?: (questionId: string) => void;
 }) {
@@ -22,7 +24,7 @@ export function QuestionForm({
   const [requestKind, setRequestKind] = useState<RequestKind>("pregunta");
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const [targetGuideId, setTargetGuideId] = useState("");
-  const area = selectedArea ?? (defaultArea && isArea(defaultArea) ? defaultArea : "general");
+  const area = office ?? selectedArea ?? (defaultArea && isArea(defaultArea) ? defaultArea : "general");
   const [title, setTitle] = useState("");
   const [similar, setSimilar] = useState<{ id: string; title: string; area: string; similarity: number }[]>([]);
   const [searching, startSearching] = useTransition();
@@ -77,7 +79,7 @@ export function QuestionForm({
           value={requestKind}
           onChange={(e) => handleKindChange(e.target.value as RequestKind)}
         >
-          {REQUEST_KINDS.map((item) => (
+          {REQUEST_KINDS.filter((item) => !office || item.id === "pregunta" || item.id === "actualizar_guia").map((item) => (
             <option key={item.id} value={item.id}>
               {item.label}
             </option>
@@ -88,7 +90,7 @@ export function QuestionForm({
       <label className={label}>
         Área
         <select className={input} name="area" value={area} onChange={(event) => setSelectedArea(event.target.value)}>
-          {AREAS.map((item) => (
+          {AREAS.filter((item) => !office || item.id === office).map((item) => (
             <option key={item.id} value={item.id}>
               {item.label}
             </option>

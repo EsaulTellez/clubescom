@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { officeModules } from "./areas";
 import { audit, getSession, roleFromEmail } from "./auth";
 import { createSupabaseAdminClient } from "./supabase/admin";
 import { createSupabaseServerClient } from "./supabase/server";
@@ -174,7 +175,7 @@ export async function login(
   }
 
   await audit(user.id, "login", "users", user.id);
-  redirect("/");
+  redirect(user.isSuperadmin ? "/admin" : officeModules(user)?.[0] ?? "/");
 }
 
 export async function requestReset(
@@ -249,4 +250,15 @@ export async function deleteAccount() {
 
   await supabase.auth.signOut({ scope: "local" });
   redirect("/");
+}
+
+export async function switchOperatingProfile(form: FormData) {
+  const user = await getSession();
+  const role = String(form.get("role") ?? "");
+  if (!user?.canSwitchProfile || !["alumno", "profesor", "admin"].includes(role)) return;
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("switch_operating_profile", { p_role: role });
+  if (error) throw new Error("No se pudo cambiar el perfil de operación.");
+  await audit(user.id, "cambiar_perfil_operativo", "users", user.id, `${user.role} → ${role}`);
+  redirect("/perfil");
 }

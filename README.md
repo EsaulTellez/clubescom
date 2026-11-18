@@ -28,11 +28,12 @@ Quien entra sin cuenta puede leer lo público. Quien se registra con correo inst
 | --- | --- | --- |
 | Alumno | Correo `@alumno.ipn.mx` | Consulta, propone clubes, reporta objetos y pregunta en el foro. |
 | Profesor | Correo `@ipn.mx` | Participa como asesor y actualiza la información de su cubículo. |
-| Moderador | Lo asigna un administrador, con un área | Publica y atiende el contenido de su área. |
-| Administrador general | Lo asigna un administrador | Administra cuentas, roles y el panel general. |
+| Moderador | Lo asigna el superadministrador, con un área | Publica y atiende el contenido de su área. |
+| Administración | Rol `admin` | Gestiona los módulos y el panel general. La cuenta de operación también puede activar el perfil de alumno o profesor. |
+| Superadministración | Atributo protegido de una cuenta de administración | Administra el sistema y asigna roles y áreas. |
 | Visitante | Sin cuenta | Lee avisos, clubes, guías y el mapa. |
 
-Las áreas que usa la plataforma son comunicación, clubes académicos, gestión escolar, becas, CATT, prefectura y clubes culturales.
+Las áreas que usa la plataforma son comunicación, clubes académicos, gestión escolar, becas, CATT, prefectura, clubes culturales y Subdirección Académica.
 
 ## Qué no hace
 
@@ -102,6 +103,13 @@ El comando instala las dependencias si faltan, inicia los contenedores de Supaba
 ### Cuentas de demostración
 
 La contraseña de todas las cuentas de demostración es `Escom2026!`. Los correos y roles disponibles están definidos en `scripts/seed.mjs`.
+
+- `superadmin@ipn.mx` abre el panel de administración y asigna moderadores por área.
+- `operacion@ipn.mx` gestiona todos los módulos. En **Perfil → Perfil de operación** puede pasar a alumno o profesor y volver a administración con la misma identidad.
+- `alumna.libre@alumno.ipn.mx` empieza sin club. `esaul.alumno@alumno.ipn.mx` es integrante. `daniel.alumno@alumno.ipn.mx` y `profesor@ipn.mx` moderan Algoritmia como responsable y asesor. Robótica, Cine y Fútbol tienen otras parejas.
+- `becas@ipn.mx` atiende Becas y Auditorio. `subdireccion@ipn.mx` gestiona clubes académicos y Sala 14. `catt@ipn.mx` y `gestion@ipn.mx` atienden sus propios trámites y guías.
+
+Para actualizar las cuentas y relaciones de la demo existente, ejecuta `supabase migration up --local` y después `npm run db:seed -- --users-only`. Para el proyecto remoto, usa el [prompt de aprovisionamiento con Supabase](docs/prompt-supabase.md).
 
 Para abrir los mensajes de confirmación y recuperación de cuenta, usa Mailpit en [http://127.0.0.1:54324](http://127.0.0.1:54324).
 

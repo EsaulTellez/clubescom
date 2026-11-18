@@ -51,6 +51,7 @@ export default async function ClubesPage() {
     user?.role === "moderador" && (user.area === "subdireccion_academica" || user.area === "clubes_academicos");
   const isCulturales = user?.role === "moderador" && user.area === "clubes_culturales";
 
+  const academicOffice = user?.role === "moderador" && user.area === "subdireccion_academica";
   let clubs: ClubDirectoryItem[] = [];
   let proposals: ProposalDirectoryItem[] = [];
   let formalRequests: ProposalDirectoryItem[] = [];
@@ -68,9 +69,10 @@ export default async function ClubesPage() {
       pool.query<RawClubRow>(
         `select id, name, kind, description, schedule, logo_url, active
          from clubs
-         where active = true or ($1 and kind = any($2::text[]))
+         where (active = true or ($1 and kind = any($2::text[])))
+           and (not $3 or kind = 'academico')
          order by active desc, name asc`,
-        [isAreaStaff, allowedKinds.length > 0 ? allowedKinds : ["academico"]],
+        [isAreaStaff, allowedKinds.length > 0 ? allowedKinds : ["academico"], academicOffice],
       ),
       pool.query<RawProposalRow>(
         `select p.id, p.name, p.kind, p.description, p.objectives, p.status,
@@ -89,9 +91,9 @@ export default async function ClubesPage() {
          from club_proposals p
          join users u on u.id = p.proposer_id
          left join users adv on adv.id = p.advisor_id
-         where p.status <> 'registrado' and p.status <> 'rechazada'
+         where p.status <> 'registrado' and p.status <> 'rechazada' and (not $2 or p.kind = 'academico')
          order by p.created_at desc`,
-        [user?.id ?? null],
+        [user?.id ?? null, academicOffice],
       ),
       pool.query<{ proposal_id: string; participants_count: number; participants_complete_docs: number }>(
         "select proposal_id, participants_count, participants_complete_docs from public.get_club_proposal_progress_summary()",

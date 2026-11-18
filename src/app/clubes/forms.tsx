@@ -1085,7 +1085,8 @@ export function ClubEventForm({ clubId }: { clubId: string }) {
       </label>
       <label className={label}>
         Lugar
-        <input className={input} name="location" required minLength={2} maxLength={140} placeholder="Salón, explanada o laboratorio" />
+        <input className={input} name="location" list="club-event-venues" required minLength={2} maxLength={140} placeholder="Salón, explanada o laboratorio" />
+        <datalist id="club-event-venues"><option value="Auditorio" /><option value="Sala 14" /></datalist>
       </label>
       <label className={label}>
         Descripción
