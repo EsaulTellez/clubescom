@@ -30,9 +30,37 @@ const rawPool =
       rejectUnauthorized: true,
       ca: hostedSupabase ? readFileSync(join(process.cwd(), "db/supabase-prod-ca-2021.crt"), "utf8") : undefined,
     },
-    max: process.env.VERCEL ? 5 : 10,
+    max: process.env.VERCEL ? 1 : 10,
+    idleTimeoutMillis: process.env.VERCEL ? 1000 : 10000,
+    connectionTimeoutMillis: 10000,
+    allowExitOnIdle: Boolean(process.env.VERCEL),
   });
-if (process.env.NODE_ENV !== "production") globalForPg.pool = rawPool;
+globalForPg.pool = rawPool;
+
+function isTransientPoolError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const msg = error.message;
+  return (
+    msg.includes("EMAXCONNSESSION") ||
+    msg.includes("ECHECKOUTFAILED") ||
+    msg.includes("max clients reached")
+  );
+}
+
+async function connectWithRetry(): Promise<PoolClient> {
+  const maxAttempts = process.env.VERCEL ? 5 : 1;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await rawPool.connect();
+    } catch (error) {
+      if (attempt >= maxAttempts || !isTransientPoolError(error)) {
+        throw error;
+      }
+      const delayMs = 100 * 2 ** (attempt - 1) + Math.floor(Math.random() * 80);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
 
 async function securityContext(): Promise<SecurityContext> {
   const supabase = await createSupabaseServerClient();
@@ -77,10 +105,13 @@ export const pool = {
     text: string,
     values?: unknown[],
   ): Promise<QueryResult<T>> {
-    const client = await rawPool.connect();
+    const context = await securityContext();
+    const client = await connectWithRetry();
+    let inTx = false;
+    let discard = false;
     try {
-      const context = await securityContext();
       await client.query("BEGIN");
+      inTx = true;
       await client.query(`SET LOCAL ROLE ${context.role}`);
       await client.query(
         `select
@@ -91,24 +122,29 @@ export const pool = {
       );
       const result = await client.query<T>(text, values as never[]);
       await client.query("COMMIT");
+      inTx = false;
       return result;
     } catch (error) {
-      try {
-        await client.query("ROLLBACK");
-      } catch {
-        // Preserve the original query error.
+      if (inTx) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          // Discard the connection if the transaction could not be rolled back.
+          discard = true;
+        }
+      } else {
+        discard = true;
       }
       throw error;
     } finally {
-      await clearContext(client);
-      client.release();
+      client.release(discard);
     }
   },
 
   async connect(): Promise<SecureClient> {
-    const client = await rawPool.connect();
+    const context = await securityContext();
+    const client = await connectWithRetry();
     try {
-      const context = await securityContext();
       await applyContext(client, context);
     } catch (error) {
       client.release(error as Error);
