@@ -401,7 +401,7 @@ export async function getHomeFeedBatch({
           u.affinity_boost +
           u.attendees_count * 4 +
           u.votes_count * 3 +
-          greatest(0, 35 - extract(epoch from (now() - u.publish_at)) / 7200.0)
+          greatest(0, 120 - extract(epoch from (now() - u.publish_at)) / 900.0)
         )::int as relevance_score
       from unified u
       where (

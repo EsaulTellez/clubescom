@@ -17,12 +17,9 @@ export function ImageUploadField({
 }) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(initialImageUrl);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>("");
-
-  useEffect(() => {
-    setPreviewUrl(initialImageUrl);
-  }, [initialImageUrl]);
+  const activePreviewUrl = previewUrl ?? initialImageUrl;
 
   useEffect(() => {
     return () => {
@@ -35,7 +32,7 @@ export function ImageUploadField({
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) {
-      setPreviewUrl(initialImageUrl);
+      setPreviewUrl(null);
       setFileName("");
       return;
     }
@@ -53,7 +50,7 @@ export function ImageUploadField({
     }
     setPreviewUrl((prev) => {
       if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
-      return initialImageUrl;
+      return null;
     });
     setFileName("");
   }
@@ -73,11 +70,11 @@ export function ImageUploadField({
         className="sr-only"
       />
 
-      {previewUrl ? (
+      {activePreviewUrl ? (
         <div className="overflow-hidden rounded-xl border border-[#c7dbe6] bg-[#f7fbfd]">
           <div className={`relative flex items-center justify-center bg-[#0f212c] ${compact ? "max-h-44" : "max-h-64"} overflow-hidden`}>
             <img
-              src={previewUrl}
+              src={activePreviewUrl}
               alt="Vista previa de imagen"
               className={`${compact ? "max-h-44" : "max-h-64"} w-auto object-contain`}
             />

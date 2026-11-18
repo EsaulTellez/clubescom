@@ -14,6 +14,7 @@ import {
   FormalClubRequestForm,
   InterestButton,
   IssueAdvisorCodeForm,
+  ParticipantProfileForm,
   ProposalDocumentForm,
   ProposalDocumentReviewForm,
   ProposalStaffDecisionForm,
@@ -33,6 +34,8 @@ type Proposal = {
   description: string;
   objectives: string;
   schedule_plan: string;
+  activities_detail: string;
+  requested_spaces: string;
   community_impact: string;
   plan_url: string | null;
   plan_file_path: string | null;
@@ -85,15 +88,18 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
   let documents: ProposalDoc[] = [];
   let appointments: Appointment[] = [];
   let participants: ParticipantRow[] = [];
+  let myProfile: { career: string; phone: string } = { career: "", phone: "" };
+  let summaryParticipantsCount = 1;
+  let summaryCompleteDocsCount = 0;
   let threshold = 20;
-  let inactivityDays = 7;
+  let inactivityDays = 5;
   let dbDown = false;
 
   try {
-    const [result, settingsResult] = await Promise.all([
+    const [result, settingsResult, progressResult] = await Promise.all([
       pool.query<Proposal>(
         `select p.id, p.proposer_id, p.name, p.kind, p.description,
-                p.objectives, p.schedule_plan, p.community_impact,
+                p.objectives, p.schedule_plan, p.activities_detail, p.requested_spaces, p.community_impact,
                 p.plan_url, p.plan_file_path, p.review_observations, p.last_proposer_activity_at,
                 p.formal_submitted_at, p.status, p.advisor_id, p.advisor_confirmed_at,
                 pending_adv.name as pending_advisor_name,
@@ -110,7 +116,18 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
       pool.query<{ key: string; value_int: number }>(
         `select key, value_int from system_settings where key in ('club_interest_threshold', 'club_claim_inactivity_days')`,
       ),
+      pool.query<{ proposal_id: string; participants_count: number; participants_complete_docs: number }>(
+        `select proposal_id, participants_count, participants_complete_docs
+         from public.get_club_proposal_progress_summary()
+         where proposal_id = $1`,
+        [id],
+      ),
     ]);
+
+    if (progressResult.rows[0]) {
+      summaryParticipantsCount = Number(progressResult.rows[0].participants_count);
+      summaryCompleteDocsCount = Number(progressResult.rows[0].participants_complete_docs);
+    }
 
     for (const row of settingsResult.rows) {
       const parsed = Number(row.value_int);
@@ -126,7 +143,7 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
       interested = Boolean(mine.rowCount);
       const canReview = canModerateClubKind(user, proposal.kind);
       if (interested || user.id === proposal.proposer_id || canReview) {
-        const [docResult, appointmentResult, voterResult] = await Promise.all([
+        const [docResult, appointmentResult, voterResult, profileResult] = await Promise.all([
           pool.query<ProposalDoc>(
             `select d.id, d.user_id, u.name, d.document_type, d.storage_path, d.status, d.review_note, d.reviewed_at
              from club_proposal_documents d join users u on u.id = d.user_id
@@ -146,9 +163,14 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
              order by ci.created_at asc`,
             [id],
           ),
+          pool.query<{ career: string; phone: string }>(
+            `select career, phone from club_participant_profiles where proposal_id = $1 and user_id = $2 limit 1`,
+            [id, user.id],
+          ),
         ]);
         documents = docResult.rows;
         appointments = appointmentResult.rows;
+        if (profileResult.rows[0]) myProfile = profileResult.rows[0];
         const map = new Map<string, string>();
         map.set(proposal.proposer_id, proposal.proposer_name);
         for (const v of voterResult.rows) map.set(v.user_id, v.name);
@@ -176,7 +198,9 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
 
   const thresholdReached = Number(proposal.interests) >= threshold;
   const advisorConfirmed = Boolean(proposal.advisor_id && proposal.advisor_confirmed_at);
-  const hasActivities = Boolean(proposal.schedule_plan && proposal.schedule_plan.trim().length >= 10);
+  const hasSchedule = Boolean(proposal.schedule_plan && proposal.schedule_plan.trim().length >= 10);
+  const hasSpaces = Boolean(proposal.requested_spaces && proposal.requested_spaces.trim().length >= 3);
+  const hasActivities = hasSchedule && hasSpaces;
 
   const canSendAdvisorEmail =
     proposer && !advisorConfirmed && thresholdReached && ["en_documentacion", "incompleta"].includes(proposal.status);
@@ -186,18 +210,12 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
     proposer && !advisorConfirmed && thresholdReached && ["en_documentacion", "incompleta"].includes(proposal.status);
 
   const stage = ["abierta", "en_documentacion", "en_validacion", "cita_pendiente", "cita_confirmada", "registrado"].indexOf(proposal.status);
-  const validDocKeySet = new Set(
-    documents
-      .filter((doc) => doc.status !== "requiere_correccion")
-      .map((doc) => `${doc.user_id}:${doc.document_type}`),
-  );
   const requiredDocs = ["credencial_ipn", "boleta", "firma", "vigencia_ims"];
   const ownDocs = documents.filter((doc) => doc.user_id === user?.id);
-  const participantsWithCompleteDocs = participants.filter((p) =>
-    requiredDocs.every((type) => validDocKeySet.has(`${p.user_id}:${type}`)),
-  ).length;
+  const totalParticipants = Math.max(participants.length, summaryParticipantsCount);
+  const participantsWithCompleteDocs = summaryCompleteDocsCount;
   const allParticipantsDocsComplete =
-    participants.length >= 1 && participantsWithCompleteDocs === participants.length;
+    totalParticipants >= 1 && participantsWithCompleteDocs >= totalParticipants;
   const readyForFormalSubmit =
     thresholdReached && advisorConfirmed && hasActivities && allParticipantsDocsComplete;
 
@@ -251,22 +269,34 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
         <h1 className="font-serif text-4xl tracking-tight">{proposal.name}</h1>
         <p className="whitespace-pre-wrap text-sm leading-6">{proposal.description}</p>
 
-        {(proposal.objectives || proposal.schedule_plan || proposal.community_impact) && (
-          <div className="grid gap-3 border-t border-[#d5e4ee] pt-3 text-sm sm:grid-cols-3">
+        {(proposal.objectives || proposal.schedule_plan || proposal.activities_detail || proposal.requested_spaces || proposal.community_impact) && (
+          <div className="grid gap-3 border-t border-[#d5e4ee] pt-3 text-sm sm:grid-cols-2">
             {proposal.objectives && (
               <div>
-                <h2 className="text-xs font-extrabold uppercase text-[#006699]">Objetivos</h2>
+                <h2 className="text-xs font-extrabold uppercase text-[#006699]">Objetivo</h2>
                 <p className="mt-1 whitespace-pre-wrap text-[#52596a]">{proposal.objectives}</p>
+              </div>
+            )}
+            {proposal.requested_spaces && (
+              <div>
+                <h2 className="text-xs font-extrabold uppercase text-[#006699]">Espacios y tiempos solicitados</h2>
+                <p className="mt-1 whitespace-pre-wrap text-[#52596a]">{proposal.requested_spaces}</p>
               </div>
             )}
             {proposal.schedule_plan && (
               <div>
-                <h2 className="text-xs font-extrabold uppercase text-[#006699]">Actividades a realizar</h2>
+                <h2 className="text-xs font-extrabold uppercase text-[#006699]">Cronograma de actividades</h2>
                 <p className="mt-1 whitespace-pre-wrap text-[#52596a]">{proposal.schedule_plan}</p>
               </div>
             )}
-            {proposal.community_impact && (
+            {proposal.activities_detail && (
               <div>
+                <h2 className="text-xs font-extrabold uppercase text-[#006699]">Detalle de actividades</h2>
+                <p className="mt-1 whitespace-pre-wrap text-[#52596a]">{proposal.activities_detail}</p>
+              </div>
+            )}
+            {proposal.community_impact && (
+              <div className="sm:col-span-2">
                 <h2 className="text-xs font-extrabold uppercase text-[#006699]">Impacto en la comunidad</h2>
                 <p className="mt-1 whitespace-pre-wrap text-[#52596a]">{proposal.community_impact}</p>
               </div>
@@ -290,12 +320,12 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
         {!user && <p className="text-sm text-[#667085]"><Link href="/entrar" className="font-medium text-[#006699] underline">Entra</Link> para marcar interés, subir tus documentos o confirmar asesoría.</p>}
         {user && proposal.status === "abierta" && !interested && user.id !== proposal.proposer_id && <InterestButton proposalId={proposal.id} />}
         {interested && <p className="text-sm">Tu interés está registrado. El avance se calcula con votos reales y únicos.</p>}
-        {user && interested && !proposer && !formalSubmitted && inactiveForClaim && !["registrado", "rechazada"].includes(proposal.status) && (
-          <div className="rounded-xl border border-[#d5e4ee] bg-[#f8fbfd] p-3">
-            <p className="mb-2 text-xs text-[#526170]">
-              El proponente lleva más de {inactivityDays} días sin completar el registro. La propuesta sigue abierta con sus votos y otro votante puede tomar el seguimiento mientras cada alumno continúa cargando sus documentos.
+        {user && user.role === "alumno" && interested && !proposer && !formalSubmitted && inactiveForClaim && !["registrado", "rechazada"].includes(proposal.status) && (
+          <div className="rounded-xl border border-[#bcd6e4] bg-[#f4f9fc] p-4">
+            <p className="mb-3 text-xs leading-relaxed text-[#355260]">
+              El responsable actual lleva más de {inactivityDays} días sin enviar el registro. Puedes tomar el mando como <strong>alumno moderador</strong> para completar el proyecto ejecutivo y enviar el registro sin perder los votos ni documentos reunidos.
             </p>
-            <ClaimInactiveProposalButton proposalId={proposal.id} />
+            <ClaimInactiveProposalButton proposalId={proposal.id} proposalName={proposal.name} />
           </div>
         )}
         {thresholdReached && proposal.status !== "abierta" && (
@@ -306,12 +336,15 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
 
         {proposer && (!formalSubmitted || proposal.status === "incompleta") && !["registrado", "rechazada"].includes(proposal.status) && (
           <div className="space-y-3 border-t border-[#d5e4ee] pt-4">
-            <h3 className="font-semibold">Plan de actividades y objetivos</h3>
+            <h3 className="font-semibold">Proyecto ejecutivo del club (campos restantes para registro)</h3>
             <UpdateProposalActivitiesForm
               proposalId={proposal.id}
               objectives={proposal.objectives}
               schedulePlan={proposal.schedule_plan}
+              activitiesDetail={proposal.activities_detail}
+              requestedSpaces={proposal.requested_spaces}
               communityImpact={proposal.community_impact}
+              planUrl={proposal.plan_url}
             />
           </div>
         )}
@@ -343,10 +376,15 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
 
         {user && (interested || proposer) && ["en_documentacion", "en_validacion", "cita_pendiente", "incompleta"].includes(proposal.status) && (
           <div className="space-y-3 border-t border-[#d5e4ee] pt-4">
-            <h3 className="font-semibold">Tu expediente (4 documentos)</h3>
+            <h3 className="font-semibold">Tu expediente individual (procedimiento ESCOM)</h3>
             <p className="text-sm text-[#667085]">
-              Expedientes completos del grupo: <strong>{participantsWithCompleteDocs} de {participants.length}</strong> participantes. Cada persona interesada y quien propone deben subir los 4 documentos.
+              Expedientes completos del grupo: <strong>{participantsWithCompleteDocs} de {totalParticipants}</strong> participantes. Cada alumno sube sus propios 4 documentos y sus datos de contacto.
             </p>
+            <ParticipantProfileForm
+              proposalId={proposal.id}
+              career={myProfile.career}
+              phone={myProfile.phone}
+            />
             <ul className="grid gap-2 text-sm sm:grid-cols-2">
               {requiredDocs.map((type) => {
                 const mineDoc = ownDocs.find((doc) => doc.document_type === type);
@@ -367,15 +405,17 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
             <h3 className="font-semibold">Enviar registro formal de nuevo club a {targetOfficeLabel}</h3>
             <ul className="grid gap-1 text-xs text-[#45616e] sm:grid-cols-2">
               <li>{thresholdReached ? "✓" : "○"} Meta de votos: {proposal.interests} / {threshold}</li>
-              <li>{allParticipantsDocsComplete ? "✓" : "○"} Documentos de participantes: {participantsWithCompleteDocs} / {participants.length}</li>
+              <li>{allParticipantsDocsComplete ? "✓" : "○"} Documentos de participantes: {participantsWithCompleteDocs} / {totalParticipants}</li>
               <li>{advisorConfirmed ? "✓" : "○"} Profesor coordinador confirmado: {advisorConfirmed ? proposal.advisor_name : "Pendiente"}</li>
-              <li>{hasActivities ? "✓" : "○"} Actividades a realizar definidas (mín. 10 caracteres)</li>
+              <li>{hasActivities ? "✓" : "○"} Cronograma y espacios solicitados definidos</li>
             </ul>
             {readyForFormalSubmit ? (
               <FormalClubRequestForm
                 proposalId={proposal.id}
                 objectives={proposal.objectives}
                 schedulePlan={proposal.schedule_plan}
+                activitiesDetail={proposal.activities_detail}
+                requestedSpaces={proposal.requested_spaces}
                 communityImpact={proposal.community_impact}
                 targetOfficeLabel={targetOfficeLabel}
               />

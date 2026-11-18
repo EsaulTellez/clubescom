@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import Link from "next/link";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { btn, btnGhost, input, label } from "@/lib/ui";
 import {
@@ -23,6 +24,7 @@ import {
   reviewClubEvent,
   reviewProposalDocument,
   reviewProposalStatus,
+  saveParticipantProfile,
   sendAdvisorCodeToEmail,
   submitFormalClubRequest,
   updateClubDetails,
@@ -31,6 +33,7 @@ import {
   verifyAdvisorCode,
 } from "./actions";
 import { kindLabel, type ClubKind, type ClubState } from "./format";
+import { findSimilarClubsOrProposals, type CatalogEntry } from "./similarity";
 
 function FieldError({ state }: { state: ClubState }) {
   return (
@@ -131,13 +134,36 @@ export function DirectClubForm({
   );
 }
 
-export function ProposalForm() {
+export function ProposalForm({ catalog = [] }: { catalog?: CatalogEntry[] }) {
   const [state, action, pending] = useActionState(createProposal, {});
+  const [name, setName] = useState("");
+  const [objectives, setObjectives] = useState("");
+  const [confirmDifferent, setConfirmDifferent] = useState(false);
+
+  const matches = useMemo(
+    () => findSimilarClubsOrProposals(name, objectives, catalog),
+    [name, objectives, catalog],
+  );
+  const hasBlocking = matches.some((m) => m.isBlocking);
+  const hasWarning = matches.length > 0 && !hasBlocking;
+
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} className="space-y-3.5">
       <label className={label}>
         Nombre del club
-        <input className={input} name="name" required minLength={3} maxLength={120} />
+        <input
+          className={input}
+          name="name"
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            setConfirmDifferent(false);
+          }}
+          required
+          minLength={3}
+          maxLength={120}
+          placeholder="Ej. Club de Ciberseguridad ESCOM"
+        />
       </label>
       <label className={label}>
         Tipo
@@ -148,68 +174,120 @@ export function ProposalForm() {
         </select>
       </label>
       <label className={label}>
-        Descripción general
-        <textarea className={`${input} min-h-20`} name="description" required minLength={10} maxLength={2000} />
-      </label>
-      <label className={label}>
-        Objetivos del club
+        Objetivo del club
         <textarea
-          className={`${input} min-h-20`}
+          className={`${input} min-h-28`}
           name="objectives"
-          required
-          minLength={5}
-          maxLength={2000}
-          placeholder="Metas formativas, académicas, culturales o deportivas"
-        />
-      </label>
-      <label className={label}>
-        Actividades a realizar y cronograma propuesto
-        <textarea
-          className={`${input} min-h-24`}
-          name="schedule_plan"
+          value={objectives}
+          onChange={(e) => {
+            setObjectives(e.target.value);
+            setConfirmDifferent(false);
+          }}
           required
           minLength={10}
           maxLength={2000}
-          placeholder="Talleres semanales, sesiones prácticas, torneos, concursos o eventos previstos por mes"
+          placeholder="Describe qué busca lograr el club en ESCOM"
         />
       </label>
-      <label className={label}>
-        Impacto esperado en la comunidad ESCOM
-        <textarea
-          className={`${input} min-h-20`}
-          name="community_impact"
-          maxLength={2000}
-          placeholder="Beneficio para estudiantes y participación institucional"
-        />
-      </label>
-      <label className={label}>
-        Archivo del plan de trabajo en PDF (opcional, máx. 10 MB)
-        <input className={input} name="plan_file" type="file" accept="application/pdf" />
-      </label>
-      <label className={label}>
-        Enlace externo del plan (opcional)
-        <input className={input} name="plan_url" type="url" placeholder="https://" />
-      </label>
+
+      {matches.length > 0 && (
+        <div
+          role="status"
+          className={`space-y-2 rounded-xl border p-3.5 text-xs ${
+            hasBlocking
+              ? "border-[#e2b4b0] bg-[#fff3f2] text-[#7a231c]"
+              : "border-[#e6cfa0] bg-[#fffaf0] text-[#6d4b12]"
+          }`}
+        >
+          <p className="font-extrabold uppercase tracking-wide">
+            {hasBlocking
+              ? "Ya existe un club o propuesta muy similar"
+              : "Posibles coincidencias encontradas"}
+          </p>
+          <ul className="space-y-1.5">
+            {matches.map((match) => (
+              <li key={`${match.type}-${match.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-black/10 bg-white px-2.5 py-2">
+                <div className="min-w-0">
+                  <p className="font-bold text-[#173a4c]">{match.name}</p>
+                  <p className="text-[11px] text-[#5c717d]">
+                    {match.statusLabel} · {match.reason}
+                    {typeof match.interests === "number" ? ` · ${match.interests}/20 votos` : ""}
+                  </p>
+                </div>
+                <Link
+                  href={match.type === "club" ? `/clubes/${match.id}` : `/clubes/propuestas/${match.id}`}
+                  className="shrink-0 font-extrabold text-[#006699] hover:underline"
+                >
+                  {match.type === "club" ? "Ver club →" : "Ver propuesta →"}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {hasWarning && (
+            <label className="mt-1 flex items-start gap-2 font-semibold text-[#5a3d0c]">
+              <input
+                type="checkbox"
+                name="force_similar"
+                value="1"
+                checked={confirmDifferent}
+                onChange={(e) => setConfirmDifferent(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>Confirmo que esta iniciativa tiene un enfoque distinto a las anteriores.</span>
+            </label>
+          )}
+        </div>
+      )}
+
       <FieldError state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Publicando…" : "Publicar propuesta"}
+      <button
+        className={btn}
+        disabled={pending || hasBlocking || (hasWarning && !confirmDifferent)}
+      >
+        {pending ? "Publicando propuesta…" : "Publicar propuesta"}
       </button>
     </form>
   );
 }
 
+const SPACE_PRESETS = [
+  "Salones Edificio 1 o 2",
+  "Laboratorios de Cómputo",
+  "Sala 14",
+  "Auditorio",
+  "Explanada / Domo",
+  "Canchas deportivas",
+];
+
 export function UpdateProposalActivitiesForm({
   proposalId,
   objectives,
   schedulePlan,
+  activitiesDetail,
+  requestedSpaces,
   communityImpact,
+  planUrl,
 }: {
   proposalId: string;
   objectives: string;
   schedulePlan: string;
+  activitiesDetail: string;
+  requestedSpaces: string;
   communityImpact: string;
+  planUrl?: string | null;
 }) {
   const [state, action, pending] = useActionState(updateProposalDetails, {});
+  const [spaces, setSpaces] = useState(requestedSpaces);
+
+  function appendPreset(preset: string) {
+    setSpaces((prev) => {
+      const clean = prev.trim();
+      if (!clean) return preset;
+      if (clean.toLowerCase().includes(preset.toLowerCase())) return clean;
+      return `${clean}, ${preset}`;
+    });
+  }
+
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="proposal_id" value={proposalId} />
@@ -218,17 +296,121 @@ export function UpdateProposalActivitiesForm({
         <textarea className={`${input} min-h-20`} name="objectives" defaultValue={objectives} required minLength={5} maxLength={2000} />
       </label>
       <label className={label}>
-        Actividades a realizar y cronograma
-        <textarea className={`${input} min-h-24`} name="schedule_plan" defaultValue={schedulePlan} required minLength={10} maxLength={2000} />
+        Cronograma de actividades a realizar en el año
+        <textarea
+          className={`${input} min-h-24`}
+          name="schedule_plan"
+          defaultValue={schedulePlan}
+          required
+          minLength={10}
+          maxLength={2000}
+          placeholder="Ej. Mes 1-2: sesiones introductorias semanales; Mes 3-5: talleres prácticos y concurso interno..."
+        />
       </label>
       <label className={label}>
-        Impacto en la comunidad
+        Detalle de actividades por ejecutar
+        <textarea
+          className={`${input} min-h-20`}
+          name="activities_detail"
+          defaultValue={activitiesDetail}
+          maxLength={2000}
+          placeholder="Descripción de talleres, asesorías, entrenamientos o eventos previstos"
+        />
+      </label>
+      <div className="space-y-1.5">
+        <label className={label}>
+          Espacios y tiempos solicitados en ESCOM
+          <input
+            className={input}
+            name="requested_spaces"
+            value={spaces}
+            onChange={(e) => setSpaces(e.target.value)}
+            required
+            minLength={3}
+            maxLength={600}
+            placeholder="Ej. Salón 2104 o Laboratorio 3 · Martes y jueves de 15:00 a 17:00 hrs"
+          />
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {SPACE_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => appendPreset(preset)}
+              className="rounded-full border border-[#c7dbe6] bg-[#f4f9fc] px-2.5 py-1 text-[11px] font-bold text-[#005580] hover:bg-[#e5f2f9]"
+            >
+              + {preset}
+            </button>
+          ))}
+        </div>
+      </div>
+      <label className={label}>
+        Impacto académico, cultural o deportivo en la comunidad
         <textarea className={`${input} min-h-16`} name="community_impact" defaultValue={communityImpact} maxLength={2000} />
       </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={label}>
+          Plan de trabajo en PDF (opcional, máx. 10 MB)
+          <input className={input} name="plan_file" type="file" accept="application/pdf" />
+        </label>
+        <label className={label}>
+          Enlace externo del proyecto (opcional)
+          <input className={input} name="plan_url" type="url" defaultValue={planUrl ?? ""} placeholder="https://" />
+        </label>
+      </div>
       <FieldError state={state} />
       <button className={btnGhost} disabled={pending}>
-        {pending ? "Guardando…" : "Guardar actividades de la propuesta"}
+        {pending ? "Guardando…" : "Guardar proyecto ejecutivo"}
       </button>
+    </form>
+  );
+}
+
+export function ParticipantProfileForm({
+  proposalId,
+  career,
+  phone,
+}: {
+  proposalId: string;
+  career: string;
+  phone: string;
+}) {
+  const [state, action, pending] = useActionState(saveParticipantProfile, {});
+  return (
+    <form action={action} className="grid gap-3 rounded-xl border border-[#d5e4ee] bg-[#f8fbfd] p-3.5 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+      <input type="hidden" name="proposal_id" value={proposalId} />
+      <label className={label}>
+        Carrera (para la lista oficial)
+        <input
+          className={input}
+          name="career"
+          defaultValue={career}
+          required
+          minLength={2}
+          maxLength={120}
+          placeholder="Ej. ISC, IIA o LCD"
+        />
+      </label>
+      <label className={label}>
+        Teléfono de contacto
+        <input
+          className={input}
+          name="phone"
+          defaultValue={phone}
+          required
+          minLength={8}
+          maxLength={40}
+          placeholder="55 1234 5678"
+        />
+      </label>
+      <button className={btnGhost} disabled={pending}>
+        {pending ? "Guardando…" : "Guardar datos"}
+      </button>
+      {(state.error || state.success) && (
+        <div className="sm:col-span-3">
+          <FieldError state={state} />
+        </div>
+      )}
     </form>
   );
 }
@@ -262,14 +444,112 @@ export function InterestButton({ proposalId }: { proposalId: string }) {
   return <ActionForm action={markInterest} fields={{ proposal_id: proposalId }} label="Me interesa" />;
 }
 
-export function ClaimInactiveProposalButton({ proposalId }: { proposalId: string }) {
+export function ClaimInactiveProposalButton({
+  proposalId,
+  proposalName = "esta propuesta",
+  compact = false,
+}: {
+  proposalId: string;
+  proposalName?: string;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  const [state, action, pending] = useActionState(claimInactiveProposal, {});
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
   return (
-    <ActionForm
-      action={claimInactiveProposal}
-      fields={{ proposal_id: proposalId }}
-      label="Tomar iniciativa de la propuesta"
-      variant="ghost"
-    />
+    <>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        className={
+          compact
+            ? "inline-flex items-center rounded-lg border border-[#006699] bg-[#eef6fa] px-3 py-1.5 text-xs font-extrabold text-[#004d73] transition hover:bg-[#dceef7]"
+            : btnGhost
+        }
+      >
+        Tomar el mando y continuar registro
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`claim-title-${proposalId}`}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-xs"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-lg overflow-hidden rounded-2xl border border-[#cfdbe2] bg-[#fffefa] shadow-2xl"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            <div className="flex items-center justify-between border-b border-[#e4ecee] bg-[#f4f9fb] px-5 py-4">
+              <h3 id={`claim-title-${proposalId}`} className="text-lg font-extrabold text-[#14374a]">
+                Tomar el mando del club
+              </h3>
+              <button
+                type="button"
+                aria-label="Cerrar"
+                onClick={() => setOpen(false)}
+                className="grid h-8 w-8 place-items-center rounded-lg border border-[#cbd9e0] bg-white text-sm font-bold text-[#35505e] hover:bg-[#eaf3f7]"
+              >
+                ✕
+              </button>
+            </div>
+            <form action={action} className="space-y-4 p-5">
+              <input type="hidden" name="proposal_id" value={proposalId} />
+              <p className="text-sm leading-relaxed text-[#2d4856]">
+                Al asumir el seguimiento de <strong>{proposalName}</strong> te convertirás en el{" "}
+                <strong>alumno moderador (presidente) del club</strong> conforme al procedimiento oficial de ESCOM:
+              </p>
+              <ul className="list-disc space-y-1.5 pl-5 text-xs leading-relaxed text-[#475f6b]">
+                <li>Completar el cronograma anual, detalle de actividades y espacios solicitados.</li>
+                <li>Coordinar al profesor o PAAE coordinador (@ipn.mx) y enviar el registro formal.</li>
+                <li>Asistir a la cita institucional y administrar las solicitudes, publicaciones y eventos del club una vez registrado.</li>
+              </ul>
+              <label className="flex items-start gap-2.5 rounded-xl border border-[#d6e4eb] bg-[#f7fbfe] p-3 text-xs font-semibold text-[#173a4c]">
+                <input
+                  type="checkbox"
+                  checked={accepted}
+                  onChange={(e) => setAccepted(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>Acepto fungir como alumno moderador de este club y completar su registro.</span>
+              </label>
+              <FieldError state={state} />
+              <div className="flex flex-wrap justify-end gap-2">
+                <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
+                  Cancelar
+                </button>
+                <button type="submit" className={btn} disabled={pending || !accepted}>
+                  {pending ? "Asumiendo mando…" : "Aceptar y continuar registro"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -353,12 +633,16 @@ export function FormalClubRequestForm({
   proposalId,
   objectives,
   schedulePlan,
+  activitiesDetail,
+  requestedSpaces,
   communityImpact,
   targetOfficeLabel,
 }: {
   proposalId: string;
   objectives: string;
   schedulePlan: string;
+  activitiesDetail: string;
+  requestedSpaces: string;
   communityImpact: string;
   targetOfficeLabel: string;
 }) {
@@ -378,7 +662,7 @@ export function FormalClubRequestForm({
         />
       </label>
       <label className={label}>
-        Actividades a realizar (obligatorio para revisión de {targetOfficeLabel})
+        Cronograma de actividades durante el año (obligatorio para {targetOfficeLabel})
         <textarea
           className={`${input} min-h-24`}
           name="schedule_plan"
@@ -386,6 +670,27 @@ export function FormalClubRequestForm({
           required
           minLength={10}
           maxLength={2000}
+        />
+      </label>
+      <label className={label}>
+        Detalle de actividades por ejecutar
+        <textarea
+          className={`${input} min-h-20`}
+          name="activities_detail"
+          defaultValue={activitiesDetail}
+          maxLength={2000}
+        />
+      </label>
+      <label className={label}>
+        Espacios y tiempos solicitados en ESCOM
+        <input
+          className={input}
+          name="requested_spaces"
+          defaultValue={requestedSpaces}
+          required
+          minLength={3}
+          maxLength={600}
+          placeholder="Ej. Salón 2104 · Martes y jueves de 15:00 a 17:00 hrs"
         />
       </label>
       <label className={label}>

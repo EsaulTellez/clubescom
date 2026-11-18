@@ -13,10 +13,13 @@ import {
   canModerateClubKind,
   isUuid,
   KINDS,
+  kindLabel,
   safeHttpUrl,
+  statusLabel,
   type ClubKind,
   type ClubState,
 } from "./format";
+import { findSimilarClubsOrProposals, type CatalogEntry } from "./similarity";
 
 function pgCode(error: unknown) {
   return typeof error === "object" && error && "code" in error ? String(error.code) : "";
@@ -110,65 +113,100 @@ export async function createProposal(_prev: ClubState, form: FormData): Promise<
 
   const name = String(form.get("name") ?? "").trim();
   const kind = String(form.get("kind") ?? "").trim();
-  const description = String(form.get("description") ?? "").trim();
-  const objectives = String(form.get("objectives") ?? "").trim();
-  const schedulePlan = String(form.get("schedule_plan") ?? "").trim();
-  const communityImpact = String(form.get("community_impact") ?? "").trim();
-  const planRaw = String(form.get("plan_url") ?? "").trim();
-  const planFile = form.get("plan_file");
+  const objectives = String(form.get("objectives") ?? form.get("description") ?? "").trim();
+  const forceSimilar = String(form.get("force_similar") ?? "") === "1";
 
   if (name.length < 3 || name.length > 120) return { error: "Escribe un nombre de 3 a 120 caracteres." };
   if (!KINDS.includes(kind as ClubKind)) return { error: "Elige un tipo: académico, cultural o deportivo." };
-  if (description.length < 10 || description.length > 2000) {
-    return { error: "La descripción debe tener entre 10 y 2000 caracteres." };
-  }
-  if (objectives.length < 5 || objectives.length > 2000) {
-    return { error: "Indica los objetivos del club (entre 5 y 2000 caracteres)." };
-  }
-  if (schedulePlan.length < 10 || schedulePlan.length > 2000) {
-    return { error: "Describe las actividades a realizar y el cronograma propuesto (mínimo 10 caracteres)." };
-  }
-  if (communityImpact.length > 2000) {
-    return { error: "El impacto comunitario no debe exceder 2000 caracteres." };
+  if (objectives.length < 10 || objectives.length > 2000) {
+    return { error: "Describe el objetivo del club (entre 10 y 2000 caracteres)." };
   }
 
-  let planUrl: string | null = null;
-  if (planRaw) {
-    planUrl = safeHttpUrl(planRaw);
-    if (!planUrl) return { error: "El enlace del plan debe empezar con http:// o https://." };
+  const [clubsRes, proposalsRes] = await Promise.all([
+    pool.query<{ id: string; name: string; kind: string; description: string }>(
+      "select id, name, kind, description from clubs where active = true",
+    ),
+    pool.query<{ id: string; name: string; kind: string; description: string; objectives: string; status: string; interested_count: number }>(
+      "select id, name, kind, description, objectives, status, interested_count from club_proposals where status not in ('registrado', 'rechazada')",
+    ),
+  ]);
+
+  const catalog: CatalogEntry[] = [
+    ...clubsRes.rows.map((c) => ({
+      id: c.id,
+      name: c.name,
+      kind: c.kind,
+      text: c.description,
+      type: "club" as const,
+      statusLabel: `Club activo · ${kindLabel(c.kind)}`,
+    })),
+    ...proposalsRes.rows.map((p) => ({
+      id: p.id,
+      name: p.name,
+      kind: p.kind,
+      text: `${p.objectives} ${p.description}`,
+      type: "propuesta" as const,
+      statusLabel: statusLabel(p.status),
+      interests: Number(p.interested_count),
+    })),
+  ];
+
+  const matches = findSimilarClubsOrProposals(name, objectives, catalog);
+  const blocking = matches.find((m) => m.isBlocking);
+  if (blocking) {
+    return {
+      error: `Ya existe una iniciativa muy similar: «${blocking.name}» (${blocking.type === "club" ? "Club activo" : blocking.statusLabel}). Únete o apoya esa comunidad en lugar de duplicarla.`,
+    };
+  }
+  if (matches.length > 0 && !forceSimilar) {
+    return {
+      error: `Encontramos coincidencias parecidas (por ejemplo «${matches[0].name}»). Verifica que no se repita y confirma para publicar.`,
+    };
   }
 
   const inserted = await pool.query<{ id: string }>(
     `insert into club_proposals
-       (proposer_id, name, kind, description, objectives, schedule_plan, community_impact, plan_url, last_proposer_activity_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, now())
+       (proposer_id, name, kind, description, objectives, last_proposer_activity_at)
+     values ($1, $2, $3, $4, $5, now())
      returning id`,
-    [user.id, name, kind, description, objectives, schedulePlan, communityImpact, planUrl],
+    [user.id, name, kind, objectives, objectives],
   );
   const id = inserted.rows[0]?.id;
   if (!id) return { error: "No se pudo guardar la propuesta." };
 
-  if (planFile instanceof File && planFile.size > 0) {
-    if (planFile.type !== "application/pdf") {
-      return { error: "El archivo del plan de trabajo debe ser un PDF." };
-    }
-    if (planFile.size > 10 * 1024 * 1024) {
-      return { error: "El archivo del plan debe pesar 10 MB o menos." };
-    }
-    const path = `${id}/${user.id}/plan-${randomBytes(6).toString("hex")}.pdf`;
-    const supabase = await createSupabaseServerClient();
-    const uploaded = await supabase.storage.from("club-documents").upload(path, planFile, {
-      contentType: "application/pdf",
-      upsert: false,
-    });
-    if (!uploaded.error) {
-      await pool.query("update club_proposals set plan_file_path = $1 where id = $2", [path, id]);
-    }
-  }
-
   await audit(user.id, "crear", "club_proposals", id, name);
   refresh(id);
   redirect(`/clubes/propuestas/${id}`);
+}
+
+export async function saveParticipantProfile(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user) return { error: "Inicia sesión para guardar tus datos." };
+  const proposalId = String(form.get("proposal_id") ?? "");
+  const career = String(form.get("career") ?? "").trim().slice(0, 120);
+  const phone = String(form.get("phone") ?? "").trim().slice(0, 40);
+
+  if (!isUuid(proposalId)) return { error: "No encontramos esa propuesta." };
+  if (career.length < 2) return { error: "Indica tu carrera (por ejemplo ISC, IIA o LCD)." };
+  if (phone.length < 8) return { error: "Indica un número telefónico de contacto válido." };
+
+  try {
+    await pool.query(
+      `insert into club_participant_profiles (proposal_id, user_id, career, phone, updated_at)
+       values ($1, $2, $3, $4, now())
+       on conflict (proposal_id, user_id) do update
+         set career = excluded.career,
+             phone = excluded.phone,
+             updated_at = now()`,
+      [proposalId, user.id, career, phone],
+    );
+  } catch {
+    return { error: "No se pudieron guardar tus datos. Verifica que participas en esta propuesta." };
+  }
+
+  await audit(user.id, "guardar_datos_integrante_club", "club_participant_profiles", proposalId);
+  revalidatePath(`/clubes/propuestas/${proposalId}`);
+  return { success: "Datos de integrante guardados." };
 }
 
 export async function updateProposalDetails(_prev: ClubState, form: FormData): Promise<ClubState> {
@@ -177,38 +215,89 @@ export async function updateProposalDetails(_prev: ClubState, form: FormData): P
   const proposalId = String(form.get("proposal_id") ?? "");
   const objectives = String(form.get("objectives") ?? "").trim();
   const schedulePlan = String(form.get("schedule_plan") ?? "").trim();
+  const activitiesDetail = String(form.get("activities_detail") ?? "").trim();
+  const requestedSpaces = String(form.get("requested_spaces") ?? "").trim();
   const communityImpact = String(form.get("community_impact") ?? "").trim();
+  const planRaw = String(form.get("plan_url") ?? "").trim();
+  const planFile = form.get("plan_file");
 
   if (!isUuid(proposalId)) return { error: "No encontramos esa propuesta." };
   if (objectives.length < 5 || objectives.length > 2000) {
     return { error: "Indica los objetivos del club (5 a 2000 caracteres)." };
   }
   if (schedulePlan.length < 10 || schedulePlan.length > 2000) {
-    return { error: "Describe las actividades a realizar del club (mínimo 10 caracteres)." };
+    return { error: "Describe el cronograma de actividades del club (mínimo 10 caracteres)." };
+  }
+  if (activitiesDetail.length > 2000) {
+    return { error: "El detalle de actividades no debe exceder 2000 caracteres." };
+  }
+  if (requestedSpaces.length < 3 || requestedSpaces.length > 600) {
+    return { error: "Indica qué espacios y horarios de ESCOM ocupará el club." };
   }
   if (communityImpact.length > 2000) {
     return { error: "El impacto comunitario no debe exceder 2000 caracteres." };
+  }
+
+  let planUrl: string | null | undefined;
+  if (planRaw) {
+    const validated = safeHttpUrl(planRaw);
+    if (!validated) return { error: "El enlace del plan debe empezar con http:// o https://." };
+    planUrl = validated;
+  }
+
+  let uploadedPlanPath: string | null = null;
+  if (planFile instanceof File && planFile.size > 0) {
+    if (planFile.type !== "application/pdf") {
+      return { error: "El archivo del plan de trabajo debe ser un PDF." };
+    }
+    if (planFile.size > 10 * 1024 * 1024) {
+      return { error: "El archivo del plan debe pesar 10 MB o menos." };
+    }
+    const path = `${proposalId}/${user.id}/plan-${randomBytes(6).toString("hex")}.pdf`;
+    const supabase = await createSupabaseServerClient();
+    const uploaded = await supabase.storage.from("club-documents").upload(path, planFile, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+    if (uploaded.error) {
+      return { error: "No se pudo subir el PDF del plan de trabajo." };
+    }
+    uploadedPlanPath = path;
   }
 
   const updated = await pool.query(
     `update club_proposals
         set objectives = $1,
             schedule_plan = $2,
-            community_impact = $3,
+            activities_detail = $3,
+            requested_spaces = $4,
+            community_impact = $5,
+            plan_url = coalesce($6, plan_url),
+            plan_file_path = coalesce($7, plan_file_path),
             last_proposer_activity_at = now(),
             updated_at = now()
-      where id = $4
-        and proposer_id = $5
+      where id = $8
+        and proposer_id = $9
         and status not in ('registrado', 'rechazada')`,
-    [objectives, schedulePlan, communityImpact, proposalId, user.id],
+    [
+      objectives,
+      schedulePlan,
+      activitiesDetail,
+      requestedSpaces,
+      communityImpact,
+      planUrl ?? null,
+      uploadedPlanPath,
+      proposalId,
+      user.id,
+    ],
   );
   if (!updated.rowCount) {
-    return { error: "Solo quien encabeza la propuesta puede actualizar sus actividades antes del registro." };
+    return { error: "Solo quien funge como alumno moderador puede actualizar el proyecto ejecutivo." };
   }
 
   await audit(user.id, "actualizar_actividades_propuesta", "club_proposals", proposalId);
   refresh(proposalId);
-  return { success: "Actividades a realizar y datos de la propuesta actualizados." };
+  return { success: "Cronograma, espacios y proyecto ejecutivo guardados." };
 }
 
 export async function markInterest(_prev: ClubState, form: FormData): Promise<ClubState> {
@@ -236,18 +325,18 @@ export async function markInterest(_prev: ClubState, form: FormData): Promise<Cl
 
 export async function claimInactiveProposal(_prev: ClubState, form: FormData): Promise<ClubState> {
   const user = await getSession();
-  if (!user) return { error: "Inicia sesión para reclamar el seguimiento." };
+  if (!user) return { error: "Inicia sesión para tomar el mando." };
   const proposalId = String(form.get("proposal_id") ?? "");
   if (!isUuid(proposalId)) return { error: "No encontramos esa propuesta." };
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("claim_inactive_club_proposal", { p_proposal_id: proposalId });
   if (error || !data) {
-    return { error: error?.message ?? "No se pudo tomar el seguimiento. Se requieren 7 días sin actividad del proponente y haber marcado interés." };
+    return { error: error?.message ?? "No se pudo tomar el mando. Se requieren 5 días sin actividad del proponente y ser alumno participante." };
   }
   await audit(user.id, "reclamar_propuesta_inactiva", "club_proposals", proposalId);
   refresh(proposalId);
-  return { success: "Ahora eres la persona proponente a cargo de continuar esta iniciativa." };
+  redirect(`/clubes/propuestas/${proposalId}`);
 }
 
 export async function sendAdvisorCodeToEmail(_prev: ClubState, form: FormData): Promise<ClubState> {
@@ -313,7 +402,10 @@ export async function sendAdvisorCodeToEmail(_prev: ClubState, form: FormData): 
   await audit(user.id, "solicitar_codigo_asesor_correo", "club_proposals", proposalId, row.advisor_email);
   refresh(proposalId);
   return {
-    success: `Código enviado al correo institucional de ${row.advisor_name} (${row.advisor_email}). Cuando acepte, pídele el código e ingrésalo abajo.`,
+    success:
+      mailResult.channel === "in_app_only"
+        ? `Invitación enviada en plataforma a ${row.advisor_name} (${row.advisor_email}). El profesor puede revisar la notificación y emitir su código en esta propuesta.`
+        : `Código enviado al correo institucional de ${row.advisor_name} (${row.advisor_email}). Cuando acepte, pídele el código e ingrésalo abajo.`,
   };
 }
 
@@ -468,6 +560,8 @@ export async function submitFormalClubRequest(_prev: ClubState, form: FormData):
   const proposalId = String(form.get("proposal_id") ?? "");
   const objectives = String(form.get("objectives") ?? "").trim();
   const schedulePlan = String(form.get("schedule_plan") ?? "").trim();
+  const activitiesDetail = String(form.get("activities_detail") ?? "").trim();
+  const requestedSpaces = String(form.get("requested_spaces") ?? "").trim();
   const communityImpact = String(form.get("community_impact") ?? "").trim();
   const slots = [String(form.get("slot1") ?? ""), String(form.get("slot2") ?? "")]
     .map((value) => new Date(value))
@@ -478,7 +572,10 @@ export async function submitFormalClubRequest(_prev: ClubState, form: FormData):
     return { error: "Indica los objetivos del club (5 a 2000 caracteres)." };
   }
   if (schedulePlan.length < 10 || schedulePlan.length > 2000) {
-    return { error: "Describe las actividades a realizar del club (mínimo 10 caracteres)." };
+    return { error: "Describe el cronograma de actividades del club (mínimo 10 caracteres)." };
+  }
+  if (requestedSpaces.length < 3 || requestedSpaces.length > 600) {
+    return { error: "Indica los espacios y horarios de ESCOM que ocupará el club." };
   }
   if (slots.length < 1) return { error: "Elige al menos una fecha y hora futura para coordinar la cita." };
 
@@ -489,12 +586,14 @@ export async function submitFormalClubRequest(_prev: ClubState, form: FormData):
     p_schedule_plan: schedulePlan,
     p_community_impact: communityImpact,
     p_slots: slots.map((slot) => slot.toISOString()),
+    p_activities_detail: activitiesDetail,
+    p_requested_spaces: requestedSpaces,
   });
   if (error) {
     return {
       error:
         error.message ||
-        "La propuesta aún necesita 20 interesados, documentos completos de todos los participantes, actividades a realizar y profesor coordinador confirmado.",
+        "La propuesta aún necesita 20 interesados, documentos completos de todos los participantes, cronograma, espacios solicitados y profesor coordinador confirmado.",
     };
   }
 
@@ -710,11 +809,12 @@ export async function approveProposal(_prev: ClubState, form: FormData): Promise
       name: string;
       kind: string;
       description: string;
+      requested_spaces: string;
       proposer_id: string;
       advisor_id: string | null;
       status: string;
     }>(
-      `select name, kind, description, proposer_id, advisor_id, status
+      `select name, kind, description, requested_spaces, proposer_id, advisor_id, status
        from club_proposals where id = $1 for update`,
       [proposalId],
     );
@@ -747,11 +847,12 @@ export async function approveProposal(_prev: ClubState, form: FormData): Promise
     advisorId = proposal.advisor_id;
     clubName = proposal.name;
     if (!clubId) {
+      const scheduleSummary = proposal.requested_spaces.trim().slice(0, 160) || null;
       const inserted = await client.query<{ id: string }>(
-        `insert into clubs (proposal_id, name, kind, description, leader_id, advisor_id)
-         values ($1, $2, $3, $4, $5, $6)
+        `insert into clubs (proposal_id, name, kind, description, schedule, leader_id, advisor_id)
+         values ($1, $2, $3, $4, $5, $6, $7)
          returning id`,
-        [proposalId, proposal.name, proposal.kind, proposal.description, proposal.proposer_id, proposal.advisor_id],
+        [proposalId, proposal.name, proposal.kind, proposal.description, scheduleSummary, proposal.proposer_id, proposal.advisor_id],
       );
       clubId = inserted.rows[0]?.id ?? "";
     }

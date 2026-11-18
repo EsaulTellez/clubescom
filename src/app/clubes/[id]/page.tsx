@@ -304,25 +304,20 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="mx-auto max-w-[1180px] space-y-5">
-      <Link href="/clubes" className="inline-flex items-center gap-2 text-sm font-semibold text-[#006699] hover:underline">← Comunidades</Link>
+      <Link href="/clubes" className="inline-flex items-center gap-2 text-sm font-semibold text-[#006699] hover:underline">← Directorio de clubes</Link>
 
-      <header className="overflow-hidden rounded-[32px] border border-white bg-white shadow-[0_12px_36px_rgba(14,54,78,0.09)]">
-        <div className="relative h-28 overflow-hidden bg-gradient-to-br from-[#004d73] via-[#0079a5] to-[#87d5df] sm:h-36">
-          <div className="absolute -right-8 -top-24 h-72 w-72 rounded-full border-[34px] border-white/15" />
-          <div className="absolute bottom-[-86px] left-[38%] h-48 w-48 rounded-full bg-[#b7e8ed]/40 blur-[1px]" />
-          <span className="absolute bottom-4 right-5 rounded-full border border-white/35 bg-white/15 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.2em] text-white backdrop-blur">{kindLabel(club.kind)}</span>
-        </div>
-        <div className="flex flex-col gap-4 px-5 pb-5 sm:flex-row sm:items-end sm:justify-between sm:px-7">
-          <div className="flex min-w-0 items-end gap-4">
+      <header className="overflow-hidden rounded-sm border border-[#c1ccc3] border-t-4 border-t-[#21483f] bg-[#fffdf7]">
+        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+          <div className="flex min-w-0 items-center gap-4">
             {logo ? (
-              <img src={logo} alt={`Logo de ${club.name}`} className="-mt-12 h-[92px] w-[92px] shrink-0 rounded-[26px] border-[5px] border-white bg-white object-contain p-1 shadow-[0_8px_22px_rgba(10,48,70,0.16)] sm:-mt-14 sm:h-[112px] sm:w-[112px]" />
+              <img src={logo} alt="" className="h-16 w-16 shrink-0 bg-[#f1efe5] object-contain sm:h-24 sm:w-24" />
             ) : (
-              <span className="-mt-12 grid h-[92px] w-[92px] shrink-0 place-items-center rounded-[26px] border-[5px] border-white bg-gradient-to-br from-[#d8f1f5] to-[#8bcfdf] text-4xl font-black text-[#005c83] shadow-[0_8px_22px_rgba(10,48,70,0.16)] sm:-mt-14 sm:h-[112px] sm:w-[112px]">{club.name.replace("Club de ", "").slice(0, 1)}</span>
+              <span aria-hidden="true" className="grid h-16 w-16 shrink-0 place-items-center bg-[#e6ede6] font-serif text-3xl text-[#21483f]">{club.name.replace("Club de ", "").slice(0, 1)}</span>
             )}
-            <div className="min-w-0 pb-1">
-              <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#0079a5]">Comunidad ESCOM</p>
-              <h1 className="mt-1 text-2xl font-black tracking-tight text-[#15384e] sm:text-3xl">{club.name}</h1>
-              <p className="mt-1 text-xs text-[#6a7f8d]">{members.length} {members.length === 1 ? "integrante" : "integrantes"} <span className="mx-1">·</span> {posts.length} publicaciones</p>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#3d6959]">{kindLabel(club.kind)}</p>
+              <h1 className="edition-title my-1 [overflow-wrap:anywhere]">{club.name}</h1>
+              <p className="text-xs text-[#52656b]">{members.length} {members.length === 1 ? "integrante" : "integrantes"} · {posts.length} publicaciones</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 sm:pb-1">
@@ -350,30 +345,30 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <main id="publicaciones" className="min-w-0 space-y-4">
           {canPost ? <ClubPostForm clubId={club.id} /> : user && canViewFeed ? (
-            <div className="rounded-[24px] border border-[#e4edf2] bg-white p-4 text-sm text-[#667985] shadow-[0_8px_28px_rgba(0,45,75,0.04)]">
+            <div className="rounded-sm border border-[#e4edf2] bg-white p-4 text-sm text-[#667985]">
               Las publicaciones las comparten el alumno moderador, el profesor coordinador y la coordinación del área.
             </div>
           ) : null}
 
           <div className="flex items-end justify-between gap-3 px-1 pt-1">
-            <div><h2 className="text-xl font-extrabold tracking-tight text-[#19384c]">Feed del club</h2><p className="mt-1 text-xs text-[#778a96]">Novedades del equipo responsable del club.</p></div>
+            <div><h2 className="text-xl font-extrabold tracking-tight text-[#19384c]">Publicaciones del club</h2></div>
             <span className="rounded-full bg-[#e8f4f8] px-3 py-1 text-xs font-bold text-[#006699]">{posts.length} publicaciones</span>
           </div>
           {!canViewFeed ? (
-            <div className="rounded-[26px] border border-[#cbdde6] bg-white p-8 text-center">
-              <span className="text-3xl">🔒</span>
+            <div className="rounded-sm border border-[#cbdde6] bg-white p-8 text-center">
+
               <h3 className="mt-2 font-bold text-[#19384c]">Publicaciones privadas para integrantes</h3>
               <p className="mt-1 text-sm text-[#71818d]">
                 Las publicaciones internas del club solo son visibles para integrantes aceptados, moderadores del club y área encargada. Solicita unirte para acceder al feed de la comunidad.
               </p>
             </div>
           ) : posts.length === 0 ? (
-            <div className="rounded-[26px] border border-dashed border-[#cbdde6] bg-white/80 p-8 text-center">
-              <span className="text-3xl">💬</span><h3 className="mt-2 font-bold text-[#19384c]">Todavía no hay publicaciones</h3>
+            <div className="rounded-sm border border-dashed border-[#cbdde6] bg-white/80 p-8 text-center">
+              <h3 className="mt-2 font-bold text-[#19384c]">Todavía no hay publicaciones</h3>
               <p className="mt-1 text-sm text-[#71818d]">Las novedades del club aparecerán aquí.</p>
             </div>
           ) : posts.map((post) => (
-            <article key={post.id} className="overflow-hidden rounded-[26px] border border-[#dce8ef] border-t-4 border-t-[#165b47] bg-white p-5 shadow-[0_8px_28px_rgba(14,54,78,0.06)] transition hover:border-[#b0d4e6] sm:p-6">
+            <article key={post.id} className="overflow-hidden rounded-sm border border-[#dce8ef] border-t-4 border-t-[#165b47] bg-white p-5  transition hover:border-[#b0d4e6] sm:p-6">
               <div className="flex items-center gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#c9eaf1] to-[#e6f4f6] text-xs font-black text-[#006699]">{initials(post.author_name)}</span>
                 <div className="min-w-0"><p className="truncate text-sm font-bold text-[#244459]">{post.author_name}</p><p className="text-xs text-[#84919a]">Equipo · {formatWhen(post.created_at)}</p></div>
@@ -392,8 +387,8 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
         </main>
 
         <aside className="space-y-4 lg:sticky lg:top-24">
-          <section id="eventos" className="rounded-[26px] border border-white bg-white p-5 shadow-[0_8px_28px_rgba(14,54,78,0.06)]">
-            <div className="flex items-center justify-between gap-2"><h2 className="text-lg font-extrabold text-[#19384c]">Próximos eventos</h2><span className="text-xl">📅</span></div>
+          <section id="eventos" className="rounded-sm border border-white bg-white p-5">
+            <div className="flex items-center justify-between gap-2"><h2 className="text-lg font-extrabold text-[#19384c]">Próximos eventos</h2></div>
             {events.length ? <ul className="mt-4 space-y-4">
               {events.map((event) => {
                 const date = dateParts(event.starts_at);
@@ -452,7 +447,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
             <Link href="/eventos" className="mt-4 inline-flex text-xs font-bold text-[#006699] hover:underline">Ver itinerario de espacios y eventos →</Link>
           </section>
 
-          <section id="integrantes" className="rounded-[26px] border border-white bg-white p-5 shadow-[0_8px_28px_rgba(14,54,78,0.06)]">
+          <section id="integrantes" className="rounded-sm border border-white bg-white p-5">
             <div className="flex items-center justify-between"><h2 className="font-extrabold text-[#19384c]">Integrantes</h2><span className="rounded-full bg-[#eef5f7] px-2.5 py-1 text-xs font-bold text-[#567486]">{members.length}</span></div>
             {members.length ? <ul className="mt-4 space-y-3">
               {(canModerate ? members : members.slice(0, 8)).map((member) => <li key={member.id} className="flex items-center justify-between gap-2">
@@ -468,7 +463,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
             {!canModerate && members.length > 8 && <p className="mt-3 text-xs font-semibold text-[#71818d]">y {members.length - 8} personas más</p>}
           </section>
 
-          <section id="acerca" className="rounded-[26px] border border-white bg-white p-5 shadow-[0_8px_28px_rgba(14,54,78,0.06)]">
+          <section id="acerca" className="rounded-sm border border-white bg-white p-5">
             <h2 className="font-extrabold text-[#19384c]">Acerca y contacto</h2>
             <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#667985]">{club.description}</p>
             <dl className="mt-4 space-y-3 border-t border-[#edf2f5] pt-4 text-xs">
@@ -506,8 +501,8 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
             </dl>
           </section>
 
-          {canRequest && <section className="rounded-[26px] border border-[#cfe4ec] bg-[#f2fafc] p-5"><h2 className="font-bold text-[#264a60]">¿Te late este club?</h2><p className="mt-1 text-xs leading-5 text-[#667985]">Manda tu solicitud y el equipo del club la revisará.</p><div className="mt-3"><JoinButton clubId={club.id} joinRequirements={club.join_requirements} /></div></section>}
-          {!user && <section className="rounded-[26px] border border-[#cfe4ec] bg-[#f2fafc] p-5"><h2 className="font-bold text-[#264a60]">¿Te late este club?</h2><p className="mt-1 text-xs leading-5 text-[#667985]">Inicia sesión para solicitar ingreso.</p><Link href="/entrar" className="mt-3 inline-flex rounded-full bg-[#006699] px-4 py-2 text-xs font-bold text-white">Iniciar sesión</Link></section>}
+          {canRequest && <section className="rounded-sm border border-[#cfe4ec] bg-[#f2fafc] p-5"><h2 className="font-bold text-[#264a60]">¿Te late este club?</h2><p className="mt-1 text-xs leading-5 text-[#667985]">Manda tu solicitud y el equipo del club la revisará.</p><div className="mt-3"><JoinButton clubId={club.id} joinRequirements={club.join_requirements} /></div></section>}
+          {!user && <section className="rounded-sm border border-[#cfe4ec] bg-[#f2fafc] p-5"><h2 className="font-bold text-[#264a60]">¿Te late este club?</h2><p className="mt-1 text-xs leading-5 text-[#667985]">Inicia sesión para solicitar ingreso.</p><Link href="/entrar" className="mt-3 inline-flex rounded-full bg-[#006699] px-4 py-2 text-xs font-bold text-white">Iniciar sesión</Link></section>}
         </aside>
       </div>
 

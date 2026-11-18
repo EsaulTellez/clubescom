@@ -1,6 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360">
-  <rect width="800" height="360" fill="#c4a574"/>
-  <rect x="230" y="40" width="340" height="250" rx="36" fill="#1d4e89"/>
-  <rect x="250" y="70" width="300" height="54" rx="12" fill="#c0392b"/>
-  <rect x="360" y="150" width="80" height="90" rx="8" fill="#d9e6f2"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 340">
+  <rect width="450" height="340" fill="#eee5d5"/>
+  <g transform="rotate(-7 225 170)" stroke="#23384a" stroke-width="5" stroke-linejoin="round">
+    <path d="M192 65q0-39 30-39t34 39" fill="none" stroke-width="12"/>
+    <path d="M158 110q-47 51-41 143 2 34 32 24l19-15m105-155q55 40 59 135 3 39-26 37l-19-12" fill="none" stroke-width="14"/>
+    <path d="M137 147q2-85 71-92 78-12 97 66l13 142q4 33-24 36l-142 1q-26-2-24-29z" fill="#415f76"/>
+    <path d="M137 155q1-82 66-87 68-8 81 64l9 134q1 22-16 29l-127 1q-22-2-20-26z" fill="#2e4e69"/>
+    <path d="M151 141q6-59 57-63 50-4 63 48" fill="none" stroke="#bd5944"/>
+    <path d="m264 120-3 18" fill="none" stroke="#d8c8aa"/>
+    <path d="M149 214q2-22 21-24l80-1q22 2 26 23l3 48q0 14-16 15l-101 2q-17-2-16-17z" fill="#43647e"/>
+    <path d="m151 216 120-2" fill="none" stroke="#c86146"/>
+    <path d="m169 215-2 17" stroke="#e0cfa9"/>
+  </g>
 </svg>

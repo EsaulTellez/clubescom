@@ -16,7 +16,10 @@ export function RealtimeRefresh({ tables }: { tables: string[] }) {
       channel.on(
         "postgres_changes",
         { event: "*", schema: "public", table },
-        () => router.refresh(),
+        () => {
+          window.dispatchEvent(new CustomEvent("escom:realtime-update", { detail: { table } }));
+          router.refresh();
+        },
       );
     }
     channel.subscribe();

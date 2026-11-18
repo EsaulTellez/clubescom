@@ -1,5 +1,7 @@
 "use client";
 
+import { CatalogSearch } from "@/components/catalog-search";
+
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { saveGuideProgress } from "@/app/guias/actions";
@@ -99,18 +101,21 @@ function roleBadge(role: string, official: boolean, area: string | null) {
   return "Alumno";
 }
 
-function scoreGuideSimilarity(query: string, guide: GuideItem) {
-  const tokens = query
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .split(/[^a-z0-9]+/)
-    .filter((t) => t.length >= 3);
-  if (tokens.length === 0) return 0;
-  const hay = `${guide.title} ${guide.summary} ${guide.steps.map((s) => `${s.title} ${s.body}`).join(" ")}`
+function normalizeSearchText(value: string) {
+  return value
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+}
+
+function scoreGuideSimilarity(query: string, guide: GuideItem) {
+  const tokens = normalizeSearchText(query)
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 3);
+  if (tokens.length === 0) return 0;
+  const hay = normalizeSearchText(
+    `${guide.title} ${guide.summary} ${guide.steps.map((s) => `${s.title} ${s.body}`).join(" ")}`,
+  );
   let hits = 0;
   for (const t of tokens) {
     if (hay.includes(t)) hits += 1;
@@ -166,10 +171,26 @@ export function ForoGuiasBoard({
   initialDudaId?: string | null;
   initialGuiaId?: string | null;
 }) {
+  const [prevInitialArea, setPrevInitialArea] = useState<string>(initialArea);
+  const [prevInitialQuery, setPrevInitialQuery] = useState<string>(initialQuery);
+  const [prevInitialView, setPrevInitialView] = useState<ViewMode>(initialView);
   const [areaFilter, setAreaFilter] = useState<string>(initialArea);
   const [kindFilter, setKindFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   const [query, setQuery] = useState<string>(initialQuery);
+
+  if (prevInitialArea !== initialArea) {
+    setPrevInitialArea(initialArea);
+    setAreaFilter(initialArea);
+  }
+  if (prevInitialQuery !== initialQuery) {
+    setPrevInitialQuery(initialQuery);
+    setQuery(initialQuery);
+  }
+  if (prevInitialView !== initialView) {
+    setPrevInitialView(initialView);
+    setViewMode(initialView);
+  }
 
   const [prevInitialQuestions, setPrevInitialQuestions] = useState<ForumQuestionItem[]>(initialQuestions);
   const [questions, setQuestions] = useState<ForumQuestionItem[]>(initialQuestions);
@@ -211,15 +232,11 @@ export function ForoGuiasBoard({
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [lightboxItem, setLightboxItem] = useState<{ src: string; title: string } | null>(null);
 
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const questionSectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      } else if (e.key === "Escape" && lightboxItem) {
+      if (e.key === "Escape" && lightboxItem) {
         setLightboxItem(null);
       }
     }
@@ -247,50 +264,80 @@ export function ForoGuiasBoard({
       (viewer.role === "admin" ||
         (viewer.role === "moderador" && ["gestion_escolar", "becas", "catt"].includes(viewer.area ?? ""))),
   );
-  const cleanQuery = query.trim().toLowerCase();
+  const cleanQuery = normalizeSearchText(query.trim());
 
-  const areaCounts = useMemo(() => {
-    const map: Record<string, { guides: number; questions: number; official: number }> = {
-      all: { guides: guides.length, questions: questions.length, official: 0 },
-    };
-    for (const a of AREAS) {
-      map[a.id] = { guides: 0, questions: 0, official: 0 };
-    }
-    for (const g of guides) {
-      const entry = map[g.area] ?? { guides: 0, questions: 0, official: 0 };
-      entry.guides += 1;
-      map[g.area] = entry;
-    }
-    for (const q of questions) {
-      const hasOfficial = q.answers.some((a) => a.official);
-      if (hasOfficial) map.all.official += 1;
-      const entry = map[q.area] ?? { guides: 0, questions: 0, official: 0 };
-      entry.questions += 1;
-      if (hasOfficial) entry.official += 1;
-      map[q.area] = entry;
-    }
-    return map;
-  }, [guides, questions]);
-
-  const filteredGuides = useMemo(() => {
-    return guides.filter((g) => {
-      if (areaFilter !== "all" && g.area !== areaFilter) return false;
+  const { matchingGuidesNoArea, matchingQuestionsNoArea } = useMemo(() => {
+    const gMatches = guides.filter((g) => {
       if (!cleanQuery) return true;
       const inSteps = g.steps.some(
-        (s) => s.title.toLowerCase().includes(cleanQuery) || s.body.toLowerCase().includes(cleanQuery),
+        (s) => normalizeSearchText(s.title).includes(cleanQuery) || normalizeSearchText(s.body).includes(cleanQuery),
       );
       const inFaqs = g.faqs.some(
-        (f) => f.q.toLowerCase().includes(cleanQuery) || f.a.toLowerCase().includes(cleanQuery),
+        (f) => normalizeSearchText(f.q).includes(cleanQuery) || normalizeSearchText(f.a).includes(cleanQuery),
       );
       return (
-        g.title.toLowerCase().includes(cleanQuery) ||
-        g.summary.toLowerCase().includes(cleanQuery) ||
-        areaLabel(g.area).toLowerCase().includes(cleanQuery) ||
+        normalizeSearchText(g.title).includes(cleanQuery) ||
+        normalizeSearchText(g.summary).includes(cleanQuery) ||
+        normalizeSearchText(areaLabel(g.area)).includes(cleanQuery) ||
         inSteps ||
         inFaqs
       );
     });
-  }, [guides, areaFilter, cleanQuery]);
+
+    const qMatches = questions.filter((q) => {
+      if (kindFilter !== "all" && q.requestKind !== kindFilter) return false;
+      const hasOfficial = q.answers.some((a) => a.official);
+      if (viewMode === "oficiales" && !hasOfficial) return false;
+      if (viewMode === "abiertas" && hasOfficial) return false;
+      if (!cleanQuery) return true;
+      const inAnswers = q.answers.some(
+        (a) =>
+          normalizeSearchText(a.body).includes(cleanQuery) ||
+          normalizeSearchText(a.authorName).includes(cleanQuery),
+      );
+      return (
+        normalizeSearchText(q.title).includes(cleanQuery) ||
+        normalizeSearchText(q.body).includes(cleanQuery) ||
+        normalizeSearchText(areaLabel(q.area)).includes(cleanQuery) ||
+        normalizeSearchText(requestKindLabel(q.requestKind)).includes(cleanQuery) ||
+        inAnswers
+      );
+    });
+
+    return { matchingGuidesNoArea: gMatches, matchingQuestionsNoArea: qMatches };
+  }, [guides, questions, kindFilter, viewMode, cleanQuery]);
+
+  const officialCountAll = useMemo(
+    () => questions.filter((q) => q.answers.some((a) => a.official)).length,
+    [questions],
+  );
+
+  const areaCounts = useMemo(() => {
+    const includeGuides = viewMode === "guias" || (viewMode === "todo" && kindFilter === "all");
+    const includeQuestions = viewMode !== "guias";
+    const map: Record<string, number> = { all: 0 };
+    for (const a of AREAS) {
+      map[a.id] = 0;
+    }
+    if (includeGuides) {
+      for (const g of matchingGuidesNoArea) {
+        map.all += 1;
+        map[g.area] = (map[g.area] ?? 0) + 1;
+      }
+    }
+    if (includeQuestions) {
+      for (const q of matchingQuestionsNoArea) {
+        map.all += 1;
+        map[q.area] = (map[q.area] ?? 0) + 1;
+      }
+    }
+    return map;
+  }, [matchingGuidesNoArea, matchingQuestionsNoArea, viewMode, kindFilter]);
+
+  const filteredGuides = useMemo(() => {
+    if (areaFilter === "all") return matchingGuidesNoArea;
+    return matchingGuidesNoArea.filter((g) => g.area === areaFilter);
+  }, [matchingGuidesNoArea, areaFilter]);
 
   const similarGuides = useMemo(() => {
     if (!cleanQuery || filteredGuides.length > 0) return [];
@@ -304,28 +351,24 @@ export function ForoGuiasBoard({
   }, [guides, filteredGuides.length, cleanQuery, areaFilter]);
 
   const filteredQuestions = useMemo(() => {
-    return questions.filter((q) => {
-      if (areaFilter !== "all" && q.area !== areaFilter) return false;
-      if (kindFilter !== "all" && q.requestKind !== kindFilter) return false;
-      const hasOfficial = q.answers.some((a) => a.official);
-      if (viewMode === "oficiales" && !hasOfficial) return false;
-      if (viewMode === "abiertas" && hasOfficial) return false;
-      if (!cleanQuery) return true;
-      const inAnswers = q.answers.some(
-        (a) => a.body.toLowerCase().includes(cleanQuery) || a.authorName.toLowerCase().includes(cleanQuery),
-      );
-      return (
-        q.title.toLowerCase().includes(cleanQuery) ||
-        q.body.toLowerCase().includes(cleanQuery) ||
-        areaLabel(q.area).toLowerCase().includes(cleanQuery) ||
-        requestKindLabel(q.requestKind).toLowerCase().includes(cleanQuery) ||
-        inAnswers
-      );
-    });
-  }, [questions, areaFilter, kindFilter, viewMode, cleanQuery]);
+    if (areaFilter === "all") return matchingQuestionsNoArea;
+    return matchingQuestionsNoArea.filter((q) => q.area === areaFilter);
+  }, [matchingQuestionsNoArea, areaFilter]);
 
-  const showGuidesSection = viewMode === "todo" || viewMode === "guias";
+  const showGuidesSection =
+    viewMode === "guias" ||
+    (viewMode === "todo" &&
+      kindFilter === "all" &&
+      (filteredGuides.length > 0 || Boolean(cleanQuery) || filteredQuestions.length === 0));
   const showForumSection = viewMode === "todo" || viewMode === "oficiales" || viewMode === "abiertas";
+  const hasActiveFilters = areaFilter !== "all" || kindFilter !== "all" || viewMode !== "todo" || Boolean(cleanQuery);
+
+  function resetAllFilters() {
+    setAreaFilter("all");
+    setKindFilter("all");
+    setViewMode("todo");
+    setQuery("");
+  }
 
   function toggleGuideOpen(id: string) {
     setExpandedGuides((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -523,45 +566,20 @@ export function ForoGuiasBoard({
   return (
     <div className="space-y-7">
       {/* Cabecera tipo Gaceta / Mesa Escolar de Trámites */}
-      <section className="overflow-hidden rounded-2xl border border-[#d6d3c6] border-t-4 border-t-[#004d73] bg-[#fffdf7] shadow-[0_2px_0_rgba(23,49,66,0.04)]">
-        <div className="border-b border-[#e4e0d3] bg-[#f7f5ec] px-5 py-2.5 sm:px-7">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#47616d]">
-            <span>Mesa de Trámites y Orientación · ESCOM</span>
-            <span className="tabular-nums text-[#004d73]">
-              {guides.length} {guides.length === 1 ? "guía" : "guías"} · {questions.length}{" "}
-              {questions.length === 1 ? "duda" : "dudas"} · {areaCounts.all.official} con respuesta oficial
-            </span>
-          </div>
-        </div>
-
-        <div className="p-5 sm:p-7">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[#c3d9e4] bg-[#e8f3f8] text-[#004d73]">
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-6 w-6"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22V5.5Z" />
-                  <path d="M4 6v16m4-14h8m-8 4h7m-7 4h5" />
-                </svg>
-              </span>
-              <h1 className="font-serif text-2xl font-extrabold tracking-tight text-[#14374a] sm:text-3xl">
-                Foro y Guías
-              </h1>
+      <section className="edition-header">
+        <div>
+          <div className="edition-rule flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 className="edition-title">Foro <i className="font-normal">y Guías</i></h1>
+              <p className="mt-2 text-xs text-[#51616a]">
+                {guides.length} {guides.length === 1 ? "guía" : "guías"} · {questions.length} {questions.length === 1 ? "duda" : "dudas"} · {officialCountAll} con respuesta oficial
+              </p>
             </div>
-
             <div className="flex flex-wrap items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => jumpToNewQuestion()}
-                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#b88917] bg-[#fcf5de] px-4 py-2 text-sm font-extrabold text-[#6e5008] transition hover:bg-[#f7ebc4]"
+                className={btn}
               >
                 <span aria-hidden="true">+</span>
                 <span>Preguntar</span>
@@ -569,7 +587,7 @@ export function ForoGuiasBoard({
               {canCreateGuide && (
                 <Link
                   href="/guias/nueva"
-                  className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#004d73] bg-[#006699] px-4 py-2 text-sm font-extrabold text-white shadow-xs transition hover:-translate-y-0.5 hover:bg-[#004d73]"
+                  className={btnGhost}
                 >
                   <span aria-hidden="true">+</span>
                   <span>Nueva guía</span>
@@ -580,42 +598,7 @@ export function ForoGuiasBoard({
 
           {/* Buscador instantáneo unificado */}
           <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            <div className="group relative flex items-center rounded-xl border-2 border-[#d3d8cf] bg-white px-3.5 py-2 shadow-[0_2px_10px_rgba(20,55,74,0.03)] transition focus-within:border-[#006699] focus-within:ring-4 focus-within:ring-[#006699]/10">
-              <svg
-                viewBox="0 0 20 20"
-                className="h-5 w-5 shrink-0 text-[#5a727e] transition group-focus-within:text-[#006699]"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                aria-hidden="true"
-              >
-                <circle cx="9" cy="9" r="5.5" />
-                <path d="m13.2 13.2 3.8 3.8" strokeLinecap="round" />
-              </svg>
-              <input
-                ref={searchInputRef}
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar guías o dudas: reinscripción, constancia, SIBec, protocolo TT, COSIE, servicio social…"
-                aria-label="Buscar guías y preguntas del foro"
-                className="w-full min-w-0 bg-transparent px-3 py-1.5 text-sm font-semibold text-[#16384a] placeholder:font-normal placeholder:text-[#788992] focus:outline-none sm:text-[15px]"
-              />
-              {query ? (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  aria-label="Limpiar búsqueda"
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#eef2f3] text-xs font-extrabold text-[#3d5663] transition hover:bg-[#dce6ea] hover:text-[#14374a]"
-                >
-                  ✕
-                </button>
-              ) : (
-                <kbd className="hidden shrink-0 rounded-md border border-[#d9ddd6] bg-[#f6f5ef] px-2 py-0.5 text-[11px] font-bold text-[#60737d] sm:inline-block">
-                  ⌘K
-                </kbd>
-              )}
-            </div>
+            <CatalogSearch value={query} onChange={setQuery} label="Buscar guías o preguntas" shortcutEnabled={!lightboxItem} />
 
             {/* Selector de vista */}
             <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Tipo de contenido">
@@ -632,12 +615,11 @@ export function ForoGuiasBoard({
                   type="button"
                   role="tab"
                   aria-selected={viewMode === tab.id}
-                  onClick={() => setViewMode(tab.id)}
-                  className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-extrabold transition ${
-                    viewMode === tab.id
-                      ? "border-[#15394d] bg-[#15394d] text-white"
-                      : "border-[#d4d7ce] bg-white text-[#385360] hover:border-[#9eb9c6] hover:bg-[#f2f7f9]"
-                  }`}
+                  onClick={() => {
+                    setViewMode(tab.id);
+                    if (tab.id === "guias") setKindFilter("all");
+                  }}
+                  className="catalog-tab"
                 >
                   {tab.label}
                 </button>
@@ -645,92 +627,27 @@ export function ForoGuiasBoard({
             </div>
           </div>
 
-          {/* Filtros por área con conteos reales */}
-          <nav
-            aria-label="Filtrar por área"
-            className="mt-4 flex flex-wrap items-center gap-2 border-t border-dashed border-[#dfdccc] pt-4"
-          >
-            <button
-              type="button"
-              onClick={() => setAreaFilter("all")}
-              aria-pressed={areaFilter === "all"}
-              className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-extrabold transition ${
-                areaFilter === "all"
-                  ? "border-[#15394d] bg-[#15394d] text-white"
-                  : "border-[#d6d3c6] bg-[#f7f5ec] text-[#35505e] hover:border-[#9eb9c6] hover:bg-[#eef4f6]"
-              }`}
-            >
-              <span>Todas las áreas</span>
-              <span
-                className={`rounded px-1.5 py-0.5 text-[11px] tabular-nums ${
-                  areaFilter === "all" ? "bg-white/20 text-white" : "bg-white text-[#4b6470]"
-                }`}
-              >
-                {areaCounts.all.guides + areaCounts.all.questions}
-              </span>
-            </button>
-
-            {AREAS.map((area) => {
-              const st = areaStyle(area.id);
-              const active = areaFilter === area.id;
-              const total = (areaCounts[area.id]?.guides ?? 0) + (areaCounts[area.id]?.questions ?? 0);
-              return (
-                <button
-                  key={area.id}
-                  type="button"
-                  onClick={() => setAreaFilter(active ? "all" : area.id)}
-                  aria-pressed={active}
-                  className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-extrabold transition ${
-                    active
-                      ? st.pillActive
-                      : "border-[#d6d3c6] bg-white text-[#35505e] hover:border-[#9eb9c6] hover:bg-[#f2f7f9]"
-                  }`}
-                >
-                  <span>{area.label}</span>
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-[11px] tabular-nums ${
-                      active ? "bg-white/20 text-white" : "bg-[#f3f1e8] text-[#4b6470]"
-                    }`}
-                  >
-                    {total}
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Filtros por tipo de solicitud en el foro */}
-          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-dashed border-[#e5e2d5] pt-3">
-            <button
-              type="button"
-              onClick={() => setKindFilter("all")}
-              aria-pressed={kindFilter === "all"}
-              className={`rounded-md border px-2.5 py-1 text-[11px] font-extrabold transition ${
-                kindFilter === "all"
-                  ? "border-[#15394d] bg-[#15394d] text-white"
-                  : "border-[#d6d3c6] bg-white text-[#485d68] hover:border-[#006699]"
-              }`}
-            >
-              Todos los tipos
-            </button>
-            {REQUEST_KINDS.map((kind) => {
-              const active = kindFilter === kind.id;
-              return (
-                <button
-                  key={kind.id}
-                  type="button"
-                  onClick={() => setKindFilter(active ? "all" : kind.id)}
-                  aria-pressed={active}
-                  className={`rounded-md border px-2.5 py-1 text-[11px] font-extrabold transition ${
-                    active
-                      ? "border-[#004d73] bg-[#006699] text-white"
-                      : "border-[#d6d3c6] bg-white text-[#485d68] hover:border-[#006699]"
-                  }`}
-                >
-                  {kind.label}
-                </button>
-              );
-            })}
+          <div className="mt-4 flex flex-wrap items-end gap-x-5 gap-y-3 border-t border-[#dfdccc] pt-3">
+            <label className="min-w-0 flex-auto text-xs font-semibold text-[#405861] sm:flex-none">
+              Área
+              <select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)}
+                className={`${input} mt-1 block`}>
+                <option value="all">Todas las áreas ({areaCounts.all})</option>
+                {AREAS.map((area) => <option key={area.id} value={area.id}>{area.label} ({areaCounts[area.id] ?? 0})</option>)}
+              </select>
+            </label>
+            {viewMode !== "guias" && (
+              <label className="min-w-0 flex-auto text-xs font-semibold text-[#405861] sm:flex-none">
+                Tipo de publicación
+                <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}
+                  className={`${input} mt-1 block`}>
+                  <option value="all">Todos los tipos</option>
+                  {REQUEST_KINDS.map((kind) => <option key={kind.id} value={kind.id}>{kind.label}</option>)}
+                </select>
+              </label>
+            )}
+            {hasActiveFilters && <button type="button" onClick={resetAllFilters}
+              className="min-h-10 text-xs font-semibold text-[#155775] underline underline-offset-4">Limpiar filtros</button>}
           </div>
         </div>
       </section>
@@ -738,7 +655,7 @@ export function ForoGuiasBoard({
       {actionNotice && (
         <div
           role="status"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#e3cf99] bg-[#fcf5de] px-4 py-3 text-sm font-semibold text-[#6e5008]"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-[#e3cf99] bg-[#fcf5de] px-4 py-3 text-sm font-semibold text-[#6e5008]"
         >
           <span>{actionNotice}</span>
           <div className="flex items-center gap-3">
@@ -766,9 +683,6 @@ export function ForoGuiasBoard({
             <section aria-labelledby="guides-section-heading" className="space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3 border-b-2 border-[#16384a] pb-2">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#004d73]">
-                    Archivo de Trámites
-                  </p>
                   <h2
                     id="guides-section-heading"
                     className="font-serif text-xl font-extrabold tracking-tight text-[#14374a] sm:text-2xl"
@@ -795,18 +709,18 @@ export function ForoGuiasBoard({
                       <article
                         id={`guia-${guide.id}`}
                         key={guide.id}
-                        className={`flex flex-col overflow-hidden rounded-xl border border-[#d6d3c6] border-t-4 ${st.borderTop} bg-[#fffdf7] shadow-[0_2px_0_rgba(23,49,66,0.04)] transition ${
+                        className={`flex flex-col overflow-hidden rounded-sm border border-[#d6d3c6] border-t-4 ${st.borderTop} bg-[#fffdf7] shadow-[0_2px_0_rgba(23,49,66,0.04)] transition ${
                           isOpen ? "md:col-span-2" : ""
                         }`}
                       >
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-[#e1ddd0] bg-[#f8f6ee] px-4 py-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ded7c3] bg-[#f3eedf] px-4 py-2.5">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span
                               className={`inline-flex items-center rounded border px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide ${st.badgeBorder} ${st.badgeBg} ${st.badgeText}`}
                             >
                               {areaLabel(guide.area)}
                             </span>
-                            <span className="rounded border border-[#dcd9ce] bg-white px-2 py-0.5 text-[11px] font-bold text-[#4a626e] tabular-nums">
+                            <span className="font-mono text-[11px] text-[#58635e]">
                               v{guide.version}
                             </span>
                             {guide.attachmentUrl && (
@@ -905,8 +819,8 @@ export function ForoGuiasBoard({
                                     Preguntas frecuentes
                                   </p>
                                   <dl className="mt-3 space-y-3">
-                                    {guide.faqs.map((faq) => (
-                                      <div key={faq.q} className="border-t border-dashed border-[#dcd8c9] pt-2.5 first:border-t-0 first:pt-0">
+                                    {guide.faqs.map((faq, faqIdx) => (
+                                      <div key={`${faq.q}-${faqIdx}`} className="border-t border-dashed border-[#dcd8c9] pt-2.5 first:border-t-0 first:pt-0">
                                         <dt className="text-sm font-extrabold text-[#16384a]">{faq.q}</dt>
                                         <dd className="mt-1 text-sm leading-relaxed text-[#485d68]">{faq.a}</dd>
                                       </div>
@@ -939,7 +853,7 @@ export function ForoGuiasBoard({
                   })}
                 </div>
               ) : cleanQuery ? (
-                <div className="rounded-xl border border-[#d6d3c6] bg-[#fffdf7] p-5 sm:p-6">
+                <div className="rounded-sm border border-[#d6d3c6] bg-[#fffdf7] p-5 sm:p-6">
                   <p className="text-xs font-extrabold uppercase tracking-wider text-[#006699]">
                     Sin coincidencias exactas en guías para “{query}”
                   </p>
@@ -978,7 +892,7 @@ export function ForoGuiasBoard({
                   </div>
                 </div>
               ) : (
-                <p className="rounded-xl border border-[#d6d3c6] bg-[#fffdf7] p-5 text-sm text-[#5f6e78]">
+                <p className="rounded-sm border border-[#d6d3c6] bg-[#fffdf7] p-5 text-sm text-[#5f6e78]">
                   No hay guías publicadas en esta área todavía.
                 </p>
               )}
@@ -990,9 +904,6 @@ export function ForoGuiasBoard({
             <section aria-labelledby="forum-section-heading" className="space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-3 border-b-2 border-[#16384a] pb-2">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#6e5008]">
-                    Consultorio Estudiantil
-                  </p>
                   <h2
                     id="forum-section-heading"
                     className="font-serif text-xl font-extrabold tracking-tight text-[#14374a] sm:text-2xl"
@@ -1025,7 +936,7 @@ export function ForoGuiasBoard({
                       <article
                         id={`duda-${q.id}`}
                         key={q.id}
-                        className={`overflow-hidden rounded-xl border border-[#d6d3c6] border-l-4 ${st.borderLeft} bg-[#fffdf7] shadow-[0_2px_0_rgba(23,49,66,0.04)]`}
+                        className={`overflow-hidden rounded-sm border border-[#d6d3c6] border-l-4 ${st.borderLeft} bg-[#fffdf7] shadow-[0_2px_0_rgba(23,49,66,0.04)]`}
                       >
                         <div className="p-4 sm:p-6">
                           <div className="flex items-start gap-3.5 sm:gap-4">
@@ -1417,7 +1328,7 @@ export function ForoGuiasBoard({
                   })}
                 </div>
               ) : (
-                <p className="rounded-xl border border-[#d6d3c6] bg-[#fffdf7] p-6 text-sm text-[#5f6e78]">
+                <p className="rounded-sm border border-[#d6d3c6] bg-[#fffdf7] p-6 text-sm text-[#5f6e78]">
                   No encontramos dudas con esos filtros.
                 </p>
               )}
@@ -1430,7 +1341,7 @@ export function ForoGuiasBoard({
           <section
             id="nueva-duda"
             ref={questionSectionRef}
-            className="scroll-mt-28 rounded-xl border border-[#d6d3c6] border-t-4 border-t-[#b88917] bg-[#fffdf7] p-5 shadow-[0_2px_0_rgba(23,49,66,0.04)]"
+            className="scroll-mt-28 rounded-sm border border-[#d6d3c6] border-t-4 border-t-[#b88917] bg-[#fffdf7] p-5 shadow-[0_2px_0_rgba(23,49,66,0.04)]"
             aria-labelledby="new-question-heading"
           >
             <h2 id="new-question-heading" className="font-serif text-lg font-extrabold text-[#14374a]">
@@ -1457,7 +1368,7 @@ export function ForoGuiasBoard({
 
           {directoryRooms.length > 0 && (
             <section
-              className="rounded-xl border border-[#d6d3c6] border-t-4 border-t-[#004d73] bg-[#fffdf7] p-5 shadow-[0_2px_0_rgba(23,49,66,0.04)]"
+              className="rounded-sm border border-[#d6d3c6] border-t-4 border-t-[#004d73] bg-[#fffdf7] p-5 shadow-[0_2px_0_rgba(23,49,66,0.04)]"
               aria-labelledby="directory-heading"
             >
               <div className="flex items-center justify-between gap-2">
@@ -1503,7 +1414,7 @@ export function ForoGuiasBoard({
           onClick={() => setLightboxItem(null)}
         >
           <div
-            className="relative max-h-[92vh] max-w-4xl overflow-hidden rounded-2xl border border-white/15 bg-[#0b1820] shadow-2xl"
+            className="relative max-h-[92vh] max-w-4xl overflow-hidden rounded-sm border border-white/15 bg-[#0b1820] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-3 text-white">

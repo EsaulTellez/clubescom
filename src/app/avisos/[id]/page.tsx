@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AvisoExternalLink, AvisoViewTracker } from "@/components/aviso-external-link";
-import { Cover } from "@/components/cover";
 import { demoNoticeArt } from "@/lib/demo-art";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
@@ -59,10 +58,8 @@ export default async function AvisoPage({ params }: { params: Promise<{ id: stri
       <Link href="/avisos" className="text-sm text-[#006699]">
         Volver a avisos
       </Link>
-      {art ? (
+      {art && (
         <img src={art} alt={`Cartel: ${aviso.title}`} className="mx-auto max-h-[44rem] w-full rounded-md bg-[#f4f3f0] object-contain" />
-      ) : (
-        <Cover tone={aviso.category} kicker={categoryLabel(aviso.category)} title={aviso.title} className="h-56 rounded-md sm:h-72" />
       )}
       <div className="board-sidecard space-y-3 border-t-4 border-t-[#006699] p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-[#006699]">

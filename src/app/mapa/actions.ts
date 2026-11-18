@@ -218,23 +218,27 @@ export async function suggestProfessorInRoom(
       return { error: "Este profesor ya está confirmado oficialmente en este espacio." };
     }
 
-    await client.query(
-      `insert into map_rooms (code, kind, name, description)
-       values ($1, 'salon', '', '')
-       on conflict (code) do nothing`,
-      [code],
+    const existingSuggestion = await client.query<{ id: string; suggested_by: string }>(
+      "select id, suggested_by from map_room_suggestions where room_code = $1 and professor_id = $2 limit 1",
+      [code, professorId],
     );
 
-    const upserted = await client.query<{ id: string }>(
-      `insert into map_room_suggestions (room_code, professor_id, suggested_by, note)
-       values ($1, $2, $3, $4)
-       on conflict (room_code, professor_id) do update
-         set note = case when excluded.note <> '' then excluded.note else map_room_suggestions.note end
-       returning id`,
-      [code, professorId, user.id, note],
-    );
+    let suggestionId = existingSuggestion.rows[0]?.id;
+    if (!suggestionId) {
+      const inserted = await client.query<{ id: string }>(
+        `insert into map_room_suggestions (room_code, professor_id, suggested_by, note)
+         values ($1, $2, $3, $4)
+         returning id`,
+        [code, professorId, user.id, note],
+      );
+      suggestionId = inserted.rows[0].id;
+    } else if (existingSuggestion.rows[0].suggested_by === user.id && note !== "") {
+      await client.query(
+        "update map_room_suggestions set note = $1 where id = $2",
+        [note, suggestionId],
+      );
+    }
 
-    const suggestionId = upserted.rows[0].id;
     await client.query(
       `insert into map_room_suggestion_votes (suggestion_id, user_id, vote)
        values ($1, $2, 1)
@@ -243,9 +247,10 @@ export async function suggestProfessorInRoom(
     );
 
     await client.query("commit");
-  } catch {
+  } catch (err) {
     await client.query("rollback");
-    return { error: "No se pudo registrar la sugerencia." };
+    console.error("Error registrando sugerencia en mapa:", err);
+    return { error: "No se pudo registrar la sugerencia. Verifica tu sesión y el espacio seleccionado." };
   } finally {
     client.release();
   }

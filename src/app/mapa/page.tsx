@@ -134,7 +134,10 @@ export default async function MapaPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="sr-only">Mapa y espacios de ESCOM</h1>
+      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b-2 border-[#49695c] pb-3">
+        <h1 className="edition-title">Mapa del campus</h1>
+        <a href="#directorio-profesores" className="text-sm font-semibold text-[#255d57] underline underline-offset-4">Directorio de profesores ↓</a>
+      </header>
       <CampusMap
         roomInfo={roomInfo}
         professors={allProfessors.rows}
@@ -143,12 +146,12 @@ export default async function MapaPage() {
         viewer={user ? { id: user.id, name: user.name, role: user.role } : null}
       />
 
-      <section className="board-sidecard p-5">
+      <section id="directorio-profesores" className="board-sidecard scroll-mt-32 p-5">
         <h2 className="text-lg font-extrabold text-[#1b4053]">Directorio de profesores y cubículos</h2>
         {professorDirectories.length ? (
           <ul className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {professorDirectories.map((item) => (
-              <li key={item.id} className="rounded-xl border border-[#dce5e2] bg-white p-3 text-sm">
+              <li key={item.id} className="border-t border-[#d4dbce] py-3 text-sm">
                 <strong className="text-[#1b4053]">{item.name}</strong>
                 <p className="mt-1 text-xs text-[#5f6e78]">{item.location ?? "Ubicación no disponible"}</p>
               </li>

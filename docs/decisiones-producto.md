@@ -69,7 +69,7 @@ Decisiones confirmadas por el propietario del proyecto el 2026-11-04. Aplican al
 - La propuesta también necesita un profesor asesor que confirme su participación mediante un código.
 - Con los documentos y el asesor confirmados, la persona responsable de Subdirección Académica/Sala 14 revisa y agenda/valida la cita con el grupo proponente.
 - El presidente de un club será un alumno con rol de moderador asignado al club; podrá revisar solicitudes de ingreso y administrar la comunidad del club según su alcance.
-- Conservar el periodo de siete días documentado para que otro interesado reclame una propuesta sin responsable.
+- Conservar el periodo de cinco días (`club_claim_inactivity_days = 5`) para que otro alumno participante tome el mando de una propuesta inactiva y continúe su registro como alumno moderador.
 
 ### Objetos perdidos
 

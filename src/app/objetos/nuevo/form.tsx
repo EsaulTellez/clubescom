@@ -11,12 +11,12 @@ export function ReportForm() {
     <form action={action} className="space-y-4">
       <fieldset className="space-y-2">
         <legend className={label}>Tipo</legend>
-        <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
-          <label className="flex items-center gap-2 text-sm">
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex cursor-pointer items-center gap-2 rounded-sm border border-[#cfcbbf] p-3 text-sm font-bold has-checked:border-[#155772] has-checked:bg-[#e8f0ef]">
             <input type="radio" name="kind" value="perdido" required defaultChecked />
             Perdí algo
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex cursor-pointer items-center gap-2 rounded-sm border border-[#cfcbbf] p-3 text-sm font-bold has-checked:border-[#155772] has-checked:bg-[#e8f0ef]">
             <input type="radio" name="kind" value="encontrado" />
             Encontré algo
           </label>
@@ -39,7 +39,7 @@ export function ReportForm() {
         <input className={`${input} mt-1`} name="photo" type="file" accept="image/jpeg,image/png,image/webp" />
       </label>
       <label className={label}>
-        Foto 2 (opcional · segundo ángulo o detalle · CU-21)
+        Foto 2 (opcional · segundo ángulo o detalle)
         <input className={`${input} mt-1`} name="photo_2" type="file" accept="image/jpeg,image/png,image/webp" />
       </label>
       <label className={label}>
@@ -50,10 +50,10 @@ export function ReportForm() {
         Respuesta (obligatoria si encontraste el objeto)
         <input className={`${input} mt-1`} name="security_answer" minLength={2} maxLength={120} autoComplete="off" />
         <span className="mt-1 block text-xs font-normal text-[#667085]">
-          Solo guardamos un hash. Quien reclame el objeto tiene que responder esta pregunta.
+          La respuesta es privada. Se usa para verificar el reclamo.
         </span>
       </label>
-      {state.error && <p className="text-sm text-[#8C1D18]">{state.error}</p>}
+      {state.error && <p role="alert" className="text-sm text-[#8C1D18]">{state.error}</p>}
       <button className={btn} disabled={pending}>
         {pending ? "Publicando…" : "Publicar reporte"}
       </button>

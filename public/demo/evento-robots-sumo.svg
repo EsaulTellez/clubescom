@@ -1,23 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#141e28"/>
-      <stop offset="100%" stop-color="#0d3b4f"/>
-    </linearGradient>
-  </defs>
-  <rect width="1200" height="630" fill="url(#bg)"/>
-  <!-- Dohyo Sumo Ring -->
-  <circle cx="600" cy="315" r="235" fill="#0c151c" stroke="#ffffff" stroke-width="14"/>
-  <circle cx="600" cy="315" r="175" fill="none" stroke="#2c5364" stroke-width="2" stroke-dasharray="10 8"/>
-  <!-- Shikiri lines -->
-  <rect x="530" y="255" width="16" height="120" rx="4" fill="#ffd166"/>
-  <rect x="654" y="255" width="16" height="120" rx="4" fill="#ffd166"/>
-  <!-- Left Robot -->
-  <rect x="370" y="245" width="125" height="140" rx="18" fill="#006699" stroke="#80dfff" stroke-width="4"/>
-  <rect x="475" y="235" width="26" height="160" rx="6" fill="#c2dfe8"/>
-  <!-- Right Robot -->
-  <rect x="705" y="245" width="125" height="140" rx="18" fill="#165b47" stroke="#6ee7b7" stroke-width="4"/>
-  <rect x="699" y="235" width="26" height="160" rx="6" fill="#c2dfe8"/>
-  <text x="110" y="105" fill="#7dd3fc" font-family="sans-serif" font-size="22" font-weight="900" letter-spacing="2">CLUB DE ROBÓTICA ESCOM · EL DOMO</text>
-  <text x="110" y="565" fill="#ffffff" font-family="sans-serif" font-size="24" font-weight="800">Exhibición de Robots Velocistas y Sumo Autónomo</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 504">
+  <rect width="960" height="504" fill="#a33c2e"/>
+  <ellipse cx="729" cy="258" rx="202" ry="121" fill="#f2dfba" stroke="#342f2c" stroke-width="8"/>
+  <g transform="translate(705 216) rotate(12)" stroke="#342f2c" stroke-width="7" stroke-linejoin="round">
+    <path d="m-50 10 86-18 56 49-98 24-58-38z" fill="#344e53"/>
+    <path d="m-41-20 70-15 44 43-79 19z" fill="#f6bb49"/>
+    <path d="m-41-20 35 47v24l-43-40zm35 47L73 8v22L-6 51z" fill="#c28c36"/>
+    <path d="m-4-15 26-6 11 12-26 6z" fill="#353e3e"/>
+  </g>
+  <g fill="#fff2d6">
+    <text x="42" y="65" font-family="monospace" font-size="22">CLUB DE ROBÓTICA</text>
+    <text x="34" y="236" font-family="Helvetica,Arial,sans-serif" font-weight="bold" font-size="124" letter-spacing="-8">Robots</text>
+    <text x="40" y="331" font-family="Georgia,serif" font-size="68" font-style="italic">velocistas y sumo</text>
+    <path d="M42 401h869" stroke="#fff2d6" stroke-width="2"/>
+    <text x="42" y="457" font-family="monospace" font-size="22">EXHIBICIÓN EN EL DOMO</text>
+  </g>
 </svg>

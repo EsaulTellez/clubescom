@@ -64,7 +64,7 @@ export function StoryCarousel({ items }: { items: StoryCard[] }) {
                 setSelected(item);
                 trackAvisoInteraction(item.id, "view");
               }}
-              className="group relative h-60 w-auto max-w-[26rem] min-w-[12.5rem] shrink-0 snap-start overflow-hidden rounded-2xl border border-[#d6d3c6] bg-[#10212b] text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md sm:h-68"
+              className="group relative h-60 w-auto max-w-[26rem] min-w-[12.5rem] shrink-0 snap-start overflow-hidden rounded-sm border border-[#d6d3c6] bg-[#10212b] text-left  sm:h-68"
             >
               <img
                 src={item.image}
@@ -73,7 +73,7 @@ export function StoryCarousel({ items }: { items: StoryCard[] }) {
                 className="block h-full w-auto max-w-[26rem] min-w-[12.5rem] object-cover transition duration-300 group-hover:scale-[1.03]"
               />
               <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col justify-end bg-gradient-to-t from-black/95 via-black/60 to-transparent p-4 pt-16 text-white">
-                <h3 className="line-clamp-2 text-sm font-extrabold leading-snug text-white sm:text-[15px]">
+                <h3 className="line-clamp-2 text-lg font-bold leading-tight text-white sm:text-xl">
                   {item.title}
                 </h3>
                 <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/80">
@@ -118,7 +118,7 @@ export function StoryCarousel({ items }: { items: StoryCard[] }) {
           onClick={() => setSelected(null)}
         >
           <div
-            className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#dcd9ce] bg-[#fffdf7] shadow-2xl"
+            className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-sm border border-[#dcd9ce] bg-[#fffdf7] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-[#e7e4d9] px-5 py-3.5">
@@ -137,7 +137,7 @@ export function StoryCarousel({ items }: { items: StoryCard[] }) {
             </div>
 
             <div className="overflow-y-auto p-5 space-y-4">
-              <div className="flex justify-center overflow-hidden rounded-xl bg-[#111b22]">
+              <div className="flex justify-center overflow-hidden rounded-sm bg-[#111b22]">
                 <img
                   src={selected.image}
                   alt={selected.title}

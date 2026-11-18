@@ -11,7 +11,12 @@ if (!url || !secret || !dbUrl) {
 }
 
 const auth = createClient(url, secret, { auth: { autoRefreshToken: false, persistSession: false } });
-const pool = new Pool({ connectionString: dbUrl });
+const isLocalDb =
+  dbUrl.includes("127.0.0.1") || dbUrl.includes("localhost") || dbUrl.includes("@postgres:");
+const pool = new Pool({
+  connectionString: dbUrl,
+  ssl: isLocalDb ? undefined : { rejectUnauthorized: false },
+});
 const password = "Escom2026!";
 const people = [
   ["daniel.alumno@alumno.ipn.mx", "Daniel Díaz Ramírez", "2023630001", "alumno", null],

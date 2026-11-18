@@ -70,41 +70,64 @@ function time(value: string) {
   }).format(new Date(value));
 }
 
-function timeRange(startsAt: string, endsAt: string | null) {
-  if (!endsAt) return `${time(startsAt)} h`;
-  return `${time(startsAt)} – ${time(endsAt)} h`;
-}
+const programDate = new Intl.DateTimeFormat("es-MX", {
+  weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: TZ,
+});
 
-function shortTicketDate(value: string) {
-  const d = new Date(value);
-  const weekday = new Intl.DateTimeFormat("es-MX", { weekday: "short", timeZone: TZ })
-    .format(d)
-    .replace(".", "")
-    .toUpperCase();
-  const day = new Intl.DateTimeFormat("es-MX", { day: "2-digit", timeZone: TZ }).format(d);
-  const month = new Intl.DateTimeFormat("es-MX", { month: "short", timeZone: TZ })
-    .format(d)
-    .replace(".", "")
-    .toUpperCase();
-  return `${weekday} ${day} ${month}`;
-}
+function EventCard({ event, featured = false, isAuthenticated, canDelete, openPoster }: {
+  event: EventItem;
+  featured?: boolean;
+  isAuthenticated: boolean;
+  canDelete: boolean;
+  openPoster: (poster: { src: string; title: string }) => void;
+}) {
+  const { imageUrl, startsAt, endsAt } = event;
+  const Heading = featured ? "h2" : "h3";
+  const otherDay = endsAt && keyDate(new Date(startsAt)) !== keyDate(new Date(endsAt));
 
-function dayNumber(value: string) {
-  return new Intl.DateTimeFormat("es-MX", { day: "2-digit", timeZone: TZ }).format(new Date(value));
-}
-
-function monthShort(value: string) {
-  return new Intl.DateTimeFormat("es-MX", { month: "short", timeZone: TZ })
-    .format(new Date(value))
-    .replace(".", "")
-    .toUpperCase();
-}
-
-function weekdayShort(value: string) {
-  return new Intl.DateTimeFormat("es-MX", { weekday: "short", timeZone: TZ })
-    .format(new Date(value))
-    .replace(".", "")
-    .toUpperCase();
+  return (
+    <article className={`flex min-w-0 flex-col overflow-hidden rounded-sm border border-[#c9c5b8] bg-[#fffdf7] ${featured && imageUrl ? "lg:grid lg:grid-cols-2" : ""}`}>
+      {imageUrl && (
+        <button
+          type="button"
+          aria-label={`Ampliar cartel de ${event.title}`}
+          onClick={() => openPoster({ src: imageUrl, title: event.title })}
+          className="relative grid w-full cursor-zoom-in place-items-center bg-[#172733] focus-visible:z-10 focus-visible:outline-offset-[-4px]"
+        >
+          <img src={imageUrl} alt="" loading={featured ? "eager" : "lazy"}
+            className="aspect-[1.9] max-h-[26rem] w-full object-contain" />
+        </button>
+      )}
+      <div className={`flex min-w-0 flex-1 flex-col ${featured ? "p-5 sm:p-7" : "p-5"}`}>
+        <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-[#d9d5c8] pb-3 text-xs font-semibold">
+          <time dateTime={startsAt} className="font-mono uppercase tracking-wide text-[#7d3c2b]">{programDate.format(new Date(startsAt))}</time>
+          <span className="tabular-nums">{time(startsAt)}{endsAt && <> – {otherDay && programDate.format(new Date(endsAt)) + ", "}{time(endsAt)}</>} h</span>
+        </p>
+        <Heading className={`mt-4 text-balance font-[Georgia,serif] leading-[1.08] font-bold tracking-tight text-[#182f3a] [overflow-wrap:anywhere] ${featured ? "text-[1.85rem] xl:text-[2rem]" : "text-[1.65rem]"}`}>{event.title}</Heading>
+        <p className="mt-2 text-sm font-bold text-[#294955]">{event.spaceName}{event.building && <span className="font-normal"> · {event.building}</span>}</p>
+        {event.description && <p className="mt-3 max-w-prose text-sm leading-relaxed text-[#4d5b60]">{event.description}</p>}
+        {(event.speaker || event.clubName) && (
+          <div className="mt-3 space-y-1 text-sm text-[#43545c]">
+            {event.speaker && <p>Con {event.speaker}</p>}
+            {event.clubName && <p>Organiza {event.clubId
+              ? <Link href={`/clubes/${event.clubId}`} className="text-[#005980] underline decoration-[#96b6c4] underline-offset-2">{event.clubName}</Link>
+              : event.clubName}</p>}
+          </div>
+        )}
+        <div className="mt-auto pt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-[#bdb7a8] pt-3">
+            <AttendButton eventKind={event.eventKind} eventId={event.id} initialAttending={event.viewerAttending} initialCount={event.attendeesCount} isAuthenticated={isAuthenticated} />
+            {canDelete && (
+              <form action={deleteSpaceEvent}>
+                <input type="hidden" name="id" value={event.id} />
+                <button className="text-xs font-bold text-[#8c2925] hover:underline">Eliminar evento</button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function longDate(value: string) {
@@ -240,7 +263,7 @@ export function EventBoard({
                   : "border-[#3c6075] bg-[#1d3b4f] text-[#e7f0f5] hover:border-[#7da6be]"
               }`}
             >
-              ⚡ Próximos 7 días ({next7DaysEvents.length})
+              Próximos 7 días ({next7DaysEvents.length})
             </button>
             {(canPublishEvents || canSubmitForReview) && spaces.length > 0 && (
               <button
@@ -258,7 +281,7 @@ export function EventBoard({
         <div className="px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex flex-wrap items-baseline justify-between gap-4 border-b border-dashed border-[#cfc9b8] pb-4">
             <div className="flex flex-wrap items-baseline gap-3">
-              <h1 className="font-serif text-3xl font-black uppercase tracking-[-0.03em] text-[#132c3d] sm:text-4xl">
+              <h1 className="font-[Georgia,serif] text-3xl font-bold uppercase tracking-[-0.03em] text-[#132c3d] sm:text-4xl">
                 Cartelera ESCOM
               </h1>
               <span className="rounded border border-[#c7c0ae] bg-[#f4efe1] px-2.5 py-0.5 text-xs font-extrabold uppercase tracking-wider text-[#3a5260]">
@@ -352,290 +375,24 @@ export function EventBoard({
         <section className="min-w-0 space-y-6" aria-live="polite">
           {featuredEvent ? (
             <>
-              {/* FUNCIÓN ESTELAR / DESTACADA EN MARQUESINA */}
-              <article className="overflow-hidden rounded-lg border-2 border-[#173142] bg-[#fffdf7] shadow-[4px_4px_0_rgba(23,49,66,0.12)]">
-                <div className="grid lg:grid-cols-12">
-                  {/* Marco de Cartel estilo Cine */}
-                  <div className="relative flex flex-col justify-between border-b-2 border-[#173142] bg-[#102330] p-3 sm:p-4 lg:col-span-7 lg:border-r-2 lg:border-b-0">
-                    <div className="mb-2.5 flex items-center justify-between gap-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#d6e4ec]">
-                      <span className="inline-flex items-center gap-1.5 rounded bg-[#006699] px-2.5 py-0.5 text-white">
-                        <span>Sala · {featuredEvent.spaceName}</span>
-                      </span>
-                      <span className="font-mono text-[#e3b341]">
-                        {shortTicketDate(featuredEvent.startsAt)}
-                      </span>
-                    </div>
-
-                    {featuredEvent.imageUrl ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setLightboxItem({
-                            src: featuredEvent.imageUrl!,
-                            title: featuredEvent.title,
-                          })
-                        }
-                        className="group relative block w-full overflow-hidden rounded border border-[#2a485c] bg-[#0b1922] text-left"
-                      >
-                        <img
-                          src={featuredEvent.imageUrl}
-                          alt={featuredEvent.title}
-                          className="h-64 w-full object-cover transition duration-300 group-hover:scale-[1.015] sm:h-80"
-                        />
-                      </button>
-                    ) : (
-                      <div className="flex h-64 w-full items-center justify-center rounded border border-[#2a485c] bg-[#152e3f] p-6 text-center sm:h-80">
-                        <p className="font-serif text-2xl font-black text-[#e4eff5]">
-                          {featuredEvent.title}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-[#9ab4c4]">
-                      <span>{featuredEvent.building ?? "Campus ESCOM"}</span>
-                      <span>Horario: {timeRange(featuredEvent.startsAt, featuredEvent.endsAt)}</span>
-                    </div>
-                  </div>
-
-                  {/* Ficha Periodística y Talón de Boleto */}
-                  <div className="flex flex-col justify-between p-5 sm:p-6 lg:col-span-5">
-                    <div className="space-y-4">
-                      {/* Sello de Fecha y Horario */}
-                      <div className="flex items-center gap-3.5 rounded-md border border-[#d6cfc0] bg-[#f7f3e6] p-3">
-                        <div
-                          className="flex min-w-14 flex-col items-center justify-center rounded border border-[#173142] bg-[#173142] px-2.5 py-1.5 text-center text-[#fffdf7]"
-                          aria-label={new Intl.DateTimeFormat("es-MX", {
-                            weekday: "long",
-                            day: "numeric",
-                            month: "long",
-                            timeZone: TZ,
-                          }).format(new Date(featuredEvent.startsAt))}
-                        >
-                          <span className="text-[10px] font-extrabold tracking-widest text-[#e3b341]">
-                            {monthShort(featuredEvent.startsAt)}
-                          </span>
-                          <strong className="text-xl font-black leading-none tabular-nums">
-                            {dayNumber(featuredEvent.startsAt)}
-                          </strong>
-                          <span className="mt-0.5 text-[10px] font-bold tracking-wider text-[#cbdce6]">
-                            {weekdayShort(featuredEvent.startsAt)}
-                          </span>
-                        </div>
-
-                        <div className="min-w-0 flex-1 space-y-0.5">
-                          <p className="text-xs font-extrabold uppercase tracking-wider text-[#004d73]">
-                            {timeRange(featuredEvent.startsAt, featuredEvent.endsAt)}
-                          </p>
-                          <p className="break-words text-sm font-extrabold text-[#173142]">
-                            {featuredEvent.spaceName}
-                            {featuredEvent.building ? ` · ${featuredEvent.building}` : ""}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Título y Metadatos Reales */}
-                      <div className="space-y-2.5">
-                        <h2 className="font-serif text-2xl font-black leading-tight tracking-tight text-[#122b3a] sm:text-[1.65rem]">
-                          {featuredEvent.title}
-                        </h2>
-
-                        {(featuredEvent.speaker || featuredEvent.clubName) && (
-                          <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                            {featuredEvent.speaker && (
-                              <span className="inline-flex items-center rounded border border-[#c5d5de] bg-[#eef5f8] px-2.5 py-1 text-xs font-extrabold text-[#123d54]">
-                                Ponente: {featuredEvent.speaker}
-                              </span>
-                            )}
-                            {featuredEvent.clubName && (
-                              <span className="inline-flex items-center rounded border border-[#b8d4c8] bg-[#ebf6f1] px-2.5 py-1 text-xs font-extrabold text-[#14523f]">
-                                {featuredEvent.clubId ? (
-                                  <Link
-                                    href={`/clubes/${featuredEvent.clubId}`}
-                                    className="hover:underline"
-                                  >
-                                    {featuredEvent.clubName}
-                                  </Link>
-                                ) : (
-                                  featuredEvent.clubName
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {featuredEvent.description && (
-                          <p className="text-[15px] leading-relaxed text-[#384e5a]">
-                            {featuredEvent.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Talón Perforado con Asistiré */}
-                    <div className="mt-6 border-t-2 border-dashed border-[#cfc8b6] pt-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <AttendButton
-                          eventKind={featuredEvent.eventKind}
-                          eventId={featuredEvent.id}
-                          initialAttending={featuredEvent.viewerAttending}
-                          initialCount={featuredEvent.attendeesCount}
-                          isAuthenticated={isAuthenticated}
-                        />
-
-                        <div className="flex items-center gap-3">
-                          {featuredEvent.endsAt && (
-                            <span className="text-xs font-bold text-[#5c6f79]">
-                              Termina{" "}
-                              {new Intl.DateTimeFormat("es-MX", {
-                                dateStyle: "medium",
-                                timeStyle: "short",
-                                timeZone: TZ,
-                              }).format(new Date(featuredEvent.endsAt))}
-                            </span>
-                          )}
-                          {(featuredEvent.canManageEvent ?? (canPublishEvents && featuredEvent.eventKind === "space")) && (
-                            <form action={deleteSpaceEvent}>
-                              <input type="hidden" name="id" value={featuredEvent.id} />
-                              <button className="text-xs font-extrabold text-[#8C1D18] hover:underline">
-                                Eliminar evento
-                              </button>
-                            </form>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </article>
-
-              {/* REJILLA DE CARTELERA TIPO CINE / BOLETOS ESCOLARES */}
+              <EventCard
+                key={`${featuredEvent.eventKind}-${featuredEvent.id}`}
+                event={featuredEvent}
+                featured
+                isAuthenticated={isAuthenticated}
+                canDelete={featuredEvent.canManageEvent ?? (canPublishEvents && featuredEvent.eventKind === "space")}
+                openPoster={setLightboxItem}
+              />
               {billboardEvents.length > 0 && (
                 <div className="grid gap-6 md:grid-cols-2 2xl:grid-cols-3">
                   {billboardEvents.map((event) => (
-                    <article
+                    <EventCard
                       key={`${event.eventKind}-${event.id}`}
-                      className="group flex flex-col overflow-hidden rounded-lg border-2 border-[#173142] bg-[#fffdf7] shadow-[3px_3px_0_rgba(23,49,66,0.1)] transition hover:-translate-y-0.5 hover:shadow-[5px_5px_0_rgba(23,49,66,0.16)]"
-                    >
-                      {/* Marquesina superior de cada cartel */}
-                      <div className="flex items-center justify-between gap-2 border-b border-[#173142] bg-[#163244] px-4 py-2 text-[11px] font-extrabold uppercase tracking-wider text-[#fffdf7]">
-                        <span className="truncate text-[#8ad0f5]">{event.spaceName}</span>
-                        <span className="shrink-0 font-mono text-[#e3b341]">
-                          {shortTicketDate(event.startsAt)}
-                        </span>
-                      </div>
-
-                      {/* Póster enmarcado */}
-                      {event.imageUrl && (
-                        <div className="border-b border-[#d5cfc0] bg-[#102330] p-2.5">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setLightboxItem({
-                                src: event.imageUrl!,
-                                title: event.title,
-                              })
-                            }
-                            className="block h-48 w-full overflow-hidden rounded-sm border border-[#29465a] bg-[#0b1922] text-left sm:h-52"
-                          >
-                            <img
-                              src={event.imageUrl}
-                              alt={event.title}
-                              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                            />
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Franja perforada de horario y ubicación */}
-                      <div className="relative flex flex-wrap items-center justify-between gap-2 border-b-2 border-dashed border-[#cfc8b6] bg-[#f6f2e4] px-4 py-2.5 text-xs font-extrabold text-[#173142]">
-                        <span
-                          aria-hidden="true"
-                          className="pointer-events-none absolute -bottom-2 -left-2 h-3.5 w-3.5 rounded-full border border-[#173142] bg-[#f4f3ed]"
-                        />
-                        <span
-                          aria-hidden="true"
-                          className="pointer-events-none absolute -right-2 -bottom-2 h-3.5 w-3.5 rounded-full border border-[#173142] bg-[#f4f3ed]"
-                        />
-                        <span className="inline-flex items-center gap-1.5 text-[#004d73] tabular-nums">
-                          <span>🕒</span>
-                          <span>{timeRange(event.startsAt, event.endsAt)}</span>
-                        </span>
-                        <span className="truncate text-[11px] font-bold text-[#4e636e]">
-                          {event.building ?? "Campus ESCOM"}
-                        </span>
-                      </div>
-
-                      {/* Cuerpo editorial del evento */}
-                      <div className="flex flex-1 flex-col justify-between p-4 sm:p-5">
-                        <div className="space-y-2.5">
-                          <h3 className="font-serif text-lg font-black leading-snug tracking-tight text-[#132c3d]">
-                            {event.title}
-                          </h3>
-
-                          {(event.speaker || event.clubName) && (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {event.speaker && (
-                                <span className="inline-flex max-w-full items-center rounded border border-[#c5d5de] bg-[#eef5f8] px-2 py-0.5 text-[11px] font-extrabold text-[#123d54] break-words whitespace-normal">
-                                  Ponente: {event.speaker}
-                                </span>
-                              )}
-                              {event.clubName && (
-                                <span className="inline-flex max-w-full items-center rounded border border-[#b8d4c8] bg-[#ebf6f1] px-2 py-0.5 text-[11px] font-extrabold text-[#14523f] break-words whitespace-normal">
-                                  {event.clubId ? (
-                                    <Link
-                                      href={`/clubes/${event.clubId}`}
-                                      className="hover:underline"
-                                    >
-                                      {event.clubName}
-                                    </Link>
-                                  ) : (
-                                    event.clubName
-                                  )}
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                          {event.description && (
-                            <p className="text-sm leading-relaxed text-[#435964]">
-                              {event.description}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Talón de boleto inferior con botón Asistiré */}
-                        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-[#dcd6c6] pt-3.5">
-                          <AttendButton
-                            eventKind={event.eventKind}
-                            eventId={event.id}
-                            initialAttending={event.viewerAttending}
-                            initialCount={event.attendeesCount}
-                            isAuthenticated={isAuthenticated}
-                          />
-
-                          <div className="flex items-center gap-2">
-                            {event.endsAt && (
-                              <span className="text-[11px] font-bold text-[#61747e]">
-                                Termina{" "}
-                                {new Intl.DateTimeFormat("es-MX", {
-                                  dateStyle: "short",
-                                  timeStyle: "short",
-                                  timeZone: TZ,
-                                }).format(new Date(event.endsAt))}
-                              </span>
-                            )}
-                            {(event.canManageEvent ?? (canPublishEvents && event.eventKind === "space")) && (
-                              <form action={deleteSpaceEvent}>
-                                <input type="hidden" name="id" value={event.id} />
-                                <button className="text-xs font-extrabold text-[#8C1D18] hover:underline">
-                                  Eliminar evento
-                                </button>
-                              </form>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </article>
+                      event={event}
+                      isAuthenticated={isAuthenticated}
+                      canDelete={event.canManageEvent ?? (canPublishEvents && event.eventKind === "space")}
+                      openPoster={setLightboxItem}
+                    />
                   ))}
                 </div>
               )}

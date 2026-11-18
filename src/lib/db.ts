@@ -12,8 +12,20 @@ export type SecureClient = {
 };
 
 const globalForPg = globalThis as unknown as { pool?: Pool };
+const connectionString = process.env.DATABASE_URL ?? "";
+const isLocalDb =
+  !connectionString ||
+  connectionString.includes("127.0.0.1") ||
+  connectionString.includes("localhost") ||
+  connectionString.includes("@postgres:");
+
 const rawPool =
-  globalForPg.pool ?? new Pool({ connectionString: process.env.DATABASE_URL });
+  globalForPg.pool ??
+  new Pool({
+    connectionString,
+    ssl: isLocalDb ? undefined : { rejectUnauthorized: false },
+    max: process.env.VERCEL ? 5 : 10,
+  });
 if (process.env.NODE_ENV !== "production") globalForPg.pool = rawPool;
 
 async function securityContext(): Promise<SecurityContext> {

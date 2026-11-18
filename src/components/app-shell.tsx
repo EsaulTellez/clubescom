@@ -9,7 +9,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const links = [
   { href: "/", label: "Inicio", icon: "home" },
-  { href: "/avisos", label: "Avisos", icon: "sparkles" },
+  { href: "/avisos", label: "Avisos", icon: "notices" },
   { href: "/clubes", label: "Clubes", icon: "people" },
   { href: "/eventos", label: "Eventos", icon: "calendar" },
   { href: "/mapa", label: "Mapa", icon: "map" },
@@ -21,7 +21,7 @@ function Icon({ name }: { name: string }) {
   const common = { viewBox: "0 0 24 24", className: "h-[18px] w-[18px] shrink-0", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   const paths: Record<string, React.ReactNode> = {
     home: <><path d="m3.5 10 8.5-7 8.5 7"/><path d="M5.5 9v11h13V9M9.5 20v-6h5v6"/></>,
-    sparkles: <><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/><path d="m5 14 .6 1.4L7 16l-1.4.6L5 18l-.6-1.4L3 16l1.4-.6L5 14Z"/></>,
+    notices: <><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M7 8h10M7 12h3v4H7zm7 0h3m-3 4h3"/></>,
     people: <><circle cx="9" cy="8" r="3"/><path d="M3.5 20c.4-3.4 2.3-5.2 5.5-5.2s5.1 1.8 5.5 5.2"/><path d="M15.5 5.4a3 3 0 0 1 0 5.7M17 14.8c2.1.6 3.3 2.3 3.5 5.2"/></>,
     calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/></>,
     map: <><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Z"/><path d="M9 3v15m6-12v15"/><circle cx="15" cy="9" r="1.5"/></>,
@@ -48,7 +48,7 @@ function NavItems({ pathname, mobile = false }: { pathname: string; mobile?: boo
             href={link.href}
             aria-current={active ? "page" : undefined}
             title={link.label}
-            className={`${mobile ? "min-h-12 min-w-[3.5rem] flex-1 flex-col gap-1 px-1 py-1.5" : "min-h-11 shrink-0 gap-2 px-3 py-2"} flex items-center justify-center rounded-md text-[#50636d] transition-colors hover:bg-[#e9efef] hover:text-[#004d73] ${active ? "bg-[#e5eff1] font-extrabold text-[#004d73]" : "font-semibold"}`}
+            className={`${mobile ? "min-h-12 min-w-[3.5rem] flex-1 flex-col gap-1 px-1 py-1.5" : "min-h-11 shrink-0 gap-2 px-3 py-2"} flex items-center justify-center border-b-2 text-[#50636d] transition-colors hover:bg-[#e9efef] hover:text-[#004d73] ${active ? "border-[#155775] font-bold text-[#004d73]" : "border-transparent font-semibold"}`}
           >
             <Icon name={link.icon}/>
             <span className={mobile ? "text-center text-[10px] font-bold leading-tight whitespace-nowrap" : "text-sm"}>{link.label}</span>
@@ -150,11 +150,11 @@ export function AppShell({
           Tu sesión se cerrará en menos de 2 minutos por inactividad (RNF-05). Mueve el cursor o presiona una tecla para continuar.
         </div>
       )}
-      <header className="sticky top-0 z-30 border-b border-[#dcd9ce] bg-[#fffdf7]">
+      <header className="sticky top-0 z-30 border-t-[3px] border-t-[#173e50] border-b border-[#c4c8bf] bg-[#fffdf7]">
         <div className="mx-auto flex h-[62px] max-w-[1780px] items-center gap-4 px-4 sm:px-6 lg:px-10">
           <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="ESCOM, inicio">
             <img src="/brand/escudo-escom.png" alt="ESCOM IPN" className="h-7 w-auto sm:h-8" />
-            <span className="hidden border-l border-[#d8d5ca] pl-2.5 text-[.68rem] font-extrabold tracking-[.14em] text-[#43616e] sm:inline">COMUNIDAD</span>
+            <span className="border-l border-[#d8d5ca] pl-2.5 font-serif text-base font-bold tracking-tight text-[#244753] sm:text-xl">Comunidad</span>
           </Link>
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
             {user ? <>
@@ -175,7 +175,7 @@ export function AppShell({
               <form action={logout}><button className="min-h-10 rounded-md px-2 text-xs font-bold text-[#687780] hover:bg-[#e9efef] hover:text-[#004d73] sm:px-3 sm:text-sm">Salir</button></form>
             </> : <>
               <Link href="/entrar" className="min-h-10 rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73]">Entrar</Link>
-              <Link href="/registro" className="min-h-10 rounded-md border border-[#004d73] bg-[#006699] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#004d73]">Crear cuenta</Link>
+              <Link href="/registro" className="min-h-10 rounded-sm border border-[#164b62] bg-[#155775] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#004d73]">Crear cuenta</Link>
             </>}
           </div>
         </div>
@@ -186,7 +186,7 @@ export function AppShell({
 
       <main className="mx-auto min-h-[calc(100vh-106px)] max-w-[1780px] px-4 pb-28 pt-5 sm:px-6 sm:pt-7 lg:px-10 lg:pb-12">{children}</main>
 
-      <div className="fixed inset-x-2 bottom-2 z-40 rounded-xl border border-[#dcd9ce] bg-[#fffdf7] p-1 shadow-[0_8px_24px_rgba(23,49,66,.13)] lg:hidden">
+      <div className="fixed inset-x-2 bottom-2 z-40 rounded-sm border border-[#dcd9ce] bg-[#fffdf7] p-1 shadow-[0_8px_24px_rgba(23,49,66,.13)] lg:hidden">
         <NavItems pathname={pathname} mobile />
       </div>
     </div>

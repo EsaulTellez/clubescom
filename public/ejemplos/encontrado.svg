@@ -1,9 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360">
-  <rect width="800" height="360" fill="#0b4f73"/>
-  <rect x="70" y="40" width="660" height="280" rx="18" fill="#f7fbfe"/>
-  <circle cx="210" cy="160" r="62" fill="#006699"/>
-  <rect x="310" y="110" width="340" height="22" rx="6" fill="#12384c"/>
-  <rect x="310" y="150" width="240" height="16" rx="6" fill="#8aa4b3"/>
-  <rect x="310" y="190" width="180" height="16" rx="6" fill="#c5d5de"/>
-  <rect x="150" y="250" width="500" height="36" rx="8" fill="#006699"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 340">
+  <defs>
+    <pattern id="keys" x="0" y="0" width="30" height="24" patternUnits="userSpaceOnUse">
+      <rect x="2" y="2" width="23" height="15" rx="3" fill="#97a5a6"/>
+      <path d="M10 9h6" stroke="#293c41" stroke-width="2"/>
+    </pattern>
+    <pattern id="numbers" x="0" y="0" width="37" height="27" patternUnits="userSpaceOnUse">
+      <rect x="1" y="2" width="30" height="20" rx="4" fill="#ebe3ce"/>
+      <path d="M12 12h8" stroke="#293c41" stroke-width="2"/>
+    </pattern>
+  </defs>
+  <rect width="450" height="340" fill="#dce8e4"/>
+  <g transform="translate(135 24) rotate(8 90 145)">
+    <rect x="6" y="8" width="178" height="286" rx="17" fill="#55706e"/>
+    <rect width="178" height="285" rx="16" fill="#35484d" stroke="#283c40" stroke-width="5"/>
+    <rect x="15" y="23" width="148" height="62" rx="4" fill="#192f36"/>
+    <rect x="21" y="30" width="136" height="48" rx="2" fill="#acbca5"/>
+    <path d="M134 46h11l-2 18h-11z" fill="none" stroke="#455a50" stroke-width="2.5"/>
+    <rect x="15" y="99" width="41" height="10" rx="3" fill="#c8ac76"/>
+    <rect x="129" y="97" width="33" height="13" rx="4" fill="#9cacac"/>
+    <rect x="0" y="0" width="150" height="48" transform="translate(16 121)" fill="url(#keys)"/>
+    <rect x="0" y="0" width="148" height="81" transform="translate(17 181)" fill="url(#numbers)"/>
+  </g>
 </svg>

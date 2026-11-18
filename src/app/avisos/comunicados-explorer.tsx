@@ -1,9 +1,11 @@
 "use client";
 
+import { CatalogSearch } from "@/components/catalog-search";
+
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AvisoExternalLink, trackAvisoInteraction } from "@/components/aviso-external-link";
-import { Cover } from "@/components/cover";
+import { btn } from "@/lib/ui";
 import { actualizarAviso, crearAviso } from "./actions";
 import { AvisoForm } from "./aviso-form";
 import { DeleteAviso } from "./delete-aviso";
@@ -50,8 +52,6 @@ const CATEGORY_STYLES: Record<
     badgeText: string;
     badgeBorder: string;
     topBorder: string;
-    leftBorder: string;
-    pillActive: string;
     icon: React.ReactNode;
   }
 > = {
@@ -60,8 +60,6 @@ const CATEGORY_STYLES: Record<
     badgeText: "text-[#6e5008]",
     badgeBorder: "border-[#e6d39a]",
     topBorder: "border-t-[#b88917]",
-    leftBorder: "border-l-[#b88917]",
-    pillActive: "border-[#8d6710] bg-[#b88917] text-white",
     icon: (
       <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.9">
         <path d="M5 3.5h7l3.5 3.5v9.5a1 1 0 0 1-1 1h-9.5a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1Z" strokeLinejoin="round" />
@@ -74,8 +72,6 @@ const CATEGORY_STYLES: Record<
     badgeText: "text-[#004d73]",
     badgeBorder: "border-[#bcd6e3]",
     topBorder: "border-t-[#006699]",
-    leftBorder: "border-l-[#006699]",
-    pillActive: "border-[#004d73] bg-[#006699] text-white",
     icon: (
       <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.9">
         <path d="m2.5 7.5 7.5-3.5 7.5 3.5-7.5 3.5-7.5-3.5Z" strokeLinejoin="round" />
@@ -88,8 +84,6 @@ const CATEGORY_STYLES: Record<
     badgeText: "text-[#165745]",
     badgeBorder: "border-[#bde0d4]",
     topBorder: "border-t-[#1b6b55]",
-    leftBorder: "border-l-[#1b6b55]",
-    pillActive: "border-[#145240] bg-[#1b6b55] text-white",
     icon: (
       <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.9">
         <circle cx="7.5" cy="7" r="2.3" />
@@ -169,7 +163,6 @@ export function ComunicadosExplorer({
   const [kpiLinksOnly, setKpiLinksOnly] = useState(false);
   const [kpiShowAll, setKpiShowAll] = useState(false);
 
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -348,11 +341,6 @@ export function ComunicadosExplorer({
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        searchInputRef.current?.focus();
-        return;
-      }
       if (formModal) {
         if (event.key === "Escape") {
           setFormModal(null);
@@ -388,27 +376,15 @@ export function ComunicadosExplorer({
   return (
     <div className="board-page">
       {/* Cabecera y barra de búsqueda interactiva */}
-      <section className="relative overflow-hidden rounded-2xl border border-[#d6d3c6] border-t-4 border-t-[#006699] bg-gradient-to-b from-[#faf8f0] to-[#fffdf7] p-5 shadow-xs sm:p-7">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#c3d9e4] bg-[#e8f3f8] text-[#004d73]">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 5v14l-7-4H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h7l7-4Z" />
-                <path d="M8 13v4a2 2 0 0 0 2 2h1" />
-              </svg>
-            </span>
-            <div>
-              <h1 className="text-2xl font-extrabold tracking-tight text-[#14374a] sm:text-3xl">
-                Comunicados
-              </h1>
-            </div>
-          </div>
+      <section className="edition-header">
+        <div className="edition-rule flex flex-wrap items-end justify-between gap-4">
+          <h1 className="edition-title">Comunicados</h1>
 
           {canCreate && (
             <button
               type="button"
               onClick={() => setFormModal({ mode: "create" })}
-              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#004d73] bg-[#006699] px-4 py-2 text-sm font-extrabold text-white shadow-xs transition hover:-translate-y-0.5 hover:bg-[#004d73]"
+              className={btn}
             >
               <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2">
                 <path d="M10 4v12M4 10h12" strokeLinecap="round" />
@@ -420,41 +396,7 @@ export function ComunicadosExplorer({
 
         {/* Buscador diseñado con filtros integrados */}
         <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-          <div className="group relative flex items-center rounded-xl border-2 border-[#d3d8cf] bg-white px-3.5 py-2 shadow-[0_2px_12px_rgba(20,55,74,0.04)] transition focus-within:border-[#006699] focus-within:ring-4 focus-within:ring-[#006699]/10">
-            <svg
-              viewBox="0 0 20 20"
-              className="h-5 w-5 shrink-0 text-[#5a727e] transition group-focus-within:text-[#006699]"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <circle cx="9" cy="9" r="5.5" />
-              <path d="m13.2 13.2 3.8 3.8" strokeLinecap="round" />
-            </svg>
-            <input
-              ref={searchInputRef}
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar por reinscripción, becas, convocatorias, clubes o título…"
-              aria-label="Buscar comunicados"
-              className="w-full min-w-0 bg-transparent px-3 py-1.5 text-sm font-semibold text-[#16384a] placeholder:font-normal placeholder:text-[#788992] focus:outline-none sm:text-[15px]"
-            />
-            {query ? (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label="Limpiar texto de búsqueda"
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#eef2f3] text-xs font-extrabold text-[#3d5663] transition hover:bg-[#dce6ea] hover:text-[#14374a]"
-              >
-                ✕
-              </button>
-            ) : (
-              <kbd className="hidden shrink-0 rounded-md border border-[#d9ddd6] bg-[#f6f5ef] px-2 py-0.5 text-[11px] font-bold text-[#60737d] sm:inline-block">
-                ⌘K
-              </kbd>
-            )}
-          </div>
+          <CatalogSearch value={query} onChange={setQuery} label="Buscar comunicados" shortcutEnabled={!formModal && !selectedItem} />
 
           <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Filtrar por categoría">
             <button
@@ -462,20 +404,10 @@ export function ComunicadosExplorer({
               role="tab"
               aria-selected={categoryFilter === "all"}
               onClick={() => setCategoryFilter("all")}
-              className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-extrabold transition duration-150 ${
-                categoryFilter === "all"
-                  ? "border-[#15394d] bg-[#15394d] text-white shadow-xs"
-                  : "border-[#d4d7ce] bg-white text-[#385360] hover:border-[#9eb9c6] hover:bg-[#f2f7f9]"
-              }`}
+              className="catalog-tab"
             >
               <span>Todos</span>
-              <span
-                className={`rounded-md px-1.5 py-0.5 text-[11px] ${
-                  categoryFilter === "all" ? "bg-white/20 text-white" : "bg-[#eef2f0] text-[#4b6470]"
-                }`}
-              >
-                {counts.all}
-              </span>
+              <small>{counts.all}</small>
             </button>
 
             {(["tramites", "academico", "social"] as const).map((cat) => {
@@ -488,21 +420,11 @@ export function ComunicadosExplorer({
                   role="tab"
                   aria-selected={active}
                   onClick={() => setCategoryFilter(active ? "all" : cat)}
-                  className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-extrabold transition duration-150 ${
-                    active
-                      ? `${st.pillActive} shadow-xs`
-                      : "border-[#d4d7ce] bg-white text-[#385360] hover:border-[#9eb9c6] hover:bg-[#f2f7f9]"
-                  }`}
+                  className="catalog-tab"
                 >
                   {st.icon}
                   <span>{categoryLabel(cat)}</span>
-                  <span
-                    className={`rounded-md px-1.5 py-0.5 text-[11px] ${
-                      active ? "bg-white/20 text-white" : "bg-[#eef2f0] text-[#4b6470]"
-                    }`}
-                  >
-                    {counts[cat]}
-                  </span>
+                  <small>{counts[cat]}</small>
                 </button>
               );
             })}
@@ -511,7 +433,7 @@ export function ComunicadosExplorer({
               type="button"
               aria-pressed={onlyWithPoster}
               onClick={() => setOnlyWithPoster((v) => !v)}
-              className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-extrabold transition duration-150 ${
+              className={`inline-flex min-h-10 items-center gap-1.5 rounded-sm border px-3 py-2 text-xs font-extrabold transition duration-150 ${
                 onlyWithPoster
                   ? "border-[#004d73] bg-[#e6f3fa] text-[#004d73]"
                   : "border-[#d4d7ce] bg-white text-[#4b6470] hover:border-[#9eb9c6] hover:bg-[#f2f7f9]"
@@ -530,7 +452,7 @@ export function ComunicadosExplorer({
                 type="button"
                 aria-pressed={onlyWithLink}
                 onClick={() => setOnlyWithLink((v) => !v)}
-                className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-extrabold transition duration-150 ${
+                className={`inline-flex min-h-10 items-center gap-1.5 rounded-sm border px-3 py-2 text-xs font-extrabold transition duration-150 ${
                   onlyWithLink
                     ? "border-[#004d73] bg-[#e6f3fa] text-[#004d73]"
                     : "border-[#d4d7ce] bg-white text-[#4b6470] hover:border-[#9eb9c6] hover:bg-[#f2f7f9]"
@@ -548,7 +470,7 @@ export function ComunicadosExplorer({
               <button
                 type="button"
                 onClick={clearFilters}
-                className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-[#d6c5c2] bg-[#fdf5f4] px-3 py-2 text-xs font-extrabold text-[#8C1D18] transition hover:bg-[#fae6e4]"
+                className="inline-flex min-h-10 items-center gap-1 rounded-sm border border-[#d6c5c2] bg-[#fdf5f4] px-3 py-2 text-xs font-extrabold text-[#8C1D18] transition hover:bg-[#fae6e4]"
               >
                 Limpiar
               </button>
@@ -561,7 +483,7 @@ export function ComunicadosExplorer({
       {showKpis && (
         <section
           aria-labelledby="comunicacion-kpis-heading"
-          className="rounded-2xl border border-[#c9d7de] border-t-4 border-t-[#15394d] bg-[#fffdf7] p-5 shadow-xs sm:p-6"
+          className="rounded-sm border border-[#c9d7de] border-t-4 border-t-[#15394d] bg-[#fffdf7] p-5 shadow-xs sm:p-6"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
@@ -601,7 +523,7 @@ export function ComunicadosExplorer({
           {kpiExpanded && (
             <div className="mt-4 space-y-5">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl border border-[#dcd9ce] bg-white p-4">
+                <div className="rounded-sm border border-[#dcd9ce] bg-white p-4">
                   <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#556a74]">
                     Comunicados activos
                   </p>
@@ -625,7 +547,7 @@ export function ComunicadosExplorer({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[#dcd9ce] bg-white p-4">
+                <div className="rounded-sm border border-[#dcd9ce] bg-white p-4">
                   <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#556a74]">
                     Aperturas totales
                   </p>
@@ -637,7 +559,7 @@ export function ComunicadosExplorer({
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-[#dcd9ce] bg-white p-4">
+                <div className="rounded-sm border border-[#dcd9ce] bg-white p-4">
                   <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#556a74]">
                     Clics en enlaces
                   </p>
@@ -649,7 +571,7 @@ export function ComunicadosExplorer({
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-[#dcd9ce] bg-white p-4">
+                <div className="rounded-sm border border-[#dcd9ce] bg-white p-4">
                   <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#556a74]">
                     Tasa de clics (CTR)
                   </p>
@@ -663,7 +585,7 @@ export function ComunicadosExplorer({
               </div>
 
               {kpiRankedItems.length > 0 && (
-                <div className="overflow-hidden rounded-xl border border-[#dcd9ce] bg-white">
+                <div className="overflow-hidden rounded-sm border border-[#dcd9ce] bg-white">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#eae7dc] bg-[#faf8f0] px-4 py-2.5">
                     <p className="text-xs font-extrabold uppercase tracking-wider text-[#385360]">
                       Desglose por comunicado
@@ -806,12 +728,12 @@ export function ComunicadosExplorer({
 
       {/* Vitrina de comunicados destacados (cuando no se está filtrando por texto) */}
       {!query.trim() && featuredItems.length > 0 && (
-        <section className="board-pinned" aria-labelledby="destacados-heading">
+        <section className="min-w-0" aria-labelledby="destacados-heading">
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 id="destacados-heading" className="text-lg font-extrabold tracking-tight text-[#15394d] sm:text-xl">
               Destacados
             </h2>
-            <span className="board-label">{featuredItems.length}</span>
+            <span className="font-mono text-xs text-[#53656c]">{featuredItems.length}</span>
           </div>
 
           <div className="relative">
@@ -820,74 +742,23 @@ export function ComunicadosExplorer({
               onScroll={updateCarouselState}
               className="flex snap-x snap-mandatory items-stretch gap-4 overflow-x-auto pb-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-              {featuredItems.map((item) => {
-                const st = CATEGORY_STYLES[item.category];
-                if (item.imageUrl) {
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => openComunicado(item.id)}
-                      className="group relative h-64 w-auto max-w-[27rem] min-w-[14rem] shrink-0 snap-start overflow-hidden rounded-2xl border border-[#d6d3c6] bg-[#10212b] text-left shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-md sm:h-72"
-                    >
-                      <img
-                        src={item.imageUrl}
-                        alt={item.title}
-                        onLoad={updateCarouselState}
-                        className="block h-full w-auto max-w-[27rem] min-w-[14rem] object-cover transition duration-300 group-hover:scale-[1.03]"
-                      />
-                      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col justify-end bg-gradient-to-t from-black/95 via-black/65 to-transparent p-4 pt-16 text-white">
-                        <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold text-white/85">
-                          <span className="rounded bg-white/20 px-2 py-0.5 backdrop-blur-xs">
-                            {categoryLabel(item.category)}
-                          </span>
-                          <span>{item.publishDateFormatted}</span>
-                        </div>
-                        <h3 className="line-clamp-2 text-sm font-extrabold leading-snug text-white sm:text-base">
-                          {item.title}
-                        </h3>
-                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/80">
-                          {item.body}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                }
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => openComunicado(item.id)}
-                    className={`group relative flex h-64 w-80 shrink-0 snap-start flex-col justify-between overflow-hidden rounded-2xl border border-[#d6d3c6] border-t-4 ${st.topBorder} bg-[#fffefa] p-5 text-left shadow-sm transition duration-200 hover:-translate-y-1 hover:border-[#006699] hover:shadow-md sm:h-72 sm:w-88`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={`inline-flex items-center gap-1.5 rounded-md border ${st.badgeBorder} ${st.badgeBg} px-2.5 py-0.5 text-xs font-extrabold ${st.badgeText}`}>
-                          {st.icon}
-                          {categoryLabel(item.category)}
-                        </span>
-                        <span className="text-xs font-semibold text-[#5f727c]">
-                          {item.publishDateFormatted}
-                        </span>
-                      </div>
-                      <h3 className="mt-3.5 line-clamp-2 text-lg font-extrabold leading-snug text-[#15394d] group-hover:text-[#006699]">
-                        {item.title}
-                      </h3>
-                      <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-[#455a64]">
-                        {item.body}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-[#e9e6dc] pt-3 text-xs font-bold text-[#4a626e]">
-                      <span className="truncate">{item.authorName}</span>
-                      <span className="shrink-0 text-[#006699] transition group-hover:translate-x-0.5">
-                        Leer →
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+              {featuredItems.map((item) => (
+                <button key={item.id} type="button" onClick={() => openComunicado(item.id)}
+                  className="group flex w-[min(84%,23rem)] shrink-0 snap-start flex-col border-t-2 border-[#264b58] bg-[#fffdf7] text-left sm:w-[calc((100%-2rem)/3)]">
+                  {item.imageUrl && (
+                    <img src={item.imageUrl} alt="" onLoad={updateCarouselState}
+                      className="aspect-[2/1] w-full bg-[#eeece3] object-contain" />
+                  )}
+                  <div className="w-full p-4">
+                    <p className="flex flex-wrap justify-between gap-2 text-xs text-[#53656c]">
+                      <span className={`font-semibold ${CATEGORY_STYLES[item.category].badgeText}`}>{categoryLabel(item.category)}</span>
+                      <time dateTime={item.publishAtIso}>{item.publishDateFormatted}</time>
+                    </p>
+                    <h3 className="mt-2 text-xl leading-tight font-bold text-[#213d49] group-hover:underline decoration-1 underline-offset-4 sm:text-2xl">{item.title}</h3>
+                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[#4c6068]">{item.body}</p>
+                  </div>
+                </button>
+              ))}
             </div>
 
             <button
@@ -920,8 +791,8 @@ export function ComunicadosExplorer({
       {/* Mural de Comunicados a ancho completo (sin asides de trámites/guías) */}
       <div>
         {filtered.length === 0 ? (
-          <div className="aviso-animate-in rounded-2xl border border-[#dcd9ce] bg-[#fffdf7] p-8 text-center shadow-xs">
-            <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-[#eaf3f6] text-[#006699]">
+          <div className="aviso-animate-in rounded-sm border border-[#dcd9ce] bg-[#fffdf7] p-8 text-center shadow-xs">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-sm bg-[#eaf3f6] text-[#006699]">
               <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="11" cy="11" r="7" />
                 <path d="m16.2 16.2 4.3 4.3" strokeLinecap="round" />
@@ -935,7 +806,7 @@ export function ComunicadosExplorer({
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="rounded-xl border border-[#c5d6de] bg-white px-4 py-2 text-xs font-extrabold text-[#16384a] transition hover:bg-[#eef4f6]"
+                  className="rounded-sm border border-[#c5d6de] bg-white px-4 py-2 text-xs font-extrabold text-[#16384a] transition hover:bg-[#eef4f6]"
                 >
                   Ver todos los comunicados
                 </button>
@@ -952,7 +823,7 @@ export function ComunicadosExplorer({
                 <article
                   key={item.id}
                   style={{ animationDelay: `${Math.min(idx * 45, 270)}ms` }}
-                  className={`aviso-animate-in group flex flex-col justify-between overflow-hidden rounded-2xl border border-[#d7d5c8] border-l-4 ${st.leftBorder} bg-[#fffefa] shadow-xs transition duration-200 hover:-translate-y-0.5 hover:border-[#9ab9c6] hover:shadow-md ${
+                  className={`aviso-animate-in group flex flex-col justify-between overflow-hidden rounded-sm border border-[#d7d5c8] border-t-[3px] ${st.topBorder} bg-[#fffefa] transition-colors hover:border-[#7b98a3] ${
                     isHeroSpan ? "md:col-span-2" : ""
                   }`}
                 >
@@ -1011,7 +882,7 @@ export function ComunicadosExplorer({
 
                         <h3
                           className={`mt-3 font-extrabold leading-snug text-[#15394d] transition group-hover:text-[#006699] ${
-                            isHeroSpan ? "text-xl sm:text-2xl" : "text-lg"
+                            isHeroSpan ? "text-2xl sm:text-3xl" : "text-xl"
                           }`}
                         >
                           {item.title}
@@ -1090,7 +961,7 @@ export function ComunicadosExplorer({
           onClick={() => setSelectedId(null)}
         >
           <div
-            className="aviso-modal-panel relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[#dcd9ce] bg-[#fffdf7] shadow-2xl"
+            className="aviso-modal-panel relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-sm border border-[#dcd9ce] bg-[#fffdf7] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Barra superior del modal */}
@@ -1149,21 +1020,14 @@ export function ComunicadosExplorer({
 
             {/* Contenido del comunicado */}
             <div className="space-y-6 overflow-y-auto p-5 sm:p-7">
-              {selectedItem.imageUrl ? (
-                <div className="flex justify-center overflow-hidden rounded-xl border border-[#dcd9ce] bg-[#111b22]">
+              {selectedItem.imageUrl && (
+                <div className="flex justify-center overflow-hidden rounded-sm border border-[#dcd9ce] bg-[#111b22]">
                   <img
                     src={selectedItem.imageUrl}
                     alt={selectedItem.title}
                     className="max-h-[58vh] w-auto object-contain"
                   />
                 </div>
-              ) : (
-                <Cover
-                  tone={selectedItem.category}
-                  kicker={categoryLabel(selectedItem.category)}
-                  title={selectedItem.title}
-                  className="h-44 rounded-xl sm:h-52"
-                />
               )}
 
               <div className="space-y-4">
@@ -1212,7 +1076,7 @@ export function ComunicadosExplorer({
 
               {/* Formatos de difusión en redes (si existen en el registro) */}
               {(selectedItem.socialTwitter || selectedItem.socialFacebook || selectedItem.socialCopy) && (
-                <div className="space-y-3 rounded-xl border border-[#d6e2e8] bg-[#f4f9fb] p-4">
+                <div className="space-y-3 rounded-sm border border-[#d6e2e8] bg-[#f4f9fb] p-4">
                   <p className="text-xs font-extrabold uppercase tracking-wider text-[#004d73]">
                     Síntesis para difusión
                   </p>
@@ -1254,7 +1118,7 @@ export function ComunicadosExplorer({
                         key={rel.id}
                         type="button"
                         onClick={() => openComunicado(rel.id)}
-                        className="rounded-xl border border-[#e2e0d4] bg-white p-3 text-left transition hover:border-[#006699] hover:bg-[#f5fafc]"
+                        className="rounded-sm border border-[#e2e0d4] bg-white p-3 text-left transition hover:border-[#006699] hover:bg-[#f5fafc]"
                       >
                         <p className="text-[11px] font-semibold text-[#5d717b]">
                           {rel.publishDateFormatted}
@@ -1274,7 +1138,7 @@ export function ComunicadosExplorer({
                   <button
                     type="button"
                     onClick={() => setFormModal({ mode: "edit", item: selectedItem })}
-                    className="inline-flex items-center rounded-xl border border-[#d6d9d0] bg-white px-3.5 py-2 text-xs font-bold text-[#385360] transition hover:border-[#006699] hover:text-[#004d73]"
+                    className="inline-flex items-center rounded-sm border border-[#d6d9d0] bg-white px-3.5 py-2 text-xs font-bold text-[#385360] transition hover:border-[#006699] hover:text-[#004d73]"
                   >
                     Editar
                   </button>
@@ -1302,7 +1166,7 @@ export function ComunicadosExplorer({
           onClick={() => setFormModal(null)}
         >
           <div
-            className="aviso-modal-panel relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#dcd9ce] bg-[#fffdf7] shadow-2xl"
+            className="aviso-modal-panel relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-sm border border-[#dcd9ce] bg-[#fffdf7] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 border-b border-[#e7e4d9] bg-[#faf8f0] px-5 py-3.5">

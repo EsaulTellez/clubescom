@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AttendButton } from "@/components/attend-button";
 import { AvisoExternalLink } from "@/components/aviso-external-link";
 import { QuickPublishModal, type QuickPublishContext } from "@/components/quick-publish-modal";
@@ -26,7 +26,8 @@ export function HomeFeed({
   publishContext?: QuickPublishContext;
 }) {
   const [mode, setMode] = useState<FeedMode>(initialBatch.mode);
-  const [items, setItems] = useState<FeedItem[]>(initialBatch.items);
+  const [loadedItems, setLoadedItems] = useState<FeedItem[]>(initialBatch.items);
+  const [realtimeItems, setRealtimeItems] = useState<FeedItem[] | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(initialBatch.hasMore);
   const [nextOffset, setNextOffset] = useState<number>(initialBatch.nextOffset);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
@@ -34,13 +35,43 @@ export function HomeFeed({
   const [lightboxItem, setLightboxItem] = useState<{ src: string; title: string } | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  const items = useMemo(() => {
+    if (realtimeItems !== null) return realtimeItems;
+    if (mode !== initialBatch.mode) return loadedItems;
+    if (loadedItems.length <= 5) return initialBatch.items;
+    const incomingIds = new Set(initialBatch.items.map((item) => item.id));
+    const rest = loadedItems.filter((item) => !incomingIds.has(item.id));
+    return [...initialBatch.items, ...rest];
+  }, [initialBatch, loadedItems, mode, realtimeItems]);
+
   useEffect(() => {
-    if (mode === initialBatch.mode && items.length <= 5) {
-      setItems(initialBatch.items);
-      setHasMore(initialBatch.hasMore);
-      setNextOffset(initialBatch.nextOffset);
+    async function refreshActiveMode() {
+      if (switchingMode) return;
+      const fetchLimit = Math.min(12, Math.max(5, items.length));
+      const res = await fetch(
+        `/api/feed?mode=${encodeURIComponent(mode)}&offset=0&limit=${fetchLimit}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) return;
+      const data: FeedBatchResult = await res.json();
+      setRealtimeItems((prev) => {
+        const base = prev ?? items;
+        if (base.length <= fetchLimit) return data.items;
+        const incomingIds = new Set(data.items.map((item) => item.id));
+        const rest = base.filter((item) => !incomingIds.has(item.id));
+        return [...data.items, ...rest];
+      });
+      if (items.length <= fetchLimit) {
+        setHasMore(data.hasMore);
+        setNextOffset(data.nextOffset);
+      }
     }
-  }, [initialBatch, mode, items.length]);
+    const handler = () => {
+      void refreshActiveMode();
+    };
+    window.addEventListener("escom:realtime-update", handler);
+    return () => window.removeEventListener("escom:realtime-update", handler);
+  }, [mode, items, switchingMode]);
 
   useEffect(() => {
     if (!lightboxItem) return;
@@ -61,7 +92,8 @@ export function HomeFeed({
       );
       if (!res.ok) return;
       const data: FeedBatchResult = await res.json();
-      setItems((prev) => {
+      setRealtimeItems(null);
+      setLoadedItems((prev) => {
         const seen = new Set(prev.map((i) => i.id));
         const fresh = data.items.filter((i) => !seen.has(i.id));
         return [...prev, ...fresh];
@@ -76,6 +108,7 @@ export function HomeFeed({
   async function handleModeChange(nextMode: FeedMode) {
     if (nextMode === mode || switchingMode) return;
     setMode(nextMode);
+    setRealtimeItems(null);
     setSwitchingMode(true);
     try {
       const res = await fetch(
@@ -84,7 +117,7 @@ export function HomeFeed({
       );
       if (!res.ok) return;
       const data: FeedBatchResult = await res.json();
-      setItems(data.items);
+      setLoadedItems(data.items);
       setHasMore(data.hasMore);
       setNextOffset(data.nextOffset);
     } finally {
@@ -111,7 +144,7 @@ export function HomeFeed({
 
   return (
     <section className="mx-auto w-full max-w-[44rem] space-y-6" aria-label="Feed de la comunidad">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-y border-[#c1c5bc]">
         <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Filtrar publicaciones">
           {FILTERS.map((f) => (
             <button
@@ -120,7 +153,7 @@ export function HomeFeed({
               role="tab"
               aria-selected={mode === f.mode}
               onClick={() => handleModeChange(f.mode)}
-              className={`board-feed-tab ${mode === f.mode ? "board-feed-tab--active" : ""}`}
+              className="catalog-tab"
             >
               {f.label}
             </button>
@@ -150,9 +183,9 @@ export function HomeFeed({
               return (
                 <article
                   key={item.id}
-                  className="group overflow-hidden rounded-lg border border-[#c9d6cf] border-l-4 border-l-[#165b47] bg-[#fffdf7] shadow-[0_2px_0_rgba(22,91,71,0.06)] transition hover:border-[#8eb8a7]"
+                  className="group overflow-hidden rounded-sm border border-[#c9d6cf] border-l-4 border-l-[#165b47] bg-[#fffdf7] shadow-[0_2px_0_rgba(22,91,71,0.06)] transition hover:border-[#8eb8a7]"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-dashed border-[#d8e3dd] bg-[#f7faf8] px-5 py-3 sm:px-6">
+                  <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-[#d8e3dd] bg-[#f7faf8] px-5 py-3 sm:px-6">
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md border border-[#bfd4ca] bg-white text-sm font-extrabold text-[#14523f]">
                         {item.avatarImage ? (
@@ -183,7 +216,7 @@ export function HomeFeed({
                     </div>
                     <div className="flex max-w-full flex-wrap items-center gap-1.5">
                       <span className="inline-flex max-w-full items-center rounded border border-[#b4d3c6] bg-[#e9f5f0] px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-[#11503d] break-words whitespace-normal">
-                        Club · {item.categoryLabel}
+                        {item.categoryLabel}
                       </span>
                       {item.clubSchedule && (
                         <span className="inline-flex max-w-full items-center rounded border border-[#d6dedb] bg-white px-2.5 py-0.5 text-[11px] font-bold text-[#49635b] break-words whitespace-normal">
@@ -217,8 +250,7 @@ export function HomeFeed({
                   </div>
 
                   {item.clubId && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-[#dce7e1] bg-[#f8fbf9] px-5 py-2.5 text-xs font-bold text-[#165b47] sm:px-6">
-                      <span className="min-w-0 break-words">{item.clubName}</span>
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#dce7e1] bg-[#f8fbf9] px-5 py-2.5 text-xs font-bold text-[#165b47] sm:px-6">
                       <Link href={`/clubes/${item.clubId}`} className="shrink-0 hover:underline">
                         Ir al club →
                       </Link>
@@ -232,7 +264,7 @@ export function HomeFeed({
               return (
                 <article
                   key={item.id}
-                  className="group overflow-hidden rounded-lg border border-[#c6d4dc] border-t-4 border-t-[#005a87] bg-[#fffdf7] shadow-[0_2px_0_rgba(7,68,99,0.06)] transition hover:border-[#86b1c8]"
+                  className="group overflow-hidden rounded-sm border border-[#c6d4dc] border-t-4 border-t-[#005a87] bg-[#fffdf7] shadow-[0_2px_0_rgba(7,68,99,0.06)] transition hover:border-[#86b1c8]"
                 >
                   {item.imageUrl ? (
                     <div className="relative border-b border-[#d6dfe4] bg-[#f3f1e8]">
@@ -253,7 +285,7 @@ export function HomeFeed({
                     </div>
                   ) : null}
 
-                  <div className="border-b border-dashed border-[#d4dce0] bg-[#f7f5ec] px-5 py-3 sm:px-6">
+                  <div className="border-b border-[#d4dce0] bg-[#f7f5ec] px-5 py-3 sm:px-6">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs font-bold">
                         {!item.imageUrl && (
@@ -262,7 +294,7 @@ export function HomeFeed({
                           </span>
                         )}
                         {item.eventStartsAtFormatted && (
-                          <span className="inline-flex max-w-full items-center gap-1.5 rounded border border-[#bcd2de] bg-white px-2.5 py-1 text-[#004d73] break-words whitespace-normal">
+                          <span className="inline-flex max-w-full items-center gap-1.5 py-1 text-[#004d73] break-words whitespace-normal">
                             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
                               <rect x="2" y="3" width="12" height="11" rx="1.8" />
                               <path d="M5 1.5v2.5M11 1.5v2.5M2 6.5h12" strokeLinecap="round" />
@@ -274,13 +306,13 @@ export function HomeFeed({
                           </span>
                         )}
                         {item.eventLocation && (
-                          <span className="inline-flex max-w-full items-start gap-1.5 rounded border border-[#d6d3c6] bg-white px-2.5 py-1 text-[#3d525e] break-words whitespace-normal">
+                          <span className="inline-flex max-w-full items-start gap-1.5 py-1 text-[#3d525e] break-words whitespace-normal">
                             <span className="shrink-0" aria-hidden="true">⌖</span>
                             <span className="min-w-0 break-words">{item.eventLocation}</span>
                           </span>
                         )}
                         {item.eventSpeaker && (
-                          <span className="inline-flex max-w-full items-start gap-1 rounded border border-[#d6d3c6] bg-white px-2.5 py-1 text-[#2c4452] break-words whitespace-normal">
+                          <span className="inline-flex max-w-full items-start gap-1 py-1 text-[#2c4452] break-words whitespace-normal">
                             <span className="min-w-0 break-words">Ponente: {item.eventSpeaker}</span>
                           </span>
                         )}
@@ -311,11 +343,9 @@ export function HomeFeed({
                     )}
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-[#dce5ea] bg-[#f8fafb] px-5 py-2.5 text-xs font-bold text-[#005a87] sm:px-6">
-                    <span className="text-[#586d77]">
-                      {item.eventKind === "club" && item.clubName ? item.clubName : "Actividad en ESCOM"}
-                    </span>
-                    <Link href="/eventos" className="shrink-0 hover:underline">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#dce5ea] bg-[#f8fafb] px-5 py-2.5 text-xs font-bold text-[#005a87] sm:px-6">
+                    {item.clubName && <span className="text-[#586d77]">{item.clubName}</span>}
+                    <Link href="/eventos" className="ml-auto shrink-0 hover:underline">
                       Ver en cartelera →
                     </Link>
                   </div>
@@ -327,7 +357,7 @@ export function HomeFeed({
               return (
                 <article
                   key={item.id}
-                  className="group overflow-hidden rounded-lg border border-[#ddd4be] border-l-4 border-l-[#b88917] bg-[#fffdf7] shadow-[0_2px_0_rgba(110,80,8,0.05)] transition hover:border-[#cbb88d]"
+                  className="group overflow-hidden rounded-sm border border-[#ddd4be] border-l-4 border-l-[#b88917] bg-[#fffdf7] shadow-[0_2px_0_rgba(110,80,8,0.05)] transition hover:border-[#cbb88d]"
                 >
                   <div className="p-5 sm:p-6">
                     <div className="flex items-start gap-4">
@@ -390,7 +420,7 @@ export function HomeFeed({
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-[#e7dfc9] bg-[#fbf8ef] px-5 py-2.5 text-xs font-bold text-[#6e5008] sm:px-6">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e7dfc9] bg-[#fbf8ef] px-5 py-2.5 text-xs font-bold text-[#6e5008] sm:px-6">
                     <span>
                       {item.answersCount ?? 0} {item.answersCount === 1 ? "respuesta" : "respuestas"}
                     </span>
@@ -406,7 +436,7 @@ export function HomeFeed({
             return (
               <article
                 key={item.id}
-                className="group overflow-hidden rounded-lg border border-[#d6d3c6] border-t-[3px] border-t-[#004d73] bg-[#fffdf7] shadow-[0_2px_0_rgba(0,77,115,0.05)] transition hover:border-[#8bb7cf]"
+                className="group overflow-hidden rounded-sm border border-[#d6d3c6] border-t-[3px] border-t-[#004d73] bg-[#fffdf7] shadow-[0_2px_0_rgba(0,77,115,0.05)] transition hover:border-[#8bb7cf]"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e4e0d3] bg-[#f7f5ec] px-5 py-2.5 sm:px-6">
                   <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#004d73]">
@@ -446,7 +476,7 @@ export function HomeFeed({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-[#dfdccc] bg-[#faf8f1] px-5 py-2.5 text-xs font-bold text-[#005a87] sm:px-6">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#dfdccc] bg-[#faf8f1] px-5 py-2.5 text-xs font-bold text-[#005a87] sm:px-6">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[#5b6f7a]">Comunicado oficial</span>
                     {item.externalUrl && (
@@ -462,7 +492,7 @@ export function HomeFeed({
           })}
         </div>
       ) : (
-        <p className="rounded-2xl border border-[#dcd9ce] bg-[#fffdf7] p-6 text-center text-sm text-[#5f6e78]">
+        <p className="rounded-sm border border-[#dcd9ce] bg-[#fffdf7] p-6 text-center text-sm text-[#5f6e78]">
           No hay publicaciones en esta categoría.
         </p>
       )}
@@ -470,7 +500,7 @@ export function HomeFeed({
       {/* Centinela silencioso para cargar más al deslizar */}
       <div ref={sentinelRef} className="pt-1" aria-live="polite">
         {loadingMore && (
-          <div className="animate-pulse space-y-3 rounded-2xl border border-[#dcd9ce] bg-[#fffefa] p-6">
+          <div className="animate-pulse space-y-3 rounded-sm border border-[#dcd9ce] bg-[#fffefa] p-6">
             <div className="h-4 w-1/3 rounded bg-[#e6e4da]" />
             <div className="h-6 w-2/3 rounded bg-[#dfddd2]" />
             <div className="h-14 w-full rounded bg-[#eceae1]" />
@@ -488,7 +518,7 @@ export function HomeFeed({
           onClick={() => setLightboxItem(null)}
         >
           <div
-            className="relative max-h-[92vh] max-w-4xl overflow-hidden rounded-2xl border border-white/15 bg-[#0b1820] shadow-2xl"
+            className="relative max-h-[92vh] max-w-4xl overflow-hidden rounded-sm border border-white/15 bg-[#0b1820] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-3 text-white">

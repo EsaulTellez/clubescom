@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { card } from "@/lib/ui";
 import { ReportForm } from "./form";
 
 export const dynamic = "force-dynamic";
@@ -11,17 +10,12 @@ export default async function NuevoObjetoPage() {
   if (!user) redirect("/entrar");
 
   return (
-    <section className={`${card} mx-auto max-w-xl`}>
-      <p className="text-sm text-[#667085]">
-        <Link href="/objetos" className="underline">
-          Objetos
-        </Link>
-      </p>
-      <h1 className="mt-1 text-2xl font-semibold">Reportar objeto</h1>
-      <p className="mt-2 mb-4 text-sm text-[#667085]">
-        Publica lo que perdiste o encontraste. Si hay un reporte parecido del otro tipo, avisamos a las dos personas.
-      </p>
-      <ReportForm />
+    <section className="mx-auto max-w-2xl border border-[#cfcbbf] border-t-4 border-t-[#155772] bg-[#fffdf7]">
+      <header className="border-b border-[#cfcbbf] bg-[#e8f0ef] px-5 py-5 sm:px-8">
+        <Link href="/objetos" className="text-sm font-bold text-[#155772] hover:underline">← Perdidos y encontrados</Link>
+        <h1 className="mt-3 font-[Georgia,serif] text-3xl font-bold tracking-tight">Reportar objeto</h1>
+      </header>
+      <div className="p-5 sm:p-8"><ReportForm /></div>
     </section>
   );
 }

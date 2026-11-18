@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
-import { Cover } from "@/components/cover";
+import { ReportNotice } from "../report-notice";
 import { FlowRail } from "@/components/flow-rail";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { btn, btnGhost, card, input, label } from "@/lib/ui";
 import { closeItem, confirmDelivery, reviewClaim, updateMeetingNote } from "../actions";
-import { kindLabel, statusLabel, type ItemKind, type ItemStatus } from "../labels";
+import { kindLabel, type ItemKind, type ItemStatus } from "../labels";
 import { ClaimForm } from "./claim-form";
 import { QrDeliveryVerifyForm } from "./qr-scanner";
 
@@ -115,21 +115,11 @@ export default async function ObjetoPage({
     }),
   );
 
-  const when = new Date(item.created_at).toLocaleDateString("es-MX", { dateStyle: "medium" });
   const stage = item.status === "entregado" ? 3 : claims.some((claim) => claim.status === "respuesta_correcta" || claim.status === "aprobada") ? 2 : match ? 1 : 0;
 
   return (
     <article className="board-page mx-auto max-w-6xl">
       <Link href="/objetos" className="inline-flex items-center gap-2 font-bold text-[#004d73] hover:underline">← Perdidos y encontrados</Link>
-
-      <section aria-label="Estado del reporte" className={`${card} p-4 sm:p-5`}>
-        <FlowRail current={item.status === "cerrado" ? 0 : stage} steps={[
-          { title: "Reporte", detail: "Hallazgo o pérdida publicada." },
-          { title: "Coincidencia", detail: "Se comparan reportes contrarios al 80 %." },
-          { title: "Reclamo", detail: "La persona responde la pregunta de seguridad." },
-          { title: "Entrega", detail: "Quien encontró confirma el código o QR del reclamante." },
-        ]} />
-      </section>
 
       {query.revisado && <p role="status" className="rounded-xl border border-[#bed8c1] bg-[#edf6ee] p-3 text-sm font-semibold text-[#28452d]">
         {query.revisado === "aprobado" ? "Reclamo aprobado. El código privado y los datos de contacto ya están disponibles." : query.revisado === "rechazado" ? "Se notificó la decisión a quien reclamó." : query.revisado === "nota" ? "Punto de entrega actualizado y notificado." : "La entrega quedó confirmada."}
@@ -139,35 +129,19 @@ export default async function ObjetoPage({
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(330px,0.8fr)]">
         <section className="space-y-4">
-          <div className={`${card} overflow-hidden p-0`}>
-            <Cover tone={item.kind} image={item.photo_url} className="h-64 sm:h-[22rem]" />
-            {item.photo_url_2 && (
-              <div className="border-t border-[#dcd9ce] bg-[#f4f3f0] p-3">
-                <p className="mb-2 text-xs font-bold uppercase text-[#667085]">Segunda foto adjunta</p>
-                <img src={item.photo_url_2} alt={`Segunda foto de ${item.title}`} className="max-h-64 w-full rounded-lg object-contain" />
-              </div>
-            )}
-            <header className="space-y-4 p-5 sm:p-7">
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className={`rounded-md px-3 py-1.5 font-extrabold text-white ${item.kind === "perdido" ? "bg-[#a85737]" : "bg-[#006699]"}`}>{kindLabel[item.kind]}</span>
-                <span className="rounded-md bg-[#e5eff1] px-3 py-1.5 font-bold text-[#004d73]">{statusLabel[item.status]}</span>
-                <span className="text-[#667085]">{when}</span>
-                {owner && <span className="rounded-md bg-[#f4e7b5] px-3 py-1.5 font-bold text-[#58491e]">Tu reporte</span>}
-              </div>
-              <div>
-                <h1 className="font-serif text-3xl font-extrabold tracking-tight text-[#173142] sm:text-4xl">{item.title}</h1>
-                <p className="mt-3 whitespace-pre-wrap text-[15px] leading-7 text-[#52596a]">{item.description}</p>
-              </div>
-              <div className="flex items-center gap-3 border-y border-dashed border-[#dcd9ce] py-3">
-                <span aria-hidden="true" className="text-lg text-[#006699]">⌖</span>
-                <div><p className="text-[10px] font-extrabold uppercase tracking-[.16em] text-[#667085]">Lugar del reporte</p><p className="mt-0.5 font-bold text-[#173142]">{item.place}</p></div>
-              </div>
-              {match && <div className="rounded-xl border border-[#b7d4e4] bg-[#eaf5fa] p-4">
-                <p className="text-xs font-extrabold uppercase tracking-wide text-[#006699]">Posible coincidencia · {kindLabel[match.kind]}</p>
-                <Link href={`/objetos/${match.id}`} className="mt-1 inline-block font-bold text-[#004d73] underline">{match.title}</Link>
-              </div>}
-            </header>
-          </div>
+          <ReportNotice item={item} detail owner={owner} />
+          {match && <div className="rounded-xl border border-[#b7d4e4] bg-[#eaf5fa] p-4">
+            <p className="text-xs font-extrabold uppercase tracking-wide text-[#006699]">Posible coincidencia · {kindLabel[match.kind]}</p>
+            <Link href={`/objetos/${match.id}`} className="mt-1 inline-block font-bold text-[#004d73] underline">{match.title}</Link>
+          </div>}
+          <section aria-label="Estado del reporte" className={`${card} p-4 sm:p-5`}>
+            <FlowRail current={item.status === "cerrado" ? 0 : stage} steps={[
+              { title: "Reporte", detail: "Hallazgo o pérdida publicada." },
+              { title: "Coincidencia", detail: "Se comparan reportes contrarios al 80 %." },
+              { title: "Reclamo", detail: "La persona responde la pregunta de seguridad." },
+              { title: "Entrega", detail: "Quien encontró confirma el código o QR del reclamante." },
+            ]} />
+          </section>
         </section>
 
         <aside className="space-y-4">
@@ -206,7 +180,7 @@ export default async function ObjetoPage({
           </section>}
 
           {!owner && item.status === "abierto" && item.kind === "encontrado" && <section className={`${card} space-y-3 p-5 sm:p-6`}>
-            <p className="board-eyebrow">¿Lo reconoces?</p><h2 className="text-xl font-extrabold">Ayuda a que vuelva a casa</h2>
+            <h2 className="text-xl font-extrabold">Reclamar este objeto</h2>
             {user && handoffs[0] ? <div className="rounded-xl border border-[#b7d4e4] bg-[#eaf5fa] p-4 text-center">
               <p className="text-xs font-extrabold uppercase tracking-wide text-[#004d73]">Código de entrega para presentar</p>
               <p className="mt-2 font-mono text-3xl font-extrabold tracking-[.2em] text-[#006699]">{handoffs[0].token}</p>

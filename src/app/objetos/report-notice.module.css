@@ -1,0 +1,50 @@
+.notice {
+  --ink: #155772;
+  --tint: #e8f0ef;
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #cfcbbf;
+  border-top: 4px solid var(--ink);
+  border-radius: 3px;
+  color: #203641;
+  background: #fffdf7;
+  container-type: inline-size;
+}
+.notice[data-kind="perdido"] {
+  --ink: #873f30;
+  --tint: #f4e8d9;
+}
+a:hover > .notice, a:focus-visible > .notice { border-color: var(--ink); }
+.meta, .footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .6rem 1rem;
+  padding: .85rem 1.2rem;
+}
+.meta {
+  background: var(--tint);
+  color: var(--ink);
+}
+.meta span { font-weight: 800; font-size: .85rem; letter-spacing: .08em; text-transform: uppercase; }
+.meta time { font: .78rem/1.4 ui-monospace, monospace; }
+.body { flex: 1; display: flex; flex-direction: column; gap: 1rem; padding: 1.25rem; }
+.photos img { display: block; width: 100%; max-height: 13rem; object-fit: contain; background: #eeece4; }
+.copy { min-width: 0; align-self: center; width: 100%; overflow-wrap: anywhere; }
+.copy h1, .copy h2 { font: bold clamp(1.65rem, 6cqi, 2.4rem)/1.08 Georgia, serif; letter-spacing: -.035em; }
+.copy p { margin-top: .65rem; color: #4a5b60; font-size: .94rem; line-height: 1.55; }
+.footer { border-top: 1px solid #dedbd1; align-items: center; font-size: .8rem; font-weight: 600; }
+.place { display: inline-flex; align-items: center; gap: .45rem; margin-right: auto; overflow-wrap: anywhere; }
+.place svg { width: 1rem; height: 1rem; flex: none; color: var(--ink); }
+.arrow { color: var(--ink); font-size: 1.15rem; line-height: 1; }
+.notice[data-detail="true"] .photos img { max-height: 26rem; }
+.notice[data-detail="true"] .photos { display: grid; gap: .75rem; }
+@container (min-width: 29rem) {
+  .notice[data-detail="false"] .body { flex-direction: row; align-items: center; gap: 1.4rem; }
+  .notice[data-detail="false"] .photos { flex: 0 0 36%; }
+  .notice[data-detail="false"] .photos img { height: 10.5rem; }
+}

@@ -60,7 +60,7 @@ export function QuickPublishModal({ context }: { context: QuickPublishContext })
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-xl bg-[#006699] px-4 py-2 text-xs font-extrabold text-white shadow-xs transition hover:bg-[#004d73] sm:text-sm"
+        className={btn}
       >
         <span aria-hidden="true" className="text-base leading-none">+</span>
         <span>Crear publicación</span>
@@ -75,10 +75,10 @@ export function QuickPublishModal({ context }: { context: QuickPublishContext })
           onClick={() => setOpen(false)}
         >
           <div
-            className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#cfdbe2] bg-[#fffefa] shadow-2xl"
+            className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-sm border border-[#cfdbe2] bg-[#fffefa] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-[#e4ecee] bg-[#f4f9fb] px-5 py-4">
+            <div className="flex items-center justify-between border-b border-[#e4ecee] bg-[#f4f1e7] px-5 py-4">
               <h2 id="quick-publish-title" className="text-lg font-extrabold text-[#14374a]">
                 Nueva publicación
               </h2>
@@ -98,7 +98,7 @@ export function QuickPublishModal({ context }: { context: QuickPublishContext })
                 <button
                   type="button"
                   onClick={() => setTab("club_post")}
-                  className={`rounded-lg px-3.5 py-1.5 text-xs font-extrabold transition ${
+                  className={`rounded-sm px-3.5 py-1.5 text-xs font-extrabold transition ${
                     tab === "club_post"
                       ? "bg-[#165b47] text-white"
                       : "border border-[#cddbd5] bg-white text-[#165b47] hover:bg-[#eaf6f1]"
@@ -111,7 +111,7 @@ export function QuickPublishModal({ context }: { context: QuickPublishContext })
                 <button
                   type="button"
                   onClick={() => setTab("evento")}
-                  className={`rounded-lg px-3.5 py-1.5 text-xs font-extrabold transition ${
+                  className={`rounded-sm px-3.5 py-1.5 text-xs font-extrabold transition ${
                     tab === "evento"
                       ? "bg-[#075679] text-white"
                       : "border border-[#c4d8e2] bg-white text-[#075679] hover:bg-[#eaf4f8]"
@@ -124,7 +124,7 @@ export function QuickPublishModal({ context }: { context: QuickPublishContext })
                 <button
                   type="button"
                   onClick={() => setTab("aviso")}
-                  className={`rounded-lg px-3.5 py-1.5 text-xs font-extrabold transition ${
+                  className={`rounded-sm px-3.5 py-1.5 text-xs font-extrabold transition ${
                     tab === "aviso"
                       ? "bg-[#006699] text-white"
                       : "border border-[#b9d4e3] bg-white text-[#006699] hover:bg-[#eaf4f8]"

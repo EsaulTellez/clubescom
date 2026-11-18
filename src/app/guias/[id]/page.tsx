@@ -183,7 +183,7 @@ export default async function GuidePage({
               download={guide.attachment_name ?? "formato-tramite.pdf"}
               className="inline-flex items-center gap-2 rounded-lg border border-[#006699] bg-[#e6f3fa] px-3 py-2 text-xs font-bold text-[#004d73] hover:bg-[#d2eaf7]"
             >
-              📄 Descargar PDF adjunto del trámite ({guide.attachment_name ?? "Formato oficial"})
+              Descargar PDF del trámite ({guide.attachment_name ?? "Formato oficial"})
             </a>
           </div>
         )}
@@ -224,7 +224,7 @@ export default async function GuidePage({
       <section className="space-y-4">
         <div>
           <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">En corto</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight">Sigue la guía a tu ritmo</h2>
+          <h2 className="mt-1 text-2xl font-extrabold tracking-tight">Pasos del trámite</h2>
         </div>
         <GuideSteps steps={steps} guideId={guide.id} initialDone={initialDone} signedIn={Boolean(user)} />
       </section>

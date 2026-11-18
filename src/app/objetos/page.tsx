@@ -1,10 +1,8 @@
 import Link from "next/link";
-import { Cover } from "@/components/cover";
-import { PageIntro } from "@/components/page-intro";
+import { ReportNotice } from "./report-notice";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
-import { btn, card } from "@/lib/ui";
-import { isKind, kindLabel, statusLabel, type ItemKind, type ItemStatus } from "./labels";
+import { isKind, type ItemKind, type ItemStatus } from "./labels";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +13,7 @@ type Row = {
   place: string;
   description: string;
   photo_url: string | null;
+  photo_url_2: string | null;
   status: ItemStatus;
   created_at: string;
 };
@@ -27,14 +26,14 @@ export default async function ObjetosPage({
   const query = await searchParams;
   const raw = Array.isArray(query.kind) ? query.kind[0] : query.kind;
   const tabRaw = Array.isArray(query.tab) ? query.tab[0] : query.tab;
-  const isHistory = tabRaw === "historial";
   const kind = raw && isKind(raw) ? raw : null;
   const user = await getSession();
+  const isHistory = Boolean(user) && tabRaw === "historial";
 
   const { rows } =
     isHistory && user
       ? await pool.query<Row>(
-          `select distinct li.id, li.kind, li.title, li.description, li.place, li.photo_url, li.status, li.created_at
+          `select distinct li.id, li.kind, li.title, li.description, li.place, li.photo_url, li.photo_url_2, li.status, li.created_at
            from lost_items li
            left join lost_item_claims c on c.lost_item_id = li.id
            where (li.reporter_id = $1 or c.claimant_id = $1)
@@ -43,7 +42,7 @@ export default async function ObjetosPage({
           [user.id, kind],
         )
       : await pool.query<Row>(
-          `select id, kind, title, description, place, photo_url, status, created_at
+          `select id, kind, title, description, place, photo_url, photo_url_2, status, created_at
            from lost_items
            where status = 'abierto' and ($1::text is null or kind = $1)
            order by created_at desc`,
@@ -51,79 +50,53 @@ export default async function ObjetosPage({
         );
 
   const filters = [
-    { href: "/objetos", label: "Todos abiertos", active: !isHistory && !kind },
+    { href: "/objetos", label: "Todos", active: !isHistory && !kind },
     { href: "/objetos?kind=perdido", label: "Perdidos", active: !isHistory && kind === "perdido" },
     { href: "/objetos?kind=encontrado", label: "Encontrados", active: !isHistory && kind === "encontrado" },
     ...(user
       ? [
           {
             href: "/objetos?tab=historial",
-            label: "Mi historial (entregados / cerrados / reclamados)",
+            label: "Mi historial",
             active: isHistory,
           },
         ]
       : []),
   ];
 
-  const lostCount = rows.filter((item) => item.kind === "perdido").length;
-  const foundCount = rows.filter((item) => item.kind === "encontrado").length;
-
   return (
-    <div className="space-y-7">
-      <PageIntro
-        kicker="Comunidad"
-        title="Perdidos y encontrados"
-        text="Una mano entre politécnicos: publica un hallazgo, reconoce algo tuyo y coordina la entrega con cuidado."
-        action={
-          <Link className={btn} href={user ? "/objetos/nuevo" : "/entrar"}>
-            {user ? "Reportar objeto" : "Inicia sesión para reportar"}
+    <div className="space-y-6">
+      <header className="border-y border-[#b8c1bd] bg-[#fffdf7] px-4 pt-6 sm:px-7 sm:pt-8">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-5">
+          <h1 className="font-[Georgia,serif] text-4xl leading-tight font-bold tracking-tight text-[#193c4a] sm:text-5xl">
+            Perdidos <span className="font-normal italic">y encontrados</span>
+          </h1>
+          <Link className="rounded-sm bg-[#155775] px-4 py-3 text-sm font-bold text-white hover:bg-[#123e54]" href={user ? "/objetos/nuevo" : "/entrar"}>
+            {user ? "+ Reportar objeto" : "Inicia sesión para reportar"}
           </Link>
-        }
-      />
-
-      <section className="grid gap-3 sm:grid-cols-3" aria-label="Resumen de reportes">
-        <div className="board-sidecard p-4"><p className="text-2xl font-extrabold text-[#006699]">{rows.length}</p><p className="mt-1 text-xs font-semibold text-[#667085]">{isHistory ? "Reportes en tu historial" : "Reportes en esta vista"}</p></div>
-        <div className="board-sidecard p-4"><p className="text-2xl font-extrabold text-[#006699]">{lostCount}</p><p className="mt-1 text-xs font-semibold text-[#667085]">Cosas por encontrar</p></div>
-        <div className="board-sidecard p-4"><p className="text-2xl font-extrabold text-[#006699]">{foundCount}</p><p className="mt-1 text-xs font-semibold text-[#667085]">Hallazgos publicados</p></div>
-      </section>
-
-      <div className="flex flex-wrap gap-2">
-        {filters.map((filter) => (
-          <Link key={filter.href} href={filter.href} aria-current={filter.active ? "page" : undefined} className={`${filter.active ? "bg-[#006699] text-white shadow-[0_6px_18px_rgba(0,102,153,0.18)]" : "border border-[#dceaf1] bg-white/85 text-[#526170] hover:border-[#9fc9dc] hover:text-[#004d73]"} inline-flex items-center rounded-full px-4 py-2 text-sm font-bold transition`}>
-            {filter.label}
-          </Link>
-        ))}
-      </div>
-
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 border-t border-[#d6d6ca]">
+          <nav aria-label="Filtrar reportes" className="flex flex-wrap gap-x-4 sm:gap-x-6">
+            {filters.map((filter) => (
+              <Link key={filter.href} href={filter.href} aria-current={filter.active ? "page" : undefined}
+                className={`border-b-[3px] py-3 text-sm font-bold ${filter.active ? "border-[#155775] text-[#155775]" : "border-transparent text-[#56666b] hover:text-[#155775]"}`}>
+                {filter.label}
+              </Link>
+            ))}
+          </nav>
+          <p className="py-2 text-xs tabular-nums text-[#56666b]">{rows.length} {rows.length === 1 ? "reporte" : "reportes"}{!isHistory && (rows.length === 1 ? " abierto" : " abiertos")}</p>
+        </div>
+      </header>
       {rows.length === 0 ? (
-        <p className={card}>
-          {isHistory
-            ? "Todavía no tienes objetos reportados, entregados o reclamados en tu historial."
-            : kind
-              ? "No hay reportes abiertos de este tipo."
-              : "Todavía no hay reportes abiertos. Sé la primera persona en publicar uno."}
+        <p className="border border-dashed border-[#c5c4b8] bg-[#fffdf7] px-5 py-10 text-center text-[#4f6269]">
+          {isHistory ? "Todavía no tienes reportes ni reclamos en tu historial." : kind ? "No hay reportes abiertos de este tipo." : "Todavía no hay reportes abiertos."}
         </p>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,28rem),1fr))] gap-5">
           {rows.map((item) => (
-            <li key={item.id}>
-              <Link href={`/objetos/${item.id}`} className="group block h-full overflow-hidden rounded-lg border border-[#dcd9ce] bg-[#fffdf7] shadow-sm transition hover:border-[#006699]">
-                <div className="relative">
-                  <Cover tone={item.kind} image={item.photo_url} className="h-52" />
-                  <span className={`absolute left-3 top-3 rounded-full px-3 py-1.5 text-xs font-extrabold shadow-sm ${item.kind === "perdido" ? "bg-white text-[#9b4c2f]" : "bg-white text-[#006699]"}`}>{kindLabel[item.kind]}</span>
-                </div>
-                <div className="space-y-3 p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <h2 className="text-lg font-extrabold leading-snug tracking-tight text-[#222337] group-hover:text-[#006699]">{item.title}</h2>
-                    <span className="shrink-0 rounded-full bg-[#e6f3fa] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#006699]">{statusLabel[item.status]}</span>
-                  </div>
-                  <p className="line-clamp-2 text-sm leading-6 text-[#5f6e78]">{item.description}</p>
-                  <div className="flex items-center gap-2 text-sm text-[#667085]">
-                    <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-[#006699]" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M16 8.5c0 4.8-6 9-6 9s-6-4.2-6-9a6 6 0 1 1 12 0Z"/><circle cx="10" cy="8.5" r="2"/></svg>
-                    <span className="truncate">{item.place}</span>
-                  </div>
-                  <p className="border-t border-[#edf2f5] pt-3 text-xs font-medium text-[#9095a4]">Publicado {new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long", timeZone: "America/Mexico_City" }).format(new Date(item.created_at))}</p>
-                </div>
+            <li key={item.id} className="min-w-0">
+              <Link href={`/objetos/${item.id}`} className="block h-full">
+                <ReportNotice item={item} />
               </Link>
             </li>
           ))}

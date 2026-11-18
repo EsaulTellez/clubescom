@@ -134,10 +134,11 @@ export default async function HomePage() {
         <div className="board-main">
           {stories.length > 0 && (
             <section className="board-pinned" aria-labelledby="comunicados-heading">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h1 id="comunicados-heading" className="text-lg font-extrabold tracking-tight text-[#15394d] sm:text-xl">
+              <div className="edition-rule mb-4 flex items-baseline justify-between gap-3">
+                <h1 id="comunicados-heading" className="edition-title">
                   Comunicados
                 </h1>
+                <Link href="/avisos" className="shrink-0 text-sm font-semibold text-[#155775] hover:underline">Ver avisos →</Link>
               </div>
               <StoryCarousel items={stories} />
             </section>
@@ -174,7 +175,7 @@ export default async function HomePage() {
             <ol className="grid gap-2.5">
               {popularClubs.map((club) => (
                 <li key={club.id} className="board-leaderboard__item flex items-center gap-3">
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-[#eef3f6] text-xs font-extrabold text-[#1e495e]">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center font-serif text-lg italic text-[#42606a]">
                     {club.rank}
                   </span>
 
@@ -218,7 +219,7 @@ export default async function HomePage() {
               {trendingEvents.map((ev) => (
                 <li key={`${ev.eventKind}-${ev.id}`} className="board-leaderboard__item space-y-2">
                   <div className="flex items-start gap-2.5">
-                    <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md bg-[#faf3dc] text-xs font-extrabold text-[#6e5008]">
+                    <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center font-serif text-lg italic text-[#81633a]">
                       {ev.rank}
                     </span>
 
@@ -243,7 +244,7 @@ export default async function HomePage() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-2 pl-[4.75rem]">
-                    <span className="truncate text-xs font-semibold text-[#5e717a]">{ev.organizer}</span>
+                    {ev.eventKind === "club" && <span className="truncate text-xs font-semibold text-[#5e717a]">{ev.organizer}</span>}
                     <AttendButton
                       eventKind={ev.eventKind}
                       eventId={ev.id}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { memo, useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CatalogSearch } from "./catalog-search";
 import "./campus-map.css";
 import { RoomEditor } from "@/app/mapa/room-editor";
 import {
@@ -187,16 +188,15 @@ function Ground({ rect, className, children }: { rect: Rect; className: string; 
   );
 }
 
-function Trees() {
+const Trees = memo(function Trees() {
   const trees: Array<[number, number, number]> = [
-    [145, 180, 1.05], [110, 260, 0.95], [130, 410, 1.1], [110, 520, 1.0], [145, 620, 1.15],
-    [125, 760, 0.92], [110, 860, 1.08], [135, 1110, 1.0], [160, 1190, 1.12],
-    [700, 180, 1.06], [730, 260, 0.95], [690, 370, 1.1], [685, 470, 1.0], [690, 580, 1.14],
-    [700, 700, 0.96], [715, 820, 1.05], [745, 110, 1.0], [825, 115, 1.1], [900, 110, 0.95],
-    [955, 200, 1.08], [955, 380, 1.0], [955, 570, 1.12], [955, 730, 0.96], [950, 940, 1.05],
-    [945, 1120, 1.1], [800, 1120, 0.98], [75, 1170, 1.08], [250, 80, 1.04], [330, 70, 1.12],
-    [500, 75, 1.06], [575, 70, 0.96], [650, 70, 1.1],
-    [290, 420, 0.92], [535, 420, 0.92], [295, 920, 1.04], [520, 920, 1.02],
+    [145, 180, 1.05], [110, 290, 0.96], [130, 440, 1.08], [120, 610, 1.12],
+    [115, 790, 1.0], [140, 1110, 1.04], [75, 1170, 1.08],
+    [700, 180, 1.05], [705, 360, 1.08], [690, 540, 1.12], [705, 760, 1.0],
+    [755, 110, 1.0], [875, 112, 1.05], [955, 240, 1.06], [955, 520, 1.1],
+    [952, 820, 1.02], [945, 1120, 1.08], [800, 1120, 0.98],
+    [255, 78, 1.04], [350, 72, 1.1], [525, 75, 1.04], [645, 72, 1.08],
+    [292, 420, 0.94], [532, 420, 0.94], [295, 920, 1.02], [520, 920, 1.02],
   ];
   const palettes = [
     { low: "#366942", mid: "#4c8755", top: "#72b073" },
@@ -211,59 +211,24 @@ function Trees() {
         return (
           <div key={i} className="model-tree-3d" style={{ left: x, top: y }}>
             <div className="tree-shadow" />
-            {/* Tronco 3D real */}
-            <Box
-              rect={{ x: 14, y: 14, w: 6, h: 6 }}
-              bottom={0}
-              height={trunkH}
-              color="#6b4c35"
-              roof="#593e2b"
-            />
-            {/* Planos verticales cruzados para dar volumen 3D real al inclinar la cámara */}
+            <div className="tree-trunk-plane" style={{ height: trunkH }} />
             <div
               className="tree-plane-x"
               style={{
-                background: `radial-gradient(circle at 50% 35%, ${pal.top}, ${pal.low} 80%)`,
+                background: `linear-gradient(180deg, ${pal.top}, ${pal.low})`,
               }}
             />
             <div
               className="tree-plane-y"
               style={{
-                background: `radial-gradient(circle at 50% 35%, ${pal.top}, ${pal.low} 80%)`,
-              }}
-            />
-            {/* Capas horizontales escalonadas de copa 3D */}
-            <div
-              className="tree-canopy-layer"
-              style={{
-                left: 1,
-                top: 1,
-                width: 32 * scale,
-                height: 32 * scale,
-                background: `radial-gradient(circle at 35% 30%, ${pal.mid}, ${pal.low} 80%)`,
-                transform: `translateZ(${trunkH}px)`,
+                background: `linear-gradient(180deg, ${pal.top}, ${pal.low})`,
               }}
             />
             <div
-              className="tree-canopy-layer"
+              className="tree-canopy-cap"
               style={{
-                left: 5,
-                top: 5,
-                width: 24 * scale,
-                height: 24 * scale,
-                background: `radial-gradient(circle at 35% 30%, ${pal.top}, ${pal.mid} 82%)`,
-                transform: `translateZ(${trunkH + 7}px)`,
-              }}
-            />
-            <div
-              className="tree-canopy-layer"
-              style={{
-                left: 9,
-                top: 9,
-                width: 15 * scale,
-                height: 15 * scale,
-                background: `radial-gradient(circle at 40% 35%, #9bd18b, ${pal.top} 85%)`,
-                transform: `translateZ(${trunkH + 13}px)`,
+                background: `radial-gradient(circle at 35% 30%, ${pal.top}, ${pal.mid} 80%)`,
+                transform: `scale(${scale}) translateZ(${trunkH + 7}px)`,
               }}
             />
           </div>
@@ -271,9 +236,9 @@ function Trees() {
       })}
     </>
   );
-}
+});
 
-function Palapas({ x, y, rows }: { x: number; y: number; rows: number }) {
+const Palapas = memo(function Palapas({ x, y, rows }: { x: number; y: number; rows: number }) {
   return (
     <>
       {Array.from({ length: rows * 3 }, (_, i) => {
@@ -281,17 +246,16 @@ function Palapas({ x, y, rows }: { x: number; y: number; rows: number }) {
         const py = y + Math.floor(i / 3) * 25;
         return (
           <div key={i} className="model-group">
-            <Box rect={{ x: px + 5, y: py + 5, w: 4, h: 4 }} bottom={0} height={11} color="#7c634c" roof="#6b5440" />
-            <Box rect={{ x: px + 3, y: py + 3, w: 8, h: 8 }} bottom={4} height={2} color="#c7baa5" roof="#dfd5c3" />
+            <div className="palapa-post" style={{ left: px + 5.5, top: py + 7 }} />
             <Box rect={{ x: px, y: py, w: 14, h: 14 }} bottom={11} height={4} color="#9fa9a3" roof="#e6e6dc" className="palapa" />
           </div>
         );
       })}
     </>
   );
-}
+});
 
-function Cars3D() {
+const Cars3D = memo(function Cars3D() {
   const colors = [
     { body: "#e2e6e8", roof: "#f4f6f7" },
     { body: "#35536b", roof: "#4c6e88" },
@@ -301,22 +265,18 @@ function Cars3D() {
   ];
   return (
     <>
-      {Array.from({ length: 34 }, (_, i) => {
-        const cx = 765 + (i % 5) * 39;
-        const cy = 150 + Math.floor(i / 5) * 101 + (i % 2) * 14;
+      {Array.from({ length: 18 }, (_, i) => {
+        const slot = i * 2 + (i % 2);
+        const cx = 765 + (slot % 5) * 39;
+        const cy = 152 + Math.floor(slot / 5) * 101 + (i % 2) * 10;
         const c = colors[i % colors.length];
-        return (
-          <div key={i} className="model-group">
-            <Box rect={{ x: cx, y: cy, w: 12, h: 22 }} bottom={1} height={4} color={c.body} roof={c.roof} />
-            <Box rect={{ x: cx + 1.5, y: cy + 5, w: 9, h: 11 }} bottom={5} height={3} color="#334155" roof={c.roof} />
-          </div>
-        );
+        return <Box key={i} rect={{ x: cx, y: cy, w: 12, h: 22 }} bottom={1} height={6} color={c.body} roof={c.roof} className="car-cap" />;
       })}
     </>
   );
-}
+});
 
-function GobiernoBuilding3D({
+const GobiernoBuilding3D = memo(function GobiernoBuilding3D({
   level,
   selected,
   onSelect,
@@ -635,9 +595,9 @@ function GobiernoBuilding3D({
       />
     </div>
   );
-}
+});
 
-function CampusScene({
+const CampusScene = memo(function CampusScene({
   level,
   selected,
   onSelect,
@@ -648,7 +608,7 @@ function CampusScene({
   onSelect: (id: string, targetLevel?: number) => void;
   roomInfo: RoomInfo[];
 }) {
-  const infoMap = new Map(roomInfo.map((r) => [r.code, r]));
+  const infoMap = useMemo(() => new Map(roomInfo.map((r) => [r.code, r])), [roomInfo]);
   return (
     <>
       <Ground rect={{ x: 0, y: 0, w: 1000, h: 1300 }} className="model-base" />
@@ -687,8 +647,8 @@ function CampusScene({
       {[43, 65, 75, 97, 107, 129].map((x) => (
         <Box key={`exercise-post-${x}`} rect={{ x, y: 190, w: 3, h: 3 }} height={15} color="#899c94" roof="#dbe4de" />
       ))}
-      <Palapas x={177} y={125} rows={5} />
-      <Palapas x={582} y={974} rows={5} />
+      <Palapas x={177} y={125} rows={4} />
+      <Palapas x={582} y={974} rows={4} />
 
       {/* Edificio de Gobierno y Auditorio con distribución interior por capa */}
       <GobiernoBuilding3D level={level} selected={selected} onSelect={onSelect} infoMap={infoMap} />
@@ -696,56 +656,49 @@ function CampusScene({
       <Box rect={{ x: 315, y: 1128, w: 185, h: 28 }} height={8} color="#aeb4ae" roof="#d9d9ce" />
       {blocks.map((block) => {
         const visibleFloors = level === null ? 3 : level + 1;
+        const totalHeight = visibleFloors * floorHeight;
         const corridorWidth = 14;
         const corridorOnRight = block.id === 1 || block.id === 4;
         const corridorX = corridorOnRight ? block.x + block.w - corridorWidth : block.x;
+        const railX = corridorOnRight ? corridorX + corridorWidth - 3 : corridorX;
         const core = { ...block, x: block.x + (corridorOnRight ? 0 : corridorWidth), w: block.w - corridorWidth };
         return (
           <div key={`${block.id}-${block.start}`} className="model-group">
+            <Box
+              rect={core}
+              bottom={0}
+              height={totalHeight}
+              color="#e8e9e1"
+              roof={level !== null ? "#e9e5d7" : "#b9756c"}
+              className="school-block"
+            />
+            <Box
+              rect={{ x: railX, y: block.y, w: 3, h: block.h }}
+              bottom={3}
+              height={totalHeight - 3}
+              color="transparent"
+              roof="#f3f4ed"
+              className="corridor-rail-wall"
+            />
             {Array.from({ length: visibleFloors }, (_, floor) => (
-              <div key={floor} className="model-group">
-                <Box
-                  rect={core}
-                  bottom={floor * floorHeight}
-                  height={floorHeight}
-                  color="#e8e9e1"
-                  roof={level !== null && floor === level ? "#e9e5d7" : "#b9756c"}
-                  className="school-block"
-                />
-                <Box rect={{ x: corridorX, y: block.y, w: corridorWidth, h: block.h }} bottom={floor * floorHeight} height={3} color="#c6ccc5" roof="#e6e8df" />
-                <Box
-                  rect={{ x: corridorOnRight ? corridorX + corridorWidth - 3 : corridorX, y: block.y, w: 3, h: block.h }}
-                  bottom={floor * floorHeight + 3}
-                  height={8}
-                  color="#d9ded6"
-                  roof="#f3f4ed"
-                />
-                {Array.from({ length: Math.ceil(block.h / 80) + 1 }, (_, i) => (
-                  <Box
-                    key={i}
-                    rect={{
-                      x: corridorOnRight ? corridorX + corridorWidth - 3 : corridorX,
-                      y: Math.min(block.y + i * 80, block.y + block.h - 3),
-                      w: 3,
-                      h: 3,
-                    }}
-                    bottom={floor * floorHeight + 3}
-                    height={floorHeight - 3}
-                    color="#d5d9d1"
-                    roof="#f3f4ed"
-                  />
-                ))}
-                {floor === visibleFloors - 1 && level === null && (
-                  <Box
-                    rect={{ x: corridorX, y: block.y, w: corridorWidth, h: block.h }}
-                    bottom={(floor + 1) * floorHeight - 3}
-                    height={3}
-                    color="#d3d7cf"
-                    roof="#b9756c"
-                  />
-                )}
-              </div>
+              <Box
+                key={floor}
+                rect={{ x: corridorX, y: block.y, w: corridorWidth, h: block.h }}
+                bottom={floor * floorHeight}
+                height={3}
+                color="#c6ccc5"
+                roof="#e6e8df"
+              />
             ))}
+            {level === null && (
+              <Box
+                rect={{ x: corridorX, y: block.y, w: corridorWidth, h: block.h }}
+                bottom={totalHeight - 3}
+                height={3}
+                color="#d3d7cf"
+                roof="#b9756c"
+              />
+            )}
             {level !== null &&
               Array.from({ length: block.end - block.start + 1 }, (_, i) => {
                 const code = `${block.id}${level}${String(block.start + i).padStart(2, "0")}`;
@@ -796,6 +749,32 @@ function CampusScene({
         ),
       )}
       {level === null && <Ground rect={{ x: 359, y: 672, w: 100, h: 90 }} className="solar" />}
+      {level === null && (
+        <>
+          {[
+            { label: "Edificio 1 (clic para ver Planta Baja)", code: "1001", rect: { x: 183, y: 304, w: 88, h: 540 } },
+            { label: "Edificio 2 (clic para ver Planta Baja)", code: "2001", rect: { x: 565, y: 304, w: 88, h: 540 } },
+            { label: "Edificio 3 (clic para ver Planta Baja)", code: "3004", rect: { x: 323, y: 500, w: 85, h: 646 } },
+            { label: "Edificio 4 (clic para ver Planta Baja)", code: "4004", rect: { x: 408, y: 500, w: 85, h: 646 } },
+          ].map((b) => (
+            <button
+              key={b.code}
+              type="button"
+              aria-label={b.label}
+              title={b.label}
+              onClick={() => onSelect(b.code, 0)}
+              className="gov-hitbox"
+              style={{
+                left: b.rect.x,
+                top: b.rect.y,
+                width: b.rect.w,
+                height: b.rect.h,
+                transform: `translateZ(${3 * floorHeight + 1}px)`,
+              }}
+            />
+          ))}
+        </>
+      )}
       <div className="model-label landmark-label" style={{ left: 49, top: 1033, transform: "translateZ(25px)" }}>
         CAFETERÍA
       </div>
@@ -821,21 +800,33 @@ function CampusScene({
       <div className="model-label" style={{ left: 368, top: 385, transform: "translateZ(3px)" }}>
         EXPLANADA
       </div>
-      <div className="model-label landmark-label" style={{ left: 205, top: 288, transform: "translateZ(82px)" }}>
+      <div
+        className="model-label landmark-label"
+        style={{ left: 205, top: 288, transform: `translateZ(${(level === null ? 3 : level + 1) * floorHeight + 4}px)` }}
+      >
         EDIF. 1
       </div>
-      <div className="model-label landmark-label" style={{ left: 585, top: 288, transform: "translateZ(82px)" }}>
+      <div
+        className="model-label landmark-label"
+        style={{ left: 585, top: 288, transform: `translateZ(${(level === null ? 3 : level + 1) * floorHeight + 4}px)` }}
+      >
         EDIF. 2
       </div>
-      <div className="model-label landmark-label" style={{ left: 342, top: 484, transform: "translateZ(82px)" }}>
+      <div
+        className="model-label landmark-label"
+        style={{ left: 342, top: 484, transform: `translateZ(${(level === null ? 3 : level + 1) * floorHeight + 4}px)` }}
+      >
         EDIF. 3
       </div>
-      <div className="model-label landmark-label" style={{ left: 418, top: 484, transform: "translateZ(82px)" }}>
+      <div
+        className="model-label landmark-label"
+        style={{ left: 418, top: 484, transform: `translateZ(${(level === null ? 3 : level + 1) * floorHeight + 4}px)` }}
+      >
         EDIF. 4
       </div>
     </>
   );
-}
+});
 
 function ProfessorSelfAssignBox({
   code,
@@ -899,9 +890,17 @@ function StudentSuggestionForm({
   viewer: CurrentViewer;
 }) {
   const [state, action, pending] = useActionState(suggestProfessorInRoom, {});
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (state.ok) {
+      formRef.current?.reset();
+    }
+  }, [state.ok]);
+
   if (!viewer) return null;
   return (
-    <form action={action} className="mt-3 space-y-2.5 rounded-xl border border-[#dce5e2] bg-[#f8fbfb] p-3.5">
+    <form ref={formRef} action={action} className="mt-3 space-y-2.5 rounded-xl border border-[#dce5e2] bg-[#f8fbfb] p-3.5">
       <input type="hidden" name="code" value={code} />
       <p className="text-xs font-extrabold uppercase tracking-wider text-[#355360]">
         {viewer.role === "profesor" ? "Registrar profesor en este espacio" : "Sugerir qué profesor está aquí (sujeto a votación)"}
@@ -962,24 +961,34 @@ export function CampusMap({
   canEdit: boolean;
   viewer?: CurrentViewer;
 }) {
-  const [level, setLevel] = useState<number | null>(0);
-  const [selected, setSelected] = useState("G000");
+  const [level, setLevel] = useState<number | null>(null);
+  const [selected, setSelected] = useState("");
   const [query, setQuery] = useState("");
-  const [angle, setAngle] = useState(-22);
-  const [tilt, setTilt] = useState(48);
-  const [zoom, setZoom] = useState(1.15);
+  const [angle, setAngle] = useState(-25);
+  const [tilt, setTilt] = useState(50);
+  const [zoom, setZoom] = useState(1);
   const [panX, setPanX] = useState(0);
-  const [panY, setPanY] = useState(120);
+  const [panY, setPanY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [width, setWidth] = useState(720);
+  const [viewportSize, setViewportSize] = useState({ width: 720, height: 560 });
   const [view, setView] = useState<"model" | "plan">("model");
   const viewport = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ x: number; y: number; angle: number; tilt: number } | null>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
+  const compassRef = useRef<HTMLSpanElement>(null);
+  const liveCamera = useRef<{ angle: number; tilt: number }>({ angle: -25, tilt: 50 });
+  const dragRaf = useRef<number | null>(null);
+  const drag = useRef<{ x: number; y: number; angle: number; tilt: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
 
   useEffect(() => {
     const node = viewport.current;
     if (!node) return;
-    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    const observer = new ResizeObserver(([entry]) => {
+      setViewportSize({
+        width: entry.contentRect.width,
+        height: entry.contentRect.height,
+      });
+    });
     const wheel = (event: WheelEvent) => {
       event.preventDefault();
       setZoom((value) => Math.max(0.65, Math.min(2.1, value - event.deltaY * 0.0012)));
@@ -992,16 +1001,29 @@ export function CampusMap({
     };
   }, [view]);
 
-  const handleSelectSpace = (code: string, targetLevel?: number) => {
+  useEffect(() => {
+    liveCamera.current = { angle, tilt };
+  }, [angle, tilt]);
+
+  useEffect(() => {
+    return () => {
+      if (dragRaf.current !== null) cancelAnimationFrame(dragRaf.current);
+    };
+  }, []);
+
+  const baseScale = Math.min(viewportSize.width / 1560, viewportSize.height / 1180, 0.68);
+  const worldScale = Math.max(0.25, baseScale * zoom);
+
+  const handleSelectSpace = useCallback((code: string, targetLevel?: number) => {
     setView("model");
     if (typeof targetLevel === "number") {
       setLevel(targetLevel);
     } else if (code.startsWith("G")) {
       const govFloor = Number(code[1]);
-      if (level !== govFloor) setLevel(govFloor);
+      setLevel((prev) => (prev !== govFloor ? govFloor : prev));
     } else if (/^[1-4][0-2]/.test(code)) {
       const roomFloor = Number(code[1]);
-      if (level !== roomFloor) setLevel(roomFloor);
+      setLevel((prev) => (prev !== roomFloor ? roomFloor : prev));
     }
     setSelected(code);
     if (code.startsWith("G")) {
@@ -1009,7 +1031,7 @@ export function CampusMap({
       setPanY(155);
       setZoom((z) => Math.max(z, 1.22));
     }
-  };
+  }, []);
 
   const focusGobiernoPB = () => {
     setView("model");
@@ -1086,116 +1108,186 @@ export function CampusMap({
               else return;
               event.preventDefault();
             }}
+            onClickCapture={(event) => {
+              if (!suppressClick.current) return;
+              if ((event.target as Element).closest("[data-hud]")) return;
+              event.preventDefault();
+              event.stopPropagation();
+              suppressClick.current = false;
+            }}
             onPointerDown={(event) => {
-              if ((event.target as Element).closest("button, [data-hud]")) return;
-              drag.current = { x: event.clientX, y: event.clientY, angle, tilt };
-              setIsDragging(true);
-              event.currentTarget.setPointerCapture(event.pointerId);
+              if ((event.target as Element).closest("[data-hud]")) return;
+              suppressClick.current = false;
+              drag.current = { x: event.clientX, y: event.clientY, angle, tilt, moved: false };
             }}
             onPointerMove={(event) => {
               if (!drag.current) return;
-              setAngle(drag.current.angle + (event.clientX - drag.current.x) * 0.4);
-              setTilt(Math.max(8, Math.min(72, drag.current.tilt - (event.clientY - drag.current.y) * 0.25)));
+              const dx = event.clientX - drag.current.x;
+              const dy = event.clientY - drag.current.y;
+              if (!drag.current.moved) {
+                if (Math.hypot(dx, dy) < 5) return;
+                drag.current.moved = true;
+                setIsDragging(true);
+                try {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                } catch {
+                  // ignore if pointer capture is unavailable
+                }
+              }
+              const nextAngle = drag.current.angle + dx * 0.4;
+              const nextTilt = Math.max(8, Math.min(72, drag.current.tilt - dy * 0.25));
+              liveCamera.current = { angle: nextAngle, tilt: nextTilt };
+              if (dragRaf.current === null) {
+                dragRaf.current = requestAnimationFrame(() => {
+                  dragRaf.current = null;
+                  const { angle: a, tilt: t } = liveCamera.current;
+                  if (worldRef.current) {
+                    worldRef.current.style.transform = `translate3d(calc(-50% + ${panX}px), calc(-50% + ${panY}px), 0) scale3d(${worldScale}, ${worldScale}, ${worldScale}) rotateX(${t}deg) rotateZ(${a}deg)`;
+                  }
+                  if (compassRef.current) {
+                    const deg =
+                      (Math.atan2(
+                        Math.sin((a * Math.PI) / 180),
+                        Math.cos((a * Math.PI) / 180) * Math.cos((t * Math.PI) / 180),
+                      ) *
+                        180) /
+                      Math.PI;
+                    compassRef.current.style.transform = `rotate(${deg}deg)`;
+                  }
+                });
+              }
             }}
-            onPointerUp={() => {
+            onPointerUp={(event) => {
+              if (dragRaf.current !== null) {
+                cancelAnimationFrame(dragRaf.current);
+                dragRaf.current = null;
+              }
+              if (drag.current?.moved) {
+                suppressClick.current = true;
+                setAngle(liveCamera.current.angle);
+                setTilt(liveCamera.current.tilt);
+                window.setTimeout(() => {
+                  suppressClick.current = false;
+                }, 0);
+              }
+              if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }
               drag.current = null;
               setIsDragging(false);
             }}
             onPointerCancel={() => {
+              if (dragRaf.current !== null) {
+                cancelAnimationFrame(dragRaf.current);
+                dragRaf.current = null;
+              }
               drag.current = null;
               setIsDragging(false);
             }}
           >
-            <div
-              className={`model-world ${isDragging ? "is-dragging" : ""}`}
-              style={{
-                transform: `translate(calc(-50% + ${panX}px), calc(-50% + ${panY}px)) scale(${Math.min(width / 1280, 0.72) * zoom}) rotateX(${tilt}deg) rotateZ(${angle}deg)`,
-              }}
-            >
-              <CampusScene level={level} selected={selected} onSelect={handleSelectSpace} roomInfo={roomInfo} />
+            <div className="model-stage">
+              <div
+                ref={worldRef}
+                className={`model-world ${isDragging ? "is-dragging" : ""}`}
+                style={{
+                  transform: `translate3d(calc(-50% + ${panX}px), calc(-50% + ${panY}px), 0) scale3d(${worldScale}, ${worldScale}, ${worldScale}) rotateX(${tilt}deg) rotateZ(${angle}deg)`,
+                }}
+              >
+                <CampusScene level={level} selected={selected} onSelect={handleSelectSpace} roomInfo={roomInfo} />
+              </div>
             </div>
 
-            {/* HUD SUPERIOR IZQUIERDO: Selector de capas / niveles directamente dentro del mapa */}
-            <div
-              data-hud="true"
-              onPointerDown={(e) => e.stopPropagation()}
-              className="pointer-events-auto absolute left-3 top-3 z-30 flex flex-wrap items-center gap-1.5 rounded-2xl border border-white/80 bg-white/90 p-1.5 shadow-lg backdrop-blur-md"
-              role="group"
-              aria-label="Capas y niveles del mapa"
-            >
-              {[
-                { label: "Todo 3D", value: null },
-                { label: "Planta baja", value: 0 },
-                { label: "Piso 1", value: 1 },
-                { label: "Piso 2", value: 2 },
-              ].map((item) => (
+            {/* HUD SUPERIOR: Selector de capas / niveles y Brújula / Croquis */}
+            <div className="pointer-events-none absolute inset-x-3 top-3 z-30 flex flex-wrap items-start justify-between gap-2">
+              <div
+                data-hud="true"
+                onPointerDown={(e) => e.stopPropagation()}
+                className="pointer-events-auto flex flex-wrap items-center gap-1.5 rounded-sm border border-[#d6e2e0] bg-[#fffdf7] p-1.5 shadow-sm"
+                role="group"
+                aria-label="Capas y niveles del mapa"
+              >
+                {[
+                  { label: "Todo 3D", value: null },
+                  { label: "Planta baja", value: 0 },
+                  { label: "Piso 1", value: 1 },
+                  { label: "Piso 2", value: 2 },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    aria-pressed={level === item.value}
+                    onClick={() => {
+                      if (item.value === null) {
+                        setLevel(null);
+                        setSelected("");
+                        resetFullCampus();
+                      } else {
+                        setLevel(item.value);
+                      }
+                    }}
+                    className={`min-h-9 rounded-sm px-3 text-xs font-extrabold transition ${
+                      level === item.value
+                        ? "bg-[#006699] text-white shadow-sm"
+                        : "text-[#254552] hover:bg-[#e5f1f4]"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
                 <button
-                  key={item.label}
                   type="button"
-                  aria-pressed={level === item.value}
-                  onClick={() => setLevel(item.value)}
-                  className={`min-h-9 rounded-xl px-3 text-xs font-extrabold transition ${
-                    level === item.value
-                      ? "bg-[#006699] text-white shadow-sm"
-                      : "text-[#254552] hover:bg-[#e5f1f4]"
-                  }`}
+                  onClick={focusGobiernoPB}
+                  className="min-h-9 rounded-sm border border-[#b9dce8] bg-[#eef8fc] px-3 text-xs font-extrabold text-[#005885] hover:bg-[#d9eff8]"
                 >
-                  {item.label}
+                  Gobierno PB
                 </button>
-              ))}
-              <button
-                type="button"
-                onClick={focusGobiernoPB}
-                className="min-h-9 rounded-xl border border-[#b9dce8] bg-[#eef8fc] px-3 text-xs font-extrabold text-[#005885] hover:bg-[#d9eff8]"
-              >
-                Gobierno PB
-              </button>
-            </div>
+              </div>
 
-            {/* HUD SUPERIOR DERECHO: Brújula interactiva y cambio a Croquis */}
-            <div
-              data-hud="true"
-              onPointerDown={(e) => e.stopPropagation()}
-              className="pointer-events-auto absolute right-3 top-3 z-30 flex items-center gap-1.5"
-            >
-              <button
-                type="button"
-                onClick={() => setAngle(0)}
-                title="Alinear al Norte"
-                aria-label="Dirección del norte (clic para orientar al norte)"
-                className="flex min-h-10 items-center gap-1.5 rounded-xl border border-white/80 bg-white/90 px-3 text-xs font-extrabold text-[#1d4252] shadow-lg backdrop-blur-md hover:bg-white"
+              <div
+                data-hud="true"
+                onPointerDown={(e) => e.stopPropagation()}
+                className="pointer-events-auto ml-auto flex items-center gap-1.5"
               >
-                <span>N</span>
-                <span
-                  style={{
-                    display: "inline-block",
-                    transform: `rotate(${
-                      (Math.atan2(
-                        Math.sin((angle * Math.PI) / 180),
-                        Math.cos((angle * Math.PI) / 180) * Math.cos((tilt * Math.PI) / 180),
-                      ) *
-                        180) /
-                      Math.PI
-                    }deg)`,
-                  }}
+                <button
+                  type="button"
+                  onClick={() => setAngle(0)}
+                  title="Alinear al Norte"
+                  aria-label="Dirección del norte (clic para orientar al norte)"
+                  className="flex min-h-10 items-center gap-1.5 rounded-sm border border-[#d6e2e0] bg-[#fffdf7] px-3 text-xs font-extrabold text-[#1d4252] shadow-sm hover:bg-white"
                 >
-                  ↑
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setView("plan")}
-                className="min-h-10 rounded-xl border border-white/80 bg-white/90 px-3 text-xs font-extrabold text-[#254552] shadow-lg backdrop-blur-md hover:bg-white"
-              >
-                Croquis 2D
-              </button>
+                  <span>N</span>
+                  <span
+                    ref={compassRef}
+                    style={{
+                      display: "inline-block",
+                      transform: `rotate(${
+                        (Math.atan2(
+                          Math.sin((angle * Math.PI) / 180),
+                          Math.cos((angle * Math.PI) / 180) * Math.cos((tilt * Math.PI) / 180),
+                        ) *
+                          180) /
+                        Math.PI
+                      }deg)`,
+                    }}
+                  >
+                    ↑
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView("plan")}
+                  className="min-h-10 rounded-sm border border-[#d6e2e0] bg-[#fffdf7] px-3 text-xs font-extrabold text-[#254552] shadow-sm hover:bg-white"
+                >
+                  Croquis 2D
+                </button>
+              </div>
             </div>
 
             {/* HUD INFERIOR IZQUIERDO: Joystick / Cruceta táctil para girar, inclinar y desplazar dentro del mapa */}
             <div
               data-hud="true"
               onPointerDown={(e) => e.stopPropagation()}
-              className="pointer-events-auto absolute bottom-3 left-3 z-30 flex items-center gap-2 rounded-2xl border border-white/80 bg-white/90 p-2 shadow-lg backdrop-blur-md"
+              className="pointer-events-auto absolute bottom-3 left-3 z-30 flex items-center gap-2 rounded-sm border border-[#d6e2e0] bg-[#fffdf7] p-2 shadow-sm"
               role="group"
               aria-label="Controles de cámara en el mapa"
             >
@@ -1205,7 +1297,7 @@ export function CampusMap({
                   aria-label="Girar a la izquierda"
                   title="Girar a la izquierda"
                   onClick={() => setAngle((a) => a - 18)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef4f6] text-xs font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-sm bg-[#eef4f6] text-xs font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
                 >
                   ↺
                 </button>
@@ -1214,7 +1306,7 @@ export function CampusMap({
                   aria-label="Inclinar arriba"
                   title="Ver más desde arriba"
                   onClick={() => setTilt((t) => Math.max(8, t - 8))}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef4f6] text-xs font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-sm bg-[#eef4f6] text-xs font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
                 >
                   ▲
                 </button>
@@ -1223,7 +1315,7 @@ export function CampusMap({
                   aria-label="Girar a la derecha"
                   title="Girar a la derecha"
                   onClick={() => setAngle((a) => a + 18)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef4f6] text-xs font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-sm bg-[#eef4f6] text-xs font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
                 >
                   ↻
                 </button>
@@ -1232,7 +1324,7 @@ export function CampusMap({
                   aria-label="Mover cámara a la izquierda"
                   title="Mover vista a la izquierda"
                   onClick={() => setPanX((x) => x + 65)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef4f6] text-xs font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-sm bg-[#eef4f6] text-xs font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
                 >
                   ←
                 </button>
@@ -1241,7 +1333,7 @@ export function CampusMap({
                   aria-label="Centrar todo el campus"
                   title="Centrar vista general"
                   onClick={resetFullCampus}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#006699] text-xs font-black text-white hover:bg-[#00527a] active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-sm bg-[#006699] text-xs font-black text-white hover:bg-[#00527a] active:scale-95"
                 >
                   ⌖
                 </button>
@@ -1250,7 +1342,7 @@ export function CampusMap({
                   aria-label="Mover cámara a la derecha"
                   title="Mover vista a la derecha"
                   onClick={() => setPanX((x) => x - 65)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef4f6] text-xs font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-sm bg-[#eef4f6] text-xs font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
                 >
                   →
                 </button>
@@ -1259,7 +1351,7 @@ export function CampusMap({
                   aria-label="Subir hacia Gobierno"
                   title="Desplazar hacia el Norte (Gobierno)"
                   onClick={() => setPanY((y) => y + 65)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef4f6] text-[10px] font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-sm bg-[#eef4f6] text-[10px] font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
                 >
                   N↑
                 </button>
@@ -1268,7 +1360,7 @@ export function CampusMap({
                   aria-label="Inclinar abajo"
                   title="Inclinar perspectiva 3D"
                   onClick={() => setTilt((t) => Math.min(72, t + 8))}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef4f6] text-xs font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-sm bg-[#eef4f6] text-xs font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
                 >
                   ▼
                 </button>
@@ -1277,7 +1369,7 @@ export function CampusMap({
                   aria-label="Bajar hacia aulas"
                   title="Desplazar hacia el Sur (Aulas)"
                   onClick={() => setPanY((y) => y - 65)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef4f6] text-[10px] font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-sm bg-[#eef4f6] text-[10px] font-black text-[#1d4252] hover:bg-[#d8e8ed] active:scale-95"
                 >
                   S↓
                 </button>
@@ -1288,7 +1380,7 @@ export function CampusMap({
             <div
               data-hud="true"
               onPointerDown={(e) => e.stopPropagation()}
-              className="pointer-events-auto absolute bottom-3 right-3 z-30 flex flex-col items-center gap-1 rounded-2xl border border-white/80 bg-white/90 p-1.5 shadow-lg backdrop-blur-md"
+              className="pointer-events-auto absolute bottom-3 right-3 z-30 flex flex-col items-center gap-1 rounded-sm border border-[#d6e2e0] bg-[#fffdf7] p-1.5 shadow-sm"
               role="group"
               aria-label="Zoom del mapa"
             >
@@ -1297,7 +1389,7 @@ export function CampusMap({
                 aria-label="Acercar mapa"
                 onClick={() => setZoom((value) => Math.min(2.1, value + 0.15))}
                 disabled={zoom >= 2.1}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef4f6] text-lg font-black text-[#006699] hover:bg-[#d8e8ed] active:scale-95 disabled:opacity-40"
+                className="flex h-10 w-10 items-center justify-center rounded-sm bg-[#eef4f6] text-lg font-black text-[#006699] hover:bg-[#d8e8ed] active:scale-95 disabled:opacity-40"
               >
                 +
               </button>
@@ -1307,66 +1399,51 @@ export function CampusMap({
                 aria-label="Alejar mapa"
                 onClick={() => setZoom((value) => Math.max(0.65, value - 0.15))}
                 disabled={zoom <= 0.65}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef4f6] text-lg font-black text-[#006699] hover:bg-[#d8e8ed] active:scale-95 disabled:opacity-40"
+                className="flex h-10 w-10 items-center justify-center rounded-sm bg-[#eef4f6] text-lg font-black text-[#006699] hover:bg-[#d8e8ed] active:scale-95 disabled:opacity-40"
               >
                 −
               </button>
             </div>
           </div>
         ) : (
-          <div className="relative overflow-hidden rounded-2xl border border-[#bfd2d0] bg-white">
+          <div className="relative overflow-hidden rounded-sm border border-[#bfd2d0] bg-white">
             <img src="/demo/croquis-campus.webp" alt="Croquis del campus ESCOM" className="h-auto w-full" />
             <button
               type="button"
               onClick={() => setView("model")}
-              className="absolute right-3 top-3 rounded-xl bg-[#006699] px-4 py-2 text-xs font-extrabold text-white shadow-lg"
+              className="absolute right-3 top-3 rounded-sm bg-[#006699] px-4 py-2 text-xs font-extrabold text-white shadow-sm"
             >
               Volver al Mapa 3D
             </button>
           </div>
         )}
 
-        {/* Accesos directos a las zonas de Edificio de Gobierno debajo del mapa */}
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          {GOBIERNO_SPACES.filter((s) => s.floor === (level === 1 ? 1 : 0)).map((sp) => (
-            <button
-              key={sp.code}
-              type="button"
-              onClick={() => handleSelectSpace(sp.code, sp.floor)}
-              className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition ${
-                selected === sp.code
-                  ? "border-[#995c00] bg-[#ffcf52] text-[#1b2a30] shadow-sm"
-                  : "border-[#cfe0e2] bg-white text-[#234452] hover:bg-[#eef6f8]"
-              }`}
-            >
-              {sp.shortLabel}
-            </button>
-          ))}
-        </div>
+        {/* Accesos directos a las zonas de Edificio de Gobierno debajo del mapa cuando hay un piso activo */}
+        {(level === 0 || level === 1) && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {GOBIERNO_SPACES.filter((s) => s.floor === level).map((sp) => (
+              <button
+                key={sp.code}
+                type="button"
+                onClick={() => handleSelectSpace(sp.code, sp.floor)}
+                className={`rounded-sm border px-3 py-1.5 text-xs font-bold transition ${
+                  selected === sp.code
+                    ? "border-[#995c00] bg-[#ffcf52] text-[#1b2a30] shadow-sm"
+                    : "border-[#cfe0e2] bg-white text-[#234452] hover:bg-[#eef6f8]"
+                }`}
+              >
+                {sp.shortLabel}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* COLUMNA DERECHA PARALELA: BUSCADOR + FICHA DEL CUBÍCULO / ESPACIO + ASIGNACIÓN Y VOTACIÓN */}
       <div className="space-y-4 lg:col-span-5 lg:sticky lg:top-20">
         {/* Buscador rápido */}
         <section className="board-sidecard p-4">
-          <div className="flex items-center gap-2">
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar cubículo, salón, profesor, BBVA, biblioteca, enfermería..."
-              aria-label="Buscar espacio o profesor"
-              className="min-h-11 w-full rounded-xl border border-[#bdcece] bg-white px-3.5 text-sm"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                className="min-h-11 rounded-xl border border-[#d5e1e3] px-3 text-xs font-bold text-[#526771] hover:bg-[#eef4f5]"
-              >
-                Limpiar
-              </button>
-            )}
-          </div>
+          <CatalogSearch value={query} onChange={setQuery} label="Buscar espacio o profesor" />
           {normalized && (
             <div className="mt-3 max-h-60 space-y-1.5 overflow-y-auto pr-1">
               {professorMatches.map((prof) => (
@@ -1375,13 +1452,13 @@ export function CampusMap({
                     <button
                       type="button"
                       onClick={() => handleSelectSpace(prof.room_code!)}
-                      className="w-full rounded-xl border border-[#dce5e2] bg-white p-2.5 text-left text-sm hover:bg-[#edf5f5]"
+                      className="w-full rounded-sm border border-[#dce5e2] bg-white p-2.5 text-left text-sm hover:bg-[#edf5f5]"
                     >
                       <strong className="text-[#1b4053]">{prof.name}</strong>
                       <span className="block text-xs text-[#5f6e78]">{prof.location ?? `Espacio ${prof.room_code}`}</span>
                     </button>
                   ) : (
-                    <div className="w-full rounded-xl border border-[#dce5e2] bg-white p-2.5 text-left text-sm">
+                    <div className="w-full rounded-sm border border-[#dce5e2] bg-white p-2.5 text-left text-sm">
                       <strong className="text-[#1b4053]">{prof.name}</strong>
                       <span className="block text-xs text-[#5f6e78]">{prof.location ?? "Ubicación no disponible"}</span>
                     </div>
@@ -1393,7 +1470,7 @@ export function CampusMap({
                   key={room.code}
                   type="button"
                   onClick={() => handleSelectSpace(room.code)}
-                  className="w-full rounded-xl border border-[#dce5e2] bg-white p-2.5 text-left text-sm hover:bg-[#edf5f5]"
+                  className="w-full rounded-sm border border-[#dce5e2] bg-white p-2.5 text-left text-sm hover:bg-[#edf5f5]"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <strong className="text-[#1b4053]">{room.name || `${kindLabel[room.kind] ?? "Espacio"} ${room.code}`}</strong>
@@ -1414,9 +1491,8 @@ export function CampusMap({
         </section>
 
         {/* Ficha paralela del espacio / cubículo seleccionado */}
-        <section className="board-sidecard p-5" aria-live="polite">
-          {selected ? (
-            <>
+        {selected ? (
+          <section className="board-sidecard border-t-[3px] border-t-[#527166] p-5" aria-live="polite">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="board-eyebrow">{buildingBadge}</span>
                 <div className="flex items-center gap-1.5">
@@ -1455,7 +1531,7 @@ export function CampusMap({
                     {selectedRoom.professors.map((p) => (
                       <li
                         key={p.id}
-                        className="flex items-center justify-between gap-2 rounded-xl border border-[#b7dfd5] bg-[#f4fbf9] px-3 py-2 text-sm"
+                        className="flex items-center justify-between gap-2 rounded-sm border border-[#b7dfd5] bg-[#f4fbf9] px-3 py-2 text-sm"
                       >
                         <span className="font-bold text-[#143d32]">{p.name}</span>
                         <span className="rounded-full bg-[#0d7a5f] px-2.5 py-0.5 text-[11px] font-extrabold text-white">
@@ -1499,7 +1575,7 @@ export function CampusMap({
                       return (
                         <li
                           key={sug.id}
-                          className="rounded-xl border border-[#ecd9ab] bg-[#fffcf2] p-3 text-sm"
+                          className="rounded-sm border border-[#ecd9ab] bg-[#fffcf2] p-3 text-sm"
                         >
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
@@ -1521,7 +1597,7 @@ export function CampusMap({
                                   type="submit"
                                   disabled={!viewer}
                                   title={viewer ? "Votar que sí estuvo / está aquí" : "Inicia sesión para votar"}
-                                  className={`rounded-lg border px-2.5 py-1 text-xs font-extrabold transition ${
+                                  className={`rounded-sm border px-2.5 py-1 text-xs font-extrabold transition ${
                                     sug.my_vote === 1
                                       ? "border-[#0d7a5f] bg-[#0d7a5f] text-white"
                                       : "border-[#cbd8da] bg-white text-[#1f4252] hover:bg-[#eef6f5]"
@@ -1537,7 +1613,7 @@ export function CampusMap({
                                   type="submit"
                                   disabled={!viewer}
                                   title={viewer ? "Votar que no corresponde" : "Inicia sesión para votar"}
-                                  className={`rounded-lg border px-2.5 py-1 text-xs font-extrabold transition ${
+                                  className={`rounded-sm border px-2.5 py-1 text-xs font-extrabold transition ${
                                     sug.my_vote === -1
                                       ? "border-[#9a3028] bg-[#9a3028] text-white"
                                       : "border-[#cbd8da] bg-white text-[#526771] hover:bg-[#fdf2f2]"
@@ -1556,7 +1632,7 @@ export function CampusMap({
                                     <input type="hidden" name="decision" value="confirm" />
                                     <button
                                       type="submit"
-                                      className="rounded-lg bg-[#0d7a5f] px-2.5 py-1 text-[11px] font-extrabold text-white hover:bg-[#095e49]"
+                                      className="rounded-sm bg-[#0d7a5f] px-2.5 py-1 text-[11px] font-extrabold text-white hover:bg-[#095e49]"
                                     >
                                       Confirmar verdad
                                     </button>
@@ -1568,7 +1644,7 @@ export function CampusMap({
                                     <input type="hidden" name="decision" value="dismiss" />
                                     <button
                                       type="submit"
-                                      className="rounded-lg border border-[#d9c3c1] bg-white px-2.5 py-1 text-[11px] font-bold text-[#8c2d25] hover:bg-[#fff2f1]"
+                                      className="rounded-sm border border-[#d9c3c1] bg-white px-2.5 py-1 text-[11px] font-bold text-[#8c2d25] hover:bg-[#fff2f1]"
                                     >
                                       Descartar
                                     </button>
@@ -1589,9 +1665,8 @@ export function CampusMap({
               </div>
 
               {canEdit && <RoomEditor key={selected} code={selected} room={selectedRoom} professors={professors} />}
-            </>
+            </section>
           ) : null}
-        </section>
       </div>
     </div>
   );
