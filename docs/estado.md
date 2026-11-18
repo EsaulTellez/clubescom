@@ -12,7 +12,7 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 | id | nombre | estado | evidencia |
 | --- | --- | --- | --- |
-| CU-01 | Registro y autenticación | parcial | `src/lib/auth-actions.ts`, `supabase/migrations/20261104000100_initial.sql` |
+| CU-01 | Registro y autenticación | parcial | `src/app/registro/page.tsx`, `src/app/auth/confirmado/page.tsx`, `src/app/auth/callback/route.ts`, `src/lib/auth-actions.ts`, `supabase/migrations/20261104000100_initial.sql` |
 | CU-02 | Recuperación de credenciales | parcial | `src/app/recuperar/page.tsx`, `src/app/auth/callback/route.ts` |
 | CU-03 | Restricción de acceso (baneo) | parcial | `src/app/admin/actions.ts`, `supabase/migrations/20261104000100_initial.sql` |
 | CU-04 | Otorgamiento automático de insignias | parcial | `src/app/perfil/page.tsx` |
@@ -51,6 +51,8 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 | CU-GUA-02-01 | Sugerencia de mejora en una guía | parcial | `src/app/guias/actions.ts` |
 
 ## Cambios
+
+- 2026-11-17. CU-01 sigue parcial: en `/registro` (`src/app/registro/page.tsx`, `src/components/auth-forms.tsx`, `src/lib/auth-actions.ts`, `supabase/templates/confirmation.html`) se retiró el formulario lateral de verificación por código OTP y la doble captura de correo para alinear el alta con el enlace de confirmación por correo; `/auth/callback` (`src/app/auth/callback/route.ts`) procesa la confirmación (`code` y `token_hash`) y redirige a `/auth/confirmado` (`src/app/auth/confirmado/page.tsx`), que muestra la autenticación exitosa e ingresa automáticamente a la plataforma.
 
 - 2026-11-17. CU-08 y CU-28 siguen parciales. La migración `20261117000300_public_event_access.sql` permite que el visitante consulte los eventos públicos aprobados de la cartelera y el feed sin ejecutar la función de gestión de espacios.
 

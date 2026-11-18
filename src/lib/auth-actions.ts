@@ -1,14 +1,32 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { audit, getSession, roleFromEmail } from "./auth";
 import { createSupabaseAdminClient } from "./supabase/admin";
 import { createSupabaseServerClient } from "./supabase/server";
 
-export type AuthState = { error?: string; ok?: string };
+export type AuthState = { error?: string; ok?: string; email?: string };
 
 function emailFrom(form: FormData) {
   return String(form.get("email") ?? "").trim().toLowerCase();
+}
+
+async function getSiteUrl() {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  try {
+    const hdrs = await headers();
+    const host = hdrs.get("x-forwarded-host") || hdrs.get("host");
+    if (host) {
+      const proto =
+        hdrs.get("x-forwarded-proto") ||
+        (host.startsWith("127.0.0.1") || host.startsWith("localhost") ? "http" : "https");
+      return `${proto}://${host}`;
+    }
+  } catch {
+    // ignore
+  }
+  return "http://127.0.0.1:3001";
 }
 
 export async function register(
@@ -27,10 +45,15 @@ export async function register(
   if (password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres." };
 
   const supabase = await createSupabaseServerClient();
+  const siteUrl = await getSiteUrl();
+  const emailRedirectTo = new URL("/auth/callback?next=/auth/confirmado", siteUrl).toString();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { name, boleta: boleta || null } },
+    options: {
+      data: { name, boleta: boleta || null },
+      emailRedirectTo,
+    },
   });
 
   if (error) {
@@ -43,45 +66,43 @@ export async function register(
     return { error: "No pudimos crear la cuenta. Revisa el correo o intenta iniciar sesión." };
   }
 
+  if (data.session) {
+    await audit(data.user.id, "verificar", "users", data.user.id);
+    redirect("/auth/confirmado");
+  }
+
   return {
-    ok: "Te enviamos un código de seis dígitos. Revísalo en tu correo.",
+    ok: "Te enviamos un enlace de confirmación a tu correo institucional. Ábrelo para activar tu cuenta e ingresar al sistema.",
+    email,
   };
 }
 
-export async function verifyEmail(
+export async function resendConfirmation(
   _previous: AuthState,
   form: FormData,
 ): Promise<AuthState> {
   const email = emailFrom(form);
-  const token = String(form.get("code") ?? "").trim();
-  if (!roleFromEmail(email)) return { error: "Usa un correo institucional válido." };
-  if (!/^\d{6}$/.test(token)) return { error: "Escribe el código de seis dígitos." };
+  if (!roleFromEmail(email)) {
+    return { error: "Usa un correo institucional válido.", email };
+  }
 
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
-  if (error || !data.user) return { error: "El código no es válido o ya expiró. Solicita uno nuevo." };
-
-  await audit(data.user.id, "verificar", "users", data.user.id);
-  redirect("/");
-}
-
-export async function resendOtp(
-  _previous: AuthState,
-  form: FormData,
-): Promise<AuthState> {
-  const email = emailFrom(form);
-  if (!roleFromEmail(email)) return { error: "Escribe el correo institucional con el que iniciaste tu registro." };
-
-  const supabase = await createSupabaseServerClient();
+  const siteUrl = await getSiteUrl();
+  const emailRedirectTo = new URL("/auth/callback?next=/auth/confirmado", siteUrl).toString();
   const { error } = await supabase.auth.resend({
     type: "signup",
     email,
+    options: { emailRedirectTo },
   });
   if (error) {
-    return { error: "No pudimos reenviar el código. Espera un minuto y vuelve a intentarlo." };
+    return {
+      error: "No pudimos reenviar el enlace. Espera un minuto y vuelve a intentarlo.",
+      email,
+    };
   }
   return {
-    ok: "Reenviamos un código nuevo de seis dígitos (válido por 15 minutos). Revisa tu correo.",
+    ok: "Reenviamos el enlace de confirmación a tu correo.",
+    email,
   };
 }
 
@@ -164,7 +185,7 @@ export async function requestReset(
   if (!roleFromEmail(email)) return { error: "Usa un correo institucional válido." };
 
   const supabase = await createSupabaseServerClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3001";
+  const siteUrl = await getSiteUrl();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: new URL("/auth/callback?next=/recuperar?cambiar=1", siteUrl).toString(),
   });

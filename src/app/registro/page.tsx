@@ -1,24 +1,22 @@
 import Link from "next/link";
-import { RegisterForm, VerifyForm } from "@/components/auth-forms";
-import { register, resendOtp, verifyEmail } from "@/lib/auth-actions";
+import { RegisterForm } from "@/components/auth-forms";
+import { register, resendConfirmation } from "@/lib/auth-actions";
 import { card } from "@/lib/ui";
 
 export default function RegistroPage() {
   return (
-    <div className="mx-auto grid max-w-3xl gap-4 md:grid-cols-2">
-      <section className={card}>
-        <h1 className="mb-3 text-xl font-semibold">Registro</h1>
-        <RegisterForm action={register} />
-        <p className="mt-3 text-sm">
-          <Link href="/aviso-privacidad" className="underline">
-            Leer aviso de privacidad
-          </Link>
-        </p>
-      </section>
-      <section className={card}>
-        <h2 className="mb-3 text-xl font-semibold">Confirmar código</h2>
-        <VerifyForm action={verifyEmail} resendAction={resendOtp} />
-      </section>
-    </div>
+    <section className={`${card} mx-auto max-w-md space-y-4`}>
+      <h1 className="text-xl font-semibold">Crear cuenta</h1>
+      <RegisterForm action={register} resendAction={resendConfirmation} />
+      <p className="text-sm">
+        <Link href="/aviso-privacidad" className="underline">
+          Leer aviso de privacidad
+        </Link>
+        <span className="px-2 text-[#8b969d]">·</span>
+        <Link href="/entrar" className="font-semibold text-[#006699] underline underline-offset-2">
+          ¿Ya tienes cuenta? Entrar
+        </Link>
+      </p>
+    </section>
   );
 }
