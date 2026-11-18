@@ -10,12 +10,14 @@ import { AREAS, REQUEST_KINDS, isArea, type RequestKind } from "./shared";
 export function QuestionForm({
   action,
   defaultArea,
+  step,
   office,
   guides = [],
   onSelectQuestion,
 }: {
   action: (state: QuestionState, form: FormData) => Promise<QuestionState>;
   defaultArea?: string;
+  step?: { guideId: string; id: number };
   office?: string | null;
   guides?: { id: string; title: string; area: string }[];
   onSelectQuestion?: (questionId: string) => void;
@@ -71,6 +73,12 @@ export function QuestionForm({
 
   return (
     <form action={formAction} className="space-y-3">
+      {step ? <>
+        <input type="hidden" name="request_kind" value="pregunta" />
+        <input type="hidden" name="area" value={defaultArea} />
+        <input type="hidden" name="target_guide_id" value={step.guideId} />
+        <input type="hidden" name="target_step_index" value={step.id} />
+      </> : <>
       <label className={label}>
         Tipo de publicación
         <select
@@ -97,6 +105,8 @@ export function QuestionForm({
           ))}
         </select>
       </label>
+
+      </>}
 
       {requestKind === "actualizar_guia" && guides.length > 0 && (
         <label className={label}>

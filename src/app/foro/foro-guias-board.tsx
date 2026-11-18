@@ -6,6 +6,7 @@ import { FormDialog } from "@/components/form-dialog";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { GuideRoute } from "@/app/guias/guide-route";
 import { saveGuideProgress } from "@/app/guias/actions";
 import type { GuideFaq, GuideStep } from "@/app/guias/shared";
 import { btn, btnGhost, input } from "@/lib/ui";
@@ -66,6 +67,7 @@ export type ForumQuestionItem = {
   area: string;
   requestKind: string;
   targetGuideId: string | null;
+  targetStepId: number | null;
   targetGuideTitle: string | null;
   title: string;
   body: string;
@@ -239,7 +241,13 @@ export function ForoGuiasBoard({
   if (prevInitialDudaId !== initialDudaId) {
     setPrevInitialDudaId(initialDudaId);
     setShowQuestionForm(false);
-    if (initialDudaId) setExpandedThreads((prev) => ({ ...prev, [initialDudaId]: true }));
+    if (initialDudaId) {
+      setAreaFilter(initialArea);
+      setKindFilter("all");
+      setViewMode("todo");
+      setQuery("");
+      setExpandedThreads((prev) => ({ ...prev, [initialDudaId]: true }));
+    }
   }
 
   useEffect(() => {
@@ -712,7 +720,7 @@ export function ForoGuiasBoard({
                   {filteredGuides.map((guide) => {
                     const st = areaStyle(guide.area);
                     const isOpen = Boolean(expandedGuides[guide.id]);
-                    const doneList = guideProgress[guide.id] ?? [];
+                    const doneList = (guideProgress[guide.id] ?? []).filter(id => guide.steps.some(step => step.id === id));
                     const pct = guide.steps.length
                       ? Math.round((doneList.length / guide.steps.length) * 100)
                       : 0;
@@ -753,7 +761,7 @@ export function ForoGuiasBoard({
                           </h3>
                           <p className="mt-2 text-sm leading-relaxed text-[#485d68]">{guide.summary}</p>
 
-                          {doneList.length > 0 && (
+                          {doneList.length > 0 && !guide.steps.some(step => step.choices !== undefined) && (
                             <div className="mt-3 flex items-center gap-2.5 text-xs font-bold text-[#004d73]">
                               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e6e2d6]">
                                 <div
@@ -784,46 +792,10 @@ export function ForoGuiasBoard({
                                 </div>
                               )}
 
-                              <ol className="space-y-2.5">
-                                {guide.steps.map((step, idx) => {
-                                  const checked = doneList.includes(idx);
-                                  return (
-                                    <li
-                                      key={`${guide.id}-step-${idx}`}
-                                      className={`flex items-start gap-3 rounded-lg border p-3.5 transition ${
-                                        checked
-                                          ? "border-[#bcd6e3] bg-[#f1f8fb]"
-                                          : "border-[#e2dfd3] bg-white"
-                                      }`}
-                                    >
-                                      <button
-                                        type="button"
-                                        aria-pressed={checked}
-                                        onClick={() => toggleGuideStep(guide.id, idx)}
-                                        className={`grid h-8 w-8 shrink-0 place-items-center rounded-md border text-xs font-extrabold transition ${
-                                          checked
-                                            ? "border-[#006699] bg-[#006699] text-white"
-                                            : "border-[#cfd8dc] bg-[#f6f5ef] text-[#173a4c] hover:border-[#006699]"
-                                        }`}
-                                      >
-                                        {checked ? "✓" : String(idx + 1).padStart(2, "0")}
-                                      </button>
-                                      <div className="min-w-0 flex-1">
-                                        <p
-                                          className={`text-sm font-extrabold ${
-                                            checked ? "text-[#58707c] line-through" : "text-[#14374a]"
-                                          }`}
-                                        >
-                                          {step.title}
-                                        </p>
-                                        <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-[#455a64]">
-                                          {step.body}
-                                        </p>
-                                      </div>
-                                    </li>
-                                  );
-                                })}
-                              </ol>
+                              <GuideRoute steps={guide.steps} guideId={guide.id} area={guide.area} signedIn={!!viewer}
+                                done={doneList} toggle={id => toggleGuideStep(guide.id, id)}
+                                threads={questions.flatMap(q => q.targetGuideId === guide.id && q.targetStepId !== null ? [{ id: q.id, title: q.title, status: q.status, stepId: q.targetStepId }] : [])}
+                              />
 
                               {guide.faqs.length > 0 && (
                                 <div className="rounded-lg border border-[#e0dccf] bg-[#f8f6ee] p-4">
@@ -1026,8 +998,8 @@ export function ForoGuiasBoard({
                               {q.targetGuideId && (
                                 <p className="mt-2 text-xs font-bold text-[#004d73]">
                                   Guía vinculada:{" "}
-                                  <Link href={`/guias/${q.targetGuideId}`} className="underline hover:text-[#006699]">
-                                    {q.targetGuideTitle ?? "Abrir guía"} →
+                                  <Link href={`/guias/${q.targetGuideId}${q.targetStepId !== null ? `?paso=${q.targetStepId}#ruta` : ""}`} className="underline hover:text-[#006699]">
+                                    {q.targetGuideTitle ?? "Abrir guía"}{q.targetStepId !== null && ` · ${guides.find(g => g.id === q.targetGuideId)?.steps.find(s => s.id === q.targetStepId)?.title ?? "Paso retirado"}`} →
                                   </Link>
                                 </p>
                               )}

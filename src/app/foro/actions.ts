@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { asSteps } from "../guias/shared";
 import { procedureOffice } from "@/lib/areas";
 import { audit, getSession } from "@/lib/auth";
 import { pool, type SecureClient } from "@/lib/db";
@@ -77,7 +78,10 @@ export async function publishQuestion(
   const requestKindRaw = String(form.get("request_kind") ?? "pregunta");
   const requestKind = isRequestKind(requestKindRaw) ? requestKindRaw : "pregunta";
   const targetGuideRaw = String(form.get("target_guide_id") ?? "").trim();
-  const targetGuideId = requestKind === "actualizar_guia" && isUuid(targetGuideRaw) ? targetGuideRaw : null;
+  const rawStep = form.get("target_step_index");
+  const stepId = rawStep === null ? null : Number(rawStep);
+  const targetGuideId = isUuid(targetGuideRaw) ? targetGuideRaw : null;
+  if (rawStep !== null && (!targetGuideId || requestKind !== "pregunta" || !/^\d+$/.test(String(rawStep)) || !Number.isSafeInteger(stepId))) return { error: "El paso seleccionado no es válido." };
   const title = String(form.get("title") ?? "").trim();
   const body = String(form.get("body") ?? "").trim();
 
@@ -98,6 +102,10 @@ export async function publishQuestion(
 
   const outcome = await withTx(async (client) => {
     await client.query("select pg_advisory_xact_lock(hashtextextended($1::text, 0))", [user.id]);
+    if (targetGuideId) {
+      const guide = await client.query<{ area: string; steps: unknown }>("select area, steps from guides where id = $1", [targetGuideId]);
+      if (guide.rows[0]?.area !== area || (stepId !== null && !asSteps(guide.rows[0].steps).some(s => s.id === stepId))) return { error: "La guía o el paso cambiaron. Vuelve a abrir la guía." };
+    }
     const settingRes = await client.query<{ value_int: number }>(
       "select value_int from system_settings where key = 'forum_cooldown_minutes'",
     );
@@ -117,22 +125,24 @@ export async function publishQuestion(
       `select id, title
        from questions
        where title % $1 and similarity(title, $1) > 0.6
+         and ($2::integer is null or (target_guide_id = $3 and target_step_index = $2))
        order by similarity(title, $1) desc
        limit 1`,
-      [title],
+      [title, stepId, targetGuideId],
     );
     const duplicate = similar.rows[0];
     if (duplicate) return { duplicate };
 
     const inserted = await client.query<{ id: string }>(
-      `insert into questions (author_id, area, title, body, image_url, request_kind, target_guide_id)
-       values ($1, $2, $3, $4, $5, $6, $7)
+      `insert into questions (author_id, area, title, body, image_url, request_kind, target_guide_id, target_step_index)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
        returning id`,
-      [user.id, area, title, body, uploaded.url, requestKind, targetGuideId],
+      [user.id, area, title, body, uploaded.url, requestKind, targetGuideId, stepId],
     );
     return { id: inserted.rows[0].id };
   });
 
+  if ("error" in outcome) return { error: outcome.error };
   if ("cooldownSeconds" in outcome && outcome.cooldownSeconds !== undefined) {
     const minutes = Math.max(1, Math.ceil(outcome.cooldownSeconds / 60));
     return { error: `Espera ${minutes} minuto${minutes === 1 ? "" : "s"} antes de publicar otra pregunta.` };

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.0.0",
+    "node": ">=22.13.0",
     "npm": ">=10"
   },
   "scripts": {
@@ -19,14 +19,20 @@
   },
   "dependencies": {
     "@google/genai": "^2.32.0",
+    "@napi-rs/canvas": "^1.1.1",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
+    "@tesseract.js-data/spa": "^1.0.0",
     "bcryptjs": "^3.0.3",
+    "fflate": "^0.8.3",
     "next": "^16.4.6",
+    "pdfjs-dist": "^6.5.438",
     "pg": "^8.23.1",
     "qrcode.react": "^4.2.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "saxes": "^6.0.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.5",

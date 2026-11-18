@@ -29,6 +29,7 @@ type RawQuestionRow = {
   area: string;
   request_kind: string;
   target_guide_id: string | null;
+  target_step_index: number | null;
   target_guide_title: string | null;
   title: string;
   body: string;
@@ -103,7 +104,7 @@ export default async function ForoPage({
           )
         : Promise.resolve({ rows: [] as { guide_id: string; completed_steps: unknown }[] }),
       pool.query<RawQuestionRow>(
-        `select q.id, q.author_id, q.area, q.request_kind, q.target_guide_id,
+        `select q.id, q.author_id, q.area, q.request_kind, q.target_guide_id, q.target_step_index,
                 tg.title as target_guide_title, q.title, q.body, q.image_url, q.is_pinned, q.status,
                 q.created_at, u.name as author_name,
                 (select count(*)::int from public.question_votes qv where qv.question_id = q.id) as votes,
@@ -189,6 +190,7 @@ export default async function ForoPage({
       area: q.area,
       requestKind: q.request_kind,
       targetGuideId: q.target_guide_id,
+      targetStepId: q.target_step_index,
       targetGuideTitle: q.target_guide_title,
       title: q.title,
       body: q.body,

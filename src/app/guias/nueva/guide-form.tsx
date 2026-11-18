@@ -3,7 +3,8 @@
 import { useActionState, useRef, useState, useTransition } from "react";
 import { btn, btnGhost, input, label } from "@/lib/ui";
 import { parseGuideDocumentDraft, type GuideState } from "../actions";
-import { AREAS } from "../shared";
+import { StepEditor } from "../step-editor";
+import { AREAS, MAX_SOURCE_MB, SOURCE_ACCEPT, type GuideStep } from "../shared";
 
 export function GuideForm({
   action,
@@ -15,7 +16,7 @@ export function GuideForm({
   const [state, formAction, pending] = useActionState(action, {});
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
-  const [steps, setSteps] = useState("");
+  const [steps, setSteps] = useState<GuideStep[]>([{ id: 0, title: "", body: "" }]);
   const [faqs, setFaqs] = useState("");
   const [parseNotice, setParseNotice] = useState("");
   const [parseError, setParseError] = useState("");
@@ -27,38 +28,41 @@ export function GuideForm({
     setParseNotice("");
     const file = sourceFileRef.current?.files?.[0];
     if (!file) {
-      setParseError("Selecciona primero un archivo PDF, DOCX o TXT.");
+      setParseError("Selecciona primero una foto o un documento.");
       return;
     }
+    if (file.size > MAX_SOURCE_MB * 1024 * 1024) { setParseError(`El archivo supera el límite de ${MAX_SOURCE_MB} MB.`); return; }
     const fd = new FormData();
     fd.set("source_doc", file);
     startParsing(async () => {
-      const result = await parseGuideDocumentDraft(fd);
-      if (result.error) setParseError(result.error);
-      if (result.notice) setParseNotice(result.notice);
-      if (result.title) setTitle(result.title);
-      if (result.summary) setSummary(result.summary);
-      if (result.steps) setSteps(result.steps);
-      if (result.faqs !== undefined) setFaqs(result.faqs);
+      try {
+        const result = await parseGuideDocumentDraft(fd);
+        if (result.error) setParseError(result.error);
+        if (result.notice) setParseNotice(result.notice);
+        if (result.title) setTitle(result.title);
+        if (result.summary) setSummary(result.summary);
+        if (result.steps) setSteps(result.steps);
+        if (result.faqs !== undefined) setFaqs(result.faqs);
+      } catch { setParseError("Se interrumpió la lectura del archivo. Vuelve a intentarlo."); }
     });
   }
 
   return (
     <form action={formAction} className="space-y-4">
       <div className="space-y-2 rounded-xl border border-[#d5e4ee] bg-[#f8fbfd] p-4">
-        <p className={label}>Generar borrador automático desde documento (CU-09 · PDF, DOCX o TXT)</p>
+        <p className={label}>Generar guía desde un instructivo</p>
         <p className="text-xs text-[#667085]">
-          Sube el instructivo oficial del área para extraer pasos y preguntas frecuentes editables con IA antes de publicar.
+          Foto JPG, PNG o WebP, PDF, Word (.docx) o texto. Hasta {MAX_SOURCE_MB} MB.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <input
             ref={sourceFileRef}
             type="file"
-            accept=".pdf,.docx,.doc,.txt,application/pdf,text/plain"
+            accept={SOURCE_ACCEPT} aria-label="Foto o documento del trámite" disabled={parsing}
             className={`${input} max-w-md`}
           />
           <button type="button" onClick={handleExtractDraft} disabled={parsing} className={btnGhost}>
-            {parsing ? "Extrayendo borrador…" : "Extraer pasos con IA"}
+            {parsing ? "Extrayendo borrador…" : "Generar borrador"}
           </button>
         </div>
         {parseError && <p role="alert" className="text-xs text-[#8C1D18]">{parseError}</p>}
@@ -101,20 +105,7 @@ export function GuideForm({
           placeholder="Qué resuelve esta guía y quién la necesita."
         />
       </label>
-      <label className={label}>
-        Pasos
-        <textarea
-          className={`${input} min-h-36 font-mono text-xs`}
-          name="steps"
-          value={steps}
-          onChange={(e) => setSteps(e.target.value)}
-          required
-          placeholder={"Constancia | Solicítala en Gestión Escolar con boleta vigente.\nPago | Conserva el comprobante para recoger el documento."}
-        />
-      </label>
-      <p className="text-xs text-[#667085]">
-        Un paso por línea, con el formato titulo | texto.
-      </p>
+      <StepEditor steps={steps} setSteps={setSteps} />
       <label className={label}>
         Preguntas frecuentes (opcional)
         <textarea
@@ -135,7 +126,7 @@ export function GuideForm({
       </label>
 
       {state.error && <p className="text-sm text-[#8C1D18]">{state.error}</p>}
-      <button className={btn} disabled={pending}>
+      <button className={btn} disabled={pending || parsing}>
         {pending ? "Publicando…" : "Publicar guía"}
       </button>
     </form>

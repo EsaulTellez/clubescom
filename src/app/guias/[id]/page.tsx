@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btn, btnGhost, card, input, label } from "@/lib/ui";
-import { deleteGuide, deleteSuggestion, reviewSuggestion, suggestImprovement } from "../actions";
+import { deleteGuide, deleteSuggestion, reviewSuggestion } from "../actions";
 import {
   areaLabel,
   asFaqs,
@@ -12,7 +12,7 @@ import {
   isUuid,
   statusLabel,
 } from "../shared";
-import { SuggestForm } from "./suggest-form";
+import type { StepThread } from "../guide-route";
 import { GuideSteps } from "./guide-steps";
 import { StepQA, type StepQuestion } from "./step-qa";
 
@@ -30,6 +30,7 @@ type GuideRow = {
   created_at: Date;
   author_name: string;
   author_id: string;
+  version: number;
 };
 
 type Suggestion = {
@@ -50,7 +51,7 @@ export default async function GuidePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ days?: string }>;
+  searchParams: Promise<{ days?: string; paso?: string; panel?: string; revision?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -58,7 +59,7 @@ export default async function GuidePage({
 
   const user = await getSession();
   const guideResult = await pool.query<GuideRow>(
-    `select g.id, g.author_id, g.area, g.title, g.summary, g.steps, g.faqs,
+    `select g.id, g.version, g.author_id, g.area, g.title, g.summary, g.steps, g.faqs,
             g.attachment_url, g.attachment_name, g.created_at, u.name as author_name
      from guides g
      join users u on u.id = g.author_id
@@ -97,6 +98,10 @@ export default async function GuidePage({
     answers: answerRows.rows.filter((answer) => answer.question_id === question.id),
   }));
 
+  const threads = await pool.query<StepThread>(
+    `select id, title, status, target_step_index as "stepId" from questions
+     where target_guide_id = $1 and target_step_index is not null order by created_at desc`, [id],
+  );
   const suggestions = await pool.query<Suggestion>(
     `select s.id, s.user_id, s.step_index, s.body, s.status, s.review_note, s.reviewed_at, s.created_at,
             u.name as author_name, rev.name as reviewer_name
@@ -147,7 +152,7 @@ export default async function GuidePage({
     totalCompletions = completions.reduce((sum, row) => sum + Number(row.total), 0);
 
     stepFunnel = steps.map((step, idx) => {
-      const row = completions.find((c) => Number(c.step_index) === idx);
+      const row = completions.find((c) => c.step_index === step.id);
       const peopleCount = Number(row?.people ?? 0);
       const totalCount = Number(row?.total ?? 0);
       const dropoff = totalReaders > 0 ? Math.max(0, Math.round(((totalReaders - peopleCount) / totalReaders) * 100)) : 0;
@@ -223,26 +228,19 @@ export default async function GuidePage({
 
       <section className="space-y-4">
         <div>
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">En corto</p>
           <h2 className="mt-1 text-2xl font-extrabold tracking-tight">Pasos del trámite</h2>
         </div>
-        <GuideSteps steps={steps} guideId={guide.id} initialDone={initialDone} signedIn={Boolean(user)} />
-      </section>
-
-      {steps.length > 0 && <section className="space-y-4">
-        <div>
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">Comunidad</p>
-          <h2 className="mt-1 text-2xl font-extrabold tracking-tight">Sugerencias y dudas por paso</h2>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {steps.map((step, index) => {
-            const related = suggestions.rows.filter((item) => item.step_index === index);
-            return <article key={`${step.title}-${index}`} className="board-sidecard p-5">
-              <p className="text-xs font-bold uppercase tracking-wide text-[#006699]">Paso {index + 1}</p>
-                <h3 className="mt-1 font-bold">{step.title}</h3>
-                <StepQA guideId={guide.id} stepIndex={index} questions={questions} signedIn={!!user} />
-              <div className="mt-4 space-y-3">
-                {related.length === 0 && <p className="text-sm text-[#667085]">Aún no hay sugerencias para este paso.</p>}
+        <div id="ruta">
+        {query.revision === "version" && <p role="alert">La guía cambió. Revisa el texto actualizado antes de aceptar la sugerencia.</p>}
+        {query.revision === "texto" && <p role="alert">El texto que se publicará debe tener entre 1 y 2000 caracteres.</p>}
+        <GuideSteps key={`${guide.id}-${query.paso}-${query.panel}`} steps={steps} guideId={guide.id} area={guide.area} initialDone={initialDone} signedIn={Boolean(user)}
+          initialStep={query.paso === undefined ? undefined : Number(query.paso)} initialPanel={query.panel === "editar" ? "editar" : undefined}
+          threads={threads.rows} stepExtras={Object.fromEntries(steps.map(step => {
+            const related = suggestions.rows.filter(item => item.step_index === step.id);
+            const historic = questions.filter(q => q.step_index === step.id);
+            return [step.id, <div key={step.id} className="space-y-3">
+                {historic.length > 0 && <StepQA stepIndex={step.id} questions={historic} signedIn={!!user} />}
+                {related.length > 0 && <h4 className="text-sm font-bold">Cambios propuestos</h4>}
                 {related.map((suggestion) => <div key={suggestion.id} className="rounded-2xl bg-[#edf6fa] p-3">
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="font-semibold">{suggestion.author_name}</span>
@@ -258,22 +256,25 @@ export default async function GuidePage({
                   {staff && <form action={deleteSuggestion} className="mt-2"><input type="hidden" name="id" value={suggestion.id} /><input type="hidden" name="guideId" value={guide.id} /><button className="text-xs font-bold text-[#8C1D18]">Eliminar sugerencia {suggestion.status === "aceptada" ? "(conserva la nota aplicada)" : ""}</button></form>}
                   {staff && suggestion.status === "pendiente" && <form action={reviewSuggestion} className="mt-3 space-y-2 border-t border-[#d5e4ee] pt-2">
                     <input type="hidden" name="id" value={suggestion.id} />
+                    <input type="hidden" name="version" value={guide.version} />
+                    <label className={label}>Texto del paso que se publicará
+                      <textarea key={guide.version} className={input} name="revised_body" required maxLength={2000} rows={4}
+                        defaultValue={`${step.body}\n\n${suggestion.body}`} />
+                    </label>
                     <label className={label}>
                       Nota o motivo para el alumno (opcional al aceptar, recomendado al rechazar)
                       <input className={input} name="review_note" maxLength={500} placeholder="Motivo de aceptación o rechazo" />
                     </label>
                     <div className="flex flex-wrap gap-2">
                       <button className={btn} name="decision" value="aceptar">Aceptar e integrar</button>
-                      <button className={btnGhost} name="decision" value="rechazar">Rechazar</button>
+                      <button className={btnGhost} name="decision" value="rechazar" formNoValidate>Rechazar</button>
                     </div>
                   </form>}
                 </div>)}
-                {user ? <SuggestForm action={suggestImprovement} guideId={guide.id} stepIndex={index} /> : <p className="text-sm text-[#667085]"><Link href="/entrar" className="font-semibold text-[#006699] underline">Inicia sesión</Link> para sugerir una mejora.</p>}
-              </div>
-            </article>;
-          })}
+            </div>];
+          }))} />
         </div>
-      </section>}
+      </section>
 
       {staff && <section id="analiticas" className="space-y-4 rounded-3xl border border-[#b7d4e4] bg-[#f2f8fb] p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">

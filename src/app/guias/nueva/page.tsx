@@ -20,12 +20,7 @@ export default async function NuevaGuiaPage() {
       <section className={`${card} space-y-3`}>
         <h1 className="text-2xl font-semibold tracking-tight">Nueva guía</h1>
         {allowed ? (
-          <>
-            <p className="text-sm text-[#667085]">
-              Escribe los pasos en orden. Cada línea es un paso: el título, una barra vertical y el texto.
-            </p>
-            <GuideForm action={publishGuide} areas={areas} />
-          </>
+          <GuideForm action={publishGuide} areas={areas} />
         ) : (
           <div className="space-y-3 text-sm text-[#667085]">
             <p>

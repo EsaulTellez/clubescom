@@ -3,11 +3,12 @@
 import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { GoogleGenAI } from "@google/genai";
+import { generateDraft } from "./document";
+import { procedureOffice } from "@/lib/areas";
 import { audit, getSession } from "@/lib/auth";
 import { pool, type SecureClient } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { asSteps, isArea, isStaff, isUuid, type GuideFaq, type GuideStep } from "./shared";
+import { MAX_SOURCE_MB, validateSteps, asSteps, isArea, isStaff, isUuid, type GuideFaq, type GuideStep } from "./shared";
 
 export type GuideState = { error?: string };
 export type SuggestState = { error?: string };
@@ -31,7 +32,7 @@ async function withTx<T>(fn: (client: SecureClient) => Promise<T>) {
   }
 }
 
-function parsePairs(raw: string, kind: "pasos" | "preguntas") {
+function parseFaqPairs(raw: string) {
   const lines = raw
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -41,10 +42,7 @@ function parsePairs(raw: string, kind: "pasos" | "preguntas") {
     const index = line.indexOf("|");
     if (index < 0) {
       return {
-        error:
-          kind === "pasos"
-            ? "Cada paso va en una línea con el formato titulo | texto."
-            : "Cada pregunta frecuente va en una línea con el formato pregunta | respuesta.",
+        error: "Cada pregunta frecuente va en una línea con el formato pregunta | respuesta.",
       };
     }
     const left = line.slice(0, index).trim();
@@ -57,159 +55,21 @@ function parsePairs(raw: string, kind: "pasos" | "preguntas") {
   return { pairs };
 }
 
-function heuristicParseSourceText(text: string): {
-  title: string;
-  summary: string;
-  steps: string;
-  faqs: string;
-} {
-  const paragraphs = text
-    .replace(/\r/g, "")
-    .split(/\n{2,}|\n(?=\d+[\.\)]|-|\*)/)
-    .map((p) => p.replace(/\s+/g, " ").trim())
-    .filter((p) => p.length > 6);
-
-  const first = paragraphs[0] ?? "Trámite ESCOM";
-  const title = first.slice(0, 80);
-  const summary = (paragraphs[1] ?? first).slice(0, 300);
-  const stepLines: string[] = [];
-  const faqLines: string[] = [];
-
-  for (const p of paragraphs.slice(1, 15)) {
-    if (p.includes("?")) {
-      const [qPart, ...rest] = p.split("?");
-      const q = `${qPart.trim()}?`;
-      const a = rest.join("?").trim() || "Consulta los detalles en ventanilla del área.";
-      faqLines.push(`${q.slice(0, 140)} | ${a.slice(0, 400)}`);
-    } else {
-      const clean = p.replace(/^(\d+[\.\)]|-|\*)\s*/, "");
-      const colonIdx = clean.indexOf(":");
-      if (colonIdx > 2 && colonIdx < 60) {
-        stepLines.push(`${clean.slice(0, colonIdx).trim()} | ${clean.slice(colonIdx + 1).trim()}`);
-      } else {
-        stepLines.push(`Paso ${stepLines.length + 1} | ${clean.slice(0, 400)}`);
-      }
-    }
-  }
-
-  if (stepLines.length === 0) {
-    stepLines.push(`Revisa los requisitos | ${summary}`);
-  }
-
-  return {
-    title,
-    summary,
-    steps: stepLines.slice(0, 12).join("\n"),
-    faqs: faqLines.slice(0, 6).join("\n"),
-  };
-}
-
 export async function parseGuideDocumentDraft(form: FormData): Promise<{
-  title?: string;
-  summary?: string;
-  steps?: string;
-  faqs?: string;
-  notice?: string;
-  error?: string;
+  title?: string; summary?: string; steps?: GuideStep[]; faqs?: string; notice?: string; error?: string;
 }> {
   const user = await getSession();
-  if (!user || !isStaff(user.role)) {
-    return { error: "Solo moderación y administración pueden procesar documentos." };
-  }
+  if (!user || (user.role !== "admin" && !procedureOffice(user))) return { error: "Solo el personal de trámites puede procesar instructivos." };
   const file = form.get("source_doc");
-  if (!(file instanceof File) || file.size === 0) {
-    return { error: "Selecciona un archivo TXT, PDF o DOCX para extraer el borrador." };
+  if (!(file instanceof File) || !file.size) return { error: "Selecciona una foto o un documento." };
+  if (file.size > MAX_SOURCE_MB * 1024 * 1024) return { error: `El archivo supera el límite de ${MAX_SOURCE_MB} MB.` };
+  try {
+    return await generateDraft(Buffer.from(await file.arrayBuffer()), file.name);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (/^(Usa un PDF|El archivo Word|Divide el PDF|No se distingue|El instructivo excede)/.test(message)) return { error: message };
+    return { error: "No se pudo leer el archivo. Comprueba que abre correctamente o prueba con otra foto." };
   }
-  if (file.size > 15 * 1024 * 1024) {
-    return { error: "El documento debe pesar menos de 15 MB." };
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const nameLower = file.name.toLowerCase();
-  const isPdf = file.type === "application/pdf" || nameLower.endsWith(".pdf");
-  const isTxt = file.type.startsWith("text/") || nameLower.endsWith(".txt") || nameLower.endsWith(".md");
-  const isDocx =
-    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    nameLower.endsWith(".docx") ||
-    nameLower.endsWith(".doc");
-
-  if (!isPdf && !isTxt && !isDocx) {
-    return { error: "Formato no compatible. Usa PDF, DOCX o TXT." };
-  }
-
-  let extractedText = "";
-  if (isTxt) {
-    extractedText = buffer.toString("utf-8");
-  } else {
-    extractedText = buffer
-      .toString("utf-8")
-      .replace(/[^\x20-\x7EÁÉÍÓÚáéíóúÑñ¿¡\n\r]/g, " ")
-      .replace(/\s{2,}/g, " ")
-      .trim();
-  }
-
-  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (apiKey) {
-    try {
-      const ai = new GoogleGenAI({ apiKey });
-      const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
-      if (isPdf) {
-        parts.push({
-          inlineData: {
-            mimeType: "application/pdf",
-            data: buffer.toString("base64"),
-          },
-        });
-      } else {
-        parts.push({ text: extractedText.slice(0, 20000) });
-      }
-      parts.push({
-        text: `Extrae una guía interactiva de trámite para alumnos de ESCOM IPN en español de México a partir del documento proporcionado. Devuelve estrictamente un JSON con:
-"title": título breve del trámite,
-"summary": resumen de 1 a 2 oraciones,
-"steps": arreglo de objetos {"title": "...", "body": "..."},
-"faqs": arreglo de objetos {"q": "...", "a": "..."}`,
-      });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: parts,
-        config: { responseMimeType: "application/json" },
-      });
-      const parsed = JSON.parse(response.text?.trim() ?? "{}") as {
-        title?: string;
-        summary?: string;
-        steps?: { title?: string; body?: string }[];
-        faqs?: { q?: string; a?: string }[];
-      };
-      const stepsStr = (parsed.steps ?? [])
-        .filter((s) => s.title && s.body)
-        .map((s) => `${s.title!.replace(/\|/g, "-").trim()} | ${s.body!.replace(/\s+/g, " ").trim()}`)
-        .join("\n");
-      const faqsStr = (parsed.faqs ?? [])
-        .filter((f) => f.q && f.a)
-        .map((f) => `${f.q!.replace(/\|/g, "-").trim()} | ${f.a!.replace(/\s+/g, " ").trim()}`)
-        .join("\n");
-      if (stepsStr) {
-        return {
-          title: parsed.title?.trim() || file.name.replace(/\.[^.]+$/, ""),
-          summary: parsed.summary?.trim() || "Borrador generado a partir del documento.",
-          steps: stepsStr,
-          faqs: faqsStr,
-          notice: "Borrador extraído con Google GenAI. Revisa y edita los pasos antes de publicar.",
-        };
-      }
-    } catch {
-      // Fallback to local extraction below
-    }
-  }
-
-  const fallback = heuristicParseSourceText(extractedText || file.name.replace(/\.[^.]+$/, ""));
-  return {
-    ...fallback,
-    title: fallback.title || file.name.replace(/\.[^.]+$/, ""),
-    notice:
-      "Borrador estructurado generado localmente a partir del archivo. Revisa y ajusta los pasos antes de publicar.",
-  };
 }
 
 async function uploadGuideAttachment(
@@ -248,7 +108,6 @@ export async function publishGuide(
   const area = String(form.get("area") ?? "");
   const title = String(form.get("title") ?? "").trim();
   const summary = String(form.get("summary") ?? "").trim();
-  const stepsRaw = String(form.get("steps") ?? "");
   const faqsRaw = String(form.get("faqs") ?? "");
 
   if (!isArea(area)) return { error: "Elige un área válida." };
@@ -260,20 +119,13 @@ export async function publishGuide(
     return { error: "Escribe un resumen breve de la guía." };
   }
 
-  const stepsParsed = parsePairs(stepsRaw, "pasos");
-  if ("error" in stepsParsed) return { error: stepsParsed.error };
-  if (!stepsParsed.pairs.length) return { error: "Agrega al menos un paso." };
-  const pairs = stepsParsed.pairs;
-  if (pairs.length > 30) return { error: "Una guía puede tener hasta 30 pasos." };
-
-  const steps: GuideStep[] = pairs.map((pair) => ({
-    title: pair.left.slice(0, 160),
-    body: pair.right.slice(0, 2000),
-  }));
+  const parsed = validateSteps(form.get("steps_json"));
+  if ("error" in parsed) return { error: parsed.error };
+  const steps = parsed.steps;
 
   let faqs: GuideFaq[] = [];
   if (faqsRaw.trim()) {
-    const faqsParsed = parsePairs(faqsRaw, "preguntas");
+    const faqsParsed = parseFaqPairs(faqsRaw);
     if ("error" in faqsParsed) return { error: faqsParsed.error };
     const faqPairs = faqsParsed.pairs;
     faqs = faqPairs.map((pair) => ({
@@ -300,6 +152,7 @@ export async function publishGuide(
     return guideId;
   });
   await audit(user.id, "guide.create", "guides", id, title);
+  revalidatePath("/foro");
   revalidatePath("/guias");
   redirect(`/guias/${id}`);
 }
@@ -328,29 +181,9 @@ export async function editGuide(_prev: GuideState, form: FormData): Promise<Guid
     if (!guide || (user.role !== "admin" && user.area !== guide.area)) return "permission";
     if (guide.version !== expectedVersion) return "version";
 
-    let steps: GuideStep[] = [];
-    if (stepsJson) {
-      try {
-        const parsed = JSON.parse(stepsJson) as { title?: string; body?: string }[];
-        if (Array.isArray(parsed)) {
-          steps = parsed.map((s) => ({
-            title: String(s.title ?? "").trim(),
-            body: String(s.body ?? "").trim(),
-          }));
-        }
-      } catch {
-        return "steps";
-      }
-    } else {
-      steps = asSteps(guide.steps).map((_, index) => ({
-        title: String(form.get(`step_title_${index}`) ?? "").trim(),
-        body: String(form.get(`step_body_${index}`) ?? "").trim(),
-      }));
-    }
-
-    if (!steps.length || steps.length > 30 || steps.some((step) => !step.title || step.title.length > 160 || !step.body || step.body.length > 2000)) {
-      return "steps";
-    }
+    const parsed = validateSteps(stepsJson);
+    if ("error" in parsed) return { error: parsed.error };
+    const steps = parsed.steps;
 
     let faqs: GuideFaq[] = [];
     if (faqsJson) {
@@ -390,10 +223,12 @@ export async function editGuide(_prev: GuideState, form: FormData): Promise<Guid
     );
     return "ok";
   });
+  if (typeof result === "object") return result;
   if (result === "permission") return { error: "No tienes permiso para editar esta guía." };
   if (result === "version") return { error: "La guía cambió mientras la editabas. Recarga para ver la versión actual." };
-  if (result === "steps") return { error: "Completa el título y el texto de cada paso dentro de los límites indicados." };
+  if (result === "steps") return { error: "Revisa las preguntas frecuentes." };
   await audit(user.id, "guide.edit", "guides", id, title);
+  revalidatePath("/foro");
   revalidatePath("/guias");
   revalidatePath(`/guias/${id}`);
   redirect(`/guias/${id}`);
@@ -423,7 +258,7 @@ export async function suggestImprovement(
     [guideId],
   );
   const steps = asSteps(guide.rows[0]?.steps);
-  if (!guide.rows[0] || stepIndex >= steps.length) {
+  if (!guide.rows[0] || !steps.some(step => step.id === stepIndex)) {
     return { error: "Ese paso ya no está en la guía." };
   }
 
@@ -435,7 +270,7 @@ export async function suggestImprovement(
   );
   await audit(user.id, "guide.suggest", "guide_suggestions", inserted.rows[0].id, body);
   revalidatePath(`/guias/${guideId}`);
-  redirect(`/guias/${guideId}`);
+  redirect(`/guias/${guideId}?paso=${stepIndex}&panel=editar#ruta`);
 }
 
 export async function reviewSuggestion(form: FormData) {
@@ -468,9 +303,13 @@ export async function reviewSuggestion(form: FormData) {
     const row = suggestion.rows[0];
     if (!row) return null;
     if (row.status !== "pendiente") {
-      return { guideId: row.guide_id, authorId: row.user_id, action: null };
+      return { guideId: row.guide_id, stepId: row.step_index, authorId: row.user_id, action: null };
     }
 
+    const guide = await client.query<{ steps: unknown; area: string; version: number }>(
+      "select area, steps, version from guides where id = $1 for update", [row.guide_id],
+    );
+    if (!guide.rows[0] || (user.role !== "admin" && user.area !== guide.rows[0].area)) return null;
     if (decision === "rechazar") {
       await client.query(
         `update guide_suggestions
@@ -481,19 +320,18 @@ export async function reviewSuggestion(form: FormData) {
           where id = $1`,
         [id, user.id, reviewNote || "No fue posible aplicar la sugerencia en esta versión."],
       );
-      return { guideId: row.guide_id, authorId: row.user_id, action: "guide.suggestion.reject" as const };
+      return { guideId: row.guide_id, stepId: row.step_index, authorId: row.user_id, action: "guide.suggestion.reject" as const };
     }
 
-    const guide = await client.query<{ steps: unknown }>(
-      "select steps from guides where id = $1 for update",
-      [row.guide_id],
-    );
     const steps = asSteps(guide.rows[0]?.steps);
-    const step = steps[row.step_index];
+    const step = steps.find(item => item.id === row.step_index);
     if (!step) return null;
 
-    const note = `Nota: ${row.body.trim()}`;
-    step.body = step.body.trim() ? `${step.body.trim()}\n\n${note}` : note;
+    const revision = String(form.get("revised_body") ?? "").trim();
+    const problem = revision.length < 1 || revision.length > 2000 ? "texto" :
+      Number(form.get("version")) !== guide.rows[0].version ? "version" : null;
+    if (problem) return { guideId: row.guide_id, stepId: row.step_index, problem };
+    step.body = revision;
     await client.query(
       `insert into guide_versions (guide_id, version, edited_by, title, summary, steps, faqs, change_note)
        select id, version, $2, title, summary, steps, faqs, 'Versión anterior' from guides where id = $1
@@ -507,7 +345,7 @@ export async function reviewSuggestion(form: FormData) {
     await client.query(
       `insert into guide_versions (guide_id, version, edited_by, title, summary, steps, faqs, change_note)
        select id, version, $2, title, summary, steps, faqs, $3 from guides where id = $1`,
-      [row.guide_id, user.id, `Sugerencia aceptada en el paso ${row.step_index + 1}`],
+      [row.guide_id, user.id, `Sugerencia aceptada en el paso ${steps.indexOf(step) + 1}`],
     );
     await client.query(
       `update guide_suggestions
@@ -518,10 +356,11 @@ export async function reviewSuggestion(form: FormData) {
         where id = $1`,
       [id, user.id, reviewNote || null],
     );
-    return { guideId: row.guide_id, authorId: row.user_id, action: "guide.suggestion.accept" as const };
+    return { guideId: row.guide_id, stepId: row.step_index, authorId: row.user_id, action: "guide.suggestion.accept" as const };
   });
 
   if (!reviewed) redirect("/guias");
+  if (reviewed.problem) redirect(`/guias/${reviewed.guideId}?paso=${reviewed.stepId}&revision=${reviewed.problem}#ruta`);
   if (reviewed.action) {
     const supabase = await createSupabaseServerClient();
     await supabase.rpc("notify_user_event", {
@@ -532,35 +371,14 @@ export async function reviewSuggestion(form: FormData) {
         reviewed.action === "guide.suggestion.accept"
           ? reviewNote || "Se incorporó tu aporte en la guía y apareces como colaborador."
           : reviewNote || "El área revisó tu sugerencia y dejó una nota.",
-      p_href: `/guias/${reviewed.guideId}`,
+      p_href: `/guias/${reviewed.guideId}?paso=${reviewed.stepId}#ruta`,
     });
     await audit(user.id, reviewed.action, "guide_suggestions", id, reviewNote || undefined);
   }
+  revalidatePath("/foro");
   revalidatePath("/guias");
   revalidatePath(`/guias/${reviewed.guideId}`);
-  redirect(`/guias/${reviewed.guideId}`);
-}
-
-export async function askStepQuestion(form: FormData) {
-  const user = await getSession();
-  if (!user) redirect("/entrar");
-  const guideId = String(form.get("guideId") ?? "");
-  const stepIndex = Number(form.get("stepIndex"));
-  const title = String(form.get("title") ?? "").trim();
-  const body = String(form.get("body") ?? "").trim();
-  if (!isUuid(guideId) || !Number.isInteger(stepIndex) || stepIndex < 0 || title.length < 5 || title.length > 160 || body.length < 10 || body.length > 1600) {
-    redirect(isUuid(guideId) ? `/guias/${guideId}?error=pregunta` : "/guias");
-  }
-  const guide = await pool.query<{ steps: unknown }>("select steps from guides where id = $1", [guideId]);
-  if (!guide.rows[0] || stepIndex >= asSteps(guide.rows[0].steps).length) redirect("/guias");
-  const result = await pool.query<{ id: string }>(
-    `insert into guide_step_questions (guide_id, step_index, author_id, title, body)
-     values ($1, $2, $3, $4, $5) returning id`,
-    [guideId, stepIndex, user.id, title, body],
-  );
-  await audit(user.id, "guide.question.create", "guide_step_questions", result.rows[0].id, title);
-  revalidatePath(`/guias/${guideId}`);
-  redirect(`/guias/${guideId}#paso-${stepIndex + 1}`);
+  redirect(`/guias/${reviewed.guideId}?paso=${reviewed.stepId}#ruta`);
 }
 
 export async function answerStepQuestion(form: FormData) {
@@ -569,8 +387,8 @@ export async function answerStepQuestion(form: FormData) {
   const questionId = String(form.get("questionId") ?? "");
   const body = String(form.get("body") ?? "").trim();
   if (!isUuid(questionId) || body.length < 5 || body.length > 2000) redirect("/guias");
-  const question = await pool.query<{ id: string; guide_id: string; area: string; status: string }>(
-    `select q.id, q.guide_id, g.area, q.status from guide_step_questions q
+  const question = await pool.query<{ id: string; guide_id: string; step_index: number; area: string; status: string }>(
+    `select q.id, q.guide_id, q.step_index, g.area, q.status from guide_step_questions q
      join guides g on g.id = q.guide_id where q.id = $1`, [questionId],
   );
   const row = question.rows[0];
@@ -583,7 +401,7 @@ export async function answerStepQuestion(form: FormData) {
   if (official) await pool.query("update guide_step_questions set status = 'respondida', updated_at = now() where id = $1", [questionId]);
   await audit(user.id, "guide.question.answer", "guide_step_answers", inserted.rows[0].id, official ? "respuesta oficial" : "respuesta comunitaria");
   revalidatePath(`/guias/${row.guide_id}`);
-  redirect(`/guias/${row.guide_id}#pregunta-${questionId}`);
+  redirect(`/guias/${row.guide_id}?paso=${row.step_index}#pregunta-${questionId}`);
 }
 
 export async function voteGuideAnswer(form: FormData) {
@@ -592,8 +410,8 @@ export async function voteGuideAnswer(form: FormData) {
   const answerId = String(form.get("answerId") ?? "");
   const helpful = String(form.get("helpful") ?? "true") === "true";
   if (!isUuid(answerId)) redirect("/guias");
-  const answer = await pool.query<{ guide_id: string }>(
-    `select q.guide_id from guide_step_answers a join guide_step_questions q on q.id = a.question_id where a.id = $1`, [answerId],
+  const answer = await pool.query<{ guide_id: string; step_index: number }>(
+    `select q.guide_id, q.step_index from guide_step_answers a join guide_step_questions q on q.id = a.question_id where a.id = $1`, [answerId],
   );
   const guideId = answer.rows[0]?.guide_id;
   if (!guideId) redirect("/guias");
@@ -610,13 +428,16 @@ export async function voteGuideAnswer(form: FormData) {
     client.release();
   }
   revalidatePath(`/guias/${guideId}`);
-  redirect(`/guias/${guideId}#respuesta-${answerId}`);
+  redirect(`/guias/${guideId}?paso=${answer.rows[0].step_index}#respuesta-${answerId}`);
 }
 
 export async function saveGuideProgress(guideId: string, completedSteps: number[], newlyCompletedStep?: number) {
   const user = await getSession();
   if (!user || !isUuid(guideId)) return;
-  const cleanSteps = [...new Set(completedSteps.filter((n) => Number.isInteger(n) && n >= 0 && n < 30))].sort((a, b) => a - b);
+  const guide = await pool.query<{ steps: unknown }>("select steps from guides where id = $1", [guideId]);
+  if (!guide.rowCount) return;
+  const ids = new Set(asSteps(guide.rows[0].steps).map(step => step.id));
+  const cleanSteps = [...new Set(completedSteps.filter(id => ids.has(id)))];
   await pool.query(
     `insert into guide_progress (user_id, guide_id, completed_steps, updated_at)
      values ($1, $2, $3::jsonb, now())
@@ -625,7 +446,7 @@ export async function saveGuideProgress(guideId: string, completedSteps: number[
            updated_at = now()`,
     [user.id, guideId, JSON.stringify(cleanSteps)],
   );
-  if (newlyCompletedStep !== undefined && Number.isInteger(newlyCompletedStep) && newlyCompletedStep >= 0 && newlyCompletedStep < 30) {
+  if (newlyCompletedStep !== undefined && cleanSteps.includes(newlyCompletedStep)) {
     await pool.query(
       "insert into guide_analytics_events (guide_id, user_id, event_type, step_index) values ($1, $2, 'step_complete', $3)",
       [guideId, user.id, newlyCompletedStep],
@@ -647,6 +468,7 @@ export async function deleteGuide(form: FormData) {
     user.role === "admin",
   ]);
   if (result.rowCount) await audit(user.id, "guide.delete", "guides", id);
+  revalidatePath("/foro");
   revalidatePath("/guias");
   redirect("/guias");
 }
