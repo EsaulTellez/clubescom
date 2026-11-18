@@ -42,7 +42,7 @@ export default async function ApelacionesPage({
     <div className="mx-auto max-w-3xl space-y-6">
       <header className="border-b-2 border-[#d4ddd9] pb-4">
         <p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#006699]">Convivencia ESCOM · Revisión personal</p>
-        <h1 className="mt-1 font-serif text-4xl font-extrabold tracking-[-.04em] text-[#173142]">Mis apelaciones</h1>
+        <h1 className="mt-1 text-4xl font-extrabold tracking-[-.04em] text-[#173142]">Mis apelaciones</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#526974]">Hola, {identity.name}. Aquí puedes consultar tus suspensiones y explicar por qué solicitas una revisión. La decisión la toma administración general.</p>
       </header>
       {params.enviada && <p role="status" className="rounded-md border border-[#a7cfb3] bg-[#eff8f1] px-4 py-3 text-sm font-semibold text-[#235b35]">Recibimos tu apelación. La decisión aparecerá en esta página.</p>}

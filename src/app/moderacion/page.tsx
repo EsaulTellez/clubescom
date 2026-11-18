@@ -67,7 +67,7 @@ export default async function ModeracionPage({ searchParams }: { searchParams: S
     <div className="space-y-8">
       <header className="border-b-2 border-[#d4ddd9] pb-4">
         <p className="text-xs font-extrabold uppercase tracking-[.16em] text-[#006699]">Convivencia ESCOM · Personal institucional</p>
-        <h1 className="mt-1 font-serif text-4xl font-extrabold tracking-[-.04em] text-[#173142]">Moderación</h1>
+        <h1 className="mt-1 text-4xl font-extrabold tracking-[-.04em] text-[#173142]">Moderación</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[#526974]">Registra infracciones con motivo y revisa el historial dentro de tu área. Cada tres infracciones confirmadas activa el siguiente nivel de suspensión.</p>
       </header>
 

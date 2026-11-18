@@ -47,12 +47,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 @layer base {
-  h1, h2, h3 { font-family: var(--font-serif); }
   button:not(:disabled), summary { cursor: pointer; }
 }
 
 .edition-title {
-  font-family: var(--font-serif);
   font-size: clamp(2rem, 3.5vw, 3.35rem);
   font-weight: 700;
   letter-spacing: -.045em;
@@ -706,7 +704,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .board-club-card__logo { width: 4.25rem; height: 4.25rem; flex: none; object-fit: contain; background: #f1efe5; }
 .board-club-card h2 {
   color: #203b45;
-  font: bold clamp(1.4rem, 2vw, 1.9rem)/1.1 var(--font-serif);
+  font: bold clamp(1.4rem, 2vw, 1.9rem)/1.1 var(--font-sans);
   letter-spacing: -.035em;
   overflow-wrap: anywhere;
 }

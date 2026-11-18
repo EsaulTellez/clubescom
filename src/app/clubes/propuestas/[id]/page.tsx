@@ -266,7 +266,7 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
             <span className="rounded-full bg-[#e6f7ef] px-2 py-0.5 text-xs font-semibold text-[#17634a]">Registro formal enviado</span>
           )}
         </div>
-        <h1 className="font-serif text-4xl tracking-tight">{proposal.name}</h1>
+        <h1 className="text-4xl tracking-tight">{proposal.name}</h1>
         <p className="whitespace-pre-wrap text-sm leading-6">{proposal.description}</p>
 
         {(proposal.objectives || proposal.schedule_plan || proposal.activities_detail || proposal.requested_spaces || proposal.community_impact) && (

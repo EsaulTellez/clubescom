@@ -103,7 +103,7 @@ function EventCard({ event, featured = false, isAuthenticated, canDelete, openPo
           <time dateTime={startsAt} className="font-mono uppercase tracking-wide text-[#7d3c2b]">{programDate.format(new Date(startsAt))}</time>
           <span className="tabular-nums">{time(startsAt)}{endsAt && <> – {otherDay && programDate.format(new Date(endsAt)) + ", "}{time(endsAt)}</>} h</span>
         </p>
-        <Heading className={`mt-4 text-balance font-[Georgia,serif] leading-[1.08] font-bold tracking-tight text-[#182f3a] [overflow-wrap:anywhere] ${featured ? "text-[1.85rem] xl:text-[2rem]" : "text-[1.65rem]"}`}>{event.title}</Heading>
+        <Heading className={`mt-4 text-balance font-serif leading-[1.08] font-bold tracking-tight text-[#182f3a] [overflow-wrap:anywhere] ${featured ? "text-[1.85rem] xl:text-[2rem]" : "text-[1.65rem]"}`}>{event.title}</Heading>
         <p className="mt-2 text-sm font-bold text-[#294955]">{event.spaceName}{event.building && <span className="font-normal"> · {event.building}</span>}</p>
         {event.description && <p className="mt-3 max-w-prose text-sm leading-relaxed text-[#4d5b60]">{event.description}</p>}
         {(event.speaker || event.clubName) && (
@@ -281,7 +281,7 @@ export function EventBoard({
         <div className="px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex flex-wrap items-baseline justify-between gap-4 border-b border-dashed border-[#cfc9b8] pb-4">
             <div className="flex flex-wrap items-baseline gap-3">
-              <h1 className="font-[Georgia,serif] text-3xl font-bold uppercase tracking-[-0.03em] text-[#132c3d] sm:text-4xl">
+              <h1 className="font-serif text-3xl font-bold uppercase tracking-[-0.03em] text-[#132c3d] sm:text-4xl">
                 Cartelera ESCOM
               </h1>
               <span className="rounded border border-[#c7c0ae] bg-[#f4efe1] px-2.5 py-0.5 text-xs font-extrabold uppercase tracking-wider text-[#3a5260]">
@@ -352,7 +352,7 @@ export function EventBoard({
       {showPublishForm && (canPublishEvents || canSubmitForReview) && spaces.length > 0 && (
         <section className={`${card} max-w-2xl space-y-3 border-2 border-[#173142]`}>
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-lg font-extrabold text-[#142c3c]">
+            <h2 className="font-serif text-lg font-extrabold text-[#142c3c]">
               {canPublishEvents
                 ? "Publicar evento autorizado en el itinerario"
                 : "Enviar evento ya autorizado a revisión para el itinerario"}
@@ -437,7 +437,7 @@ export function EventBoard({
                 ‹
               </button>
               <div className="text-center">
-                <h2 className="text-sm font-extrabold capitalize text-[#142c3c]">
+                <h2 className="font-serif text-sm font-extrabold capitalize text-[#142c3c]">
                   {monthLabel(month)}
                 </h2>
                 <p className="text-[11px] font-bold text-[#5f6e78]">

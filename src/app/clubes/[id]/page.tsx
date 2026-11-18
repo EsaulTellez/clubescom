@@ -312,7 +312,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
             {logo ? (
               <img src={logo} alt="" className="h-16 w-16 shrink-0 bg-[#f1efe5] object-contain sm:h-24 sm:w-24" />
             ) : (
-              <span aria-hidden="true" className="grid h-16 w-16 shrink-0 place-items-center bg-[#e6ede6] font-serif text-3xl text-[#21483f]">{club.name.replace("Club de ", "").slice(0, 1)}</span>
+              <span aria-hidden="true" className="grid h-16 w-16 shrink-0 place-items-center bg-[#e6ede6] text-3xl text-[#21483f]">{club.name.replace("Club de ", "").slice(0, 1)}</span>
             )}
             <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-wider text-[#3d6959]">{kindLabel(club.kind)}</p>

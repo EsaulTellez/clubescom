@@ -33,7 +33,7 @@ Esta guía es la referencia persistente para cambios de interfaz de ESCOM. Leerl
 
 ## Sistema visual
 
-- **Identidad compartida (confirmada el 2026-11-17)**. Eventos y Objetos son la referencia visual de las demás rutas. Usar titulares con serif, texto y controles con sans serif, papel claro y filetes de tinta. Inicio funciona como portada, Avisos como mural, Clubes como directorio, Mapa como plano del plantel y Foro y Guías como espacio de consulta. Los buscadores, pestañas y botones comparten estilo y estados de foco.
+- **Identidad compartida (confirmada el 2026-11-17)**. La cartelera de Eventos reserva la serif para sus títulos, por la referencia al teatro y al auditorio. El resto de la interfaz, incluidos los titulares, las tarjetas y la navegación compartida, usa la misma sans serif del texto de lectura. El papel claro y los filetes de tinta dan continuidad entre módulos. Inicio funciona como portada, Avisos como mural, Clubes como directorio, Mapa como plano del plantel y Foro y Guías como espacio de consulta. Los buscadores, pestañas y botones comparten estilo y estados de foco.
 
 - Usar el azul institucional y los activos ESCOM/IPN existentes como base. Evitar acentos morados desconectados de la identidad.
 - Dar personalidad con color, textura y señalética de tablero de forma moderada; mantener contraste y lectura antes que decoración.

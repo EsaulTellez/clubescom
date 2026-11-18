@@ -175,7 +175,7 @@ export default async function HomePage() {
             <ol className="grid gap-2.5">
               {popularClubs.map((club) => (
                 <li key={club.id} className="board-leaderboard__item flex items-center gap-3">
-                  <span className="grid h-6 w-6 shrink-0 place-items-center font-serif text-lg italic text-[#42606a]">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center text-lg font-semibold tabular-nums text-[#42606a]">
                     {club.rank}
                   </span>
 
@@ -219,7 +219,7 @@ export default async function HomePage() {
               {trendingEvents.map((ev) => (
                 <li key={`${ev.eventKind}-${ev.id}`} className="board-leaderboard__item space-y-2">
                   <div className="flex items-start gap-2.5">
-                    <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center font-serif text-lg italic text-[#81633a]">
+                    <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center text-lg font-semibold tabular-nums text-[#81633a]">
                       {ev.rank}
                     </span>
 

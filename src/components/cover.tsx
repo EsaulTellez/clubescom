@@ -62,7 +62,7 @@ export function Cover({
           {kicker && (
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/75">{kicker}</p>
           )}
-          {title && <p className="mt-1 max-w-[16rem] font-serif text-[1.15rem] leading-snug tracking-tight">{title}</p>}
+          {title && <p className="mt-1 max-w-[16rem] text-[1.15rem] leading-snug tracking-tight">{title}</p>}
         </div>
       )}
     </div>

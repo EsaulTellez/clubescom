@@ -154,7 +154,7 @@ export function AppShell({
         <div className="mx-auto flex h-[62px] max-w-[1780px] items-center gap-4 px-4 sm:px-6 lg:px-10">
           <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="ESCOM, inicio">
             <img src="/brand/escudo-escom.png" alt="ESCOM IPN" className="h-7 w-auto sm:h-8" />
-            <span className="border-l border-[#d8d5ca] pl-2.5 font-serif text-base font-bold tracking-tight text-[#244753] sm:text-xl">Comunidad</span>
+            <span className="border-l border-[#d8d5ca] pl-2.5 text-base font-bold tracking-tight text-[#244753] sm:text-xl">Comunidad</span>
           </Link>
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
             {user ? <>

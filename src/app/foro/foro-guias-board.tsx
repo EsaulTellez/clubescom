@@ -570,7 +570,7 @@ export function ForoGuiasBoard({
         <div>
           <div className="edition-rule flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 className="edition-title">Foro <i className="font-normal">y Guías</i></h1>
+              <h1 className="edition-title">Foro y Guías</h1>
               <p className="mt-2 text-xs text-[#51616a]">
                 {guides.length} {guides.length === 1 ? "guía" : "guías"} · {questions.length} {questions.length === 1 ? "duda" : "dudas"} · {officialCountAll} con respuesta oficial
               </p>
@@ -685,7 +685,7 @@ export function ForoGuiasBoard({
                 <div>
                   <h2
                     id="guides-section-heading"
-                    className="font-serif text-xl font-extrabold tracking-tight text-[#14374a] sm:text-2xl"
+                    className="text-xl font-extrabold tracking-tight text-[#14374a] sm:text-2xl"
                   >
                     Guías paso a paso
                   </h2>
@@ -736,7 +736,7 @@ export function ForoGuiasBoard({
                         </div>
 
                         <div className="flex flex-1 flex-col p-4 sm:p-5">
-                          <h3 className="font-serif text-lg font-extrabold leading-snug text-[#14374a] sm:text-xl">
+                          <h3 className="text-lg font-extrabold leading-snug text-[#14374a] sm:text-xl">
                             {guide.title}
                           </h3>
                           <p className="mt-2 text-sm leading-relaxed text-[#485d68]">{guide.summary}</p>
@@ -906,7 +906,7 @@ export function ForoGuiasBoard({
                 <div>
                   <h2
                     id="forum-section-heading"
-                    className="font-serif text-xl font-extrabold tracking-tight text-[#14374a] sm:text-2xl"
+                    className="text-xl font-extrabold tracking-tight text-[#14374a] sm:text-2xl"
                   >
                     Dudas y respuestas de la comunidad
                   </h2>
@@ -1003,7 +1003,7 @@ export function ForoGuiasBoard({
                               </div>
 
                               {/* Título SIN enlace clickable */}
-                              <h3 className="mt-2.5 font-serif text-lg font-extrabold leading-snug text-[#14374a] sm:text-xl">
+                              <h3 className="mt-2.5 text-lg font-extrabold leading-snug text-[#14374a] sm:text-xl">
                                 {q.title}
                               </h3>
 
@@ -1344,7 +1344,7 @@ export function ForoGuiasBoard({
             className="scroll-mt-28 rounded-sm border border-[#d6d3c6] border-t-4 border-t-[#b88917] bg-[#fffdf7] p-5 shadow-[0_2px_0_rgba(23,49,66,0.04)]"
             aria-labelledby="new-question-heading"
           >
-            <h2 id="new-question-heading" className="font-serif text-lg font-extrabold text-[#14374a]">
+            <h2 id="new-question-heading" className="text-lg font-extrabold text-[#14374a]">
               Nueva publicación en el foro
             </h2>
             {viewer ? (
@@ -1372,7 +1372,7 @@ export function ForoGuiasBoard({
               aria-labelledby="directory-heading"
             >
               <div className="flex items-center justify-between gap-2">
-                <h2 id="directory-heading" className="font-serif text-lg font-extrabold text-[#14374a]">
+                <h2 id="directory-heading" className="text-lg font-extrabold text-[#14374a]">
                   Ventanillas en ESCOM
                 </h2>
                 <Link href="/mapa" className="text-xs font-extrabold text-[#005a87] hover:underline">

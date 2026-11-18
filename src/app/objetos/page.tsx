@@ -68,8 +68,8 @@ export default async function ObjetosPage({
     <div className="space-y-6">
       <header className="border-y border-[#b8c1bd] bg-[#fffdf7] px-4 pt-6 sm:px-7 sm:pt-8">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-5">
-          <h1 className="font-[Georgia,serif] text-4xl leading-tight font-bold tracking-tight text-[#193c4a] sm:text-5xl">
-            Perdidos <span className="font-normal italic">y encontrados</span>
+          <h1 className="text-4xl leading-tight font-bold tracking-tight text-[#193c4a] sm:text-5xl">
+            Perdidos y encontrados
           </h1>
           <Link className="rounded-sm bg-[#155775] px-4 py-3 text-sm font-bold text-white hover:bg-[#123e54]" href={user ? "/objetos/nuevo" : "/entrar"}>
             {user ? "+ Reportar objeto" : "Inicia sesión para reportar"}
