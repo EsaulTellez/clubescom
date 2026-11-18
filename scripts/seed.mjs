@@ -10,13 +10,15 @@ if (!url || !secret || !dbUrl) {
   throw new Error("Faltan variables de Supabase. Ejecuta npm run env:local primero.");
 }
 
+const loopbackHosts = ["localhost", "127.0.0.1", "[::1]"];
+const databaseHost = new URL(dbUrl).hostname;
+if (!loopbackHosts.includes(new URL(url).hostname) ||
+    ![...loopbackHosts, "db", "postgres"].includes(databaseHost)) {
+  throw new Error("Las cuentas de demostración solo pueden crearse en el entorno local.");
+}
+
 const auth = createClient(url, secret, { auth: { autoRefreshToken: false, persistSession: false } });
-const isLocalDb =
-  dbUrl.includes("127.0.0.1") || dbUrl.includes("localhost") || dbUrl.includes("@postgres:");
-const pool = new Pool({
-  connectionString: dbUrl,
-  ssl: isLocalDb ? undefined : { rejectUnauthorized: false },
-});
+const pool = new Pool({ connectionString: dbUrl });
 const password = "Escom2026!";
 const people = [
   ["daniel.alumno@alumno.ipn.mx", "Daniel Díaz Ramírez", "2023630001", "alumno", null],

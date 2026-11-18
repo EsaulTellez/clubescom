@@ -44,7 +44,7 @@ export async function register(
   }
 
   return {
-    ok: "Te enviamos un código de seis dígitos. Revísalo en tu correo; en el demo local aparece en Mailpit.",
+    ok: "Te enviamos un código de seis dígitos. Revísalo en tu correo.",
   };
 }
 
@@ -78,10 +78,10 @@ export async function resendOtp(
     email,
   });
   if (error) {
-    return { error: "No pudimos reenviar el código. Espera un minuto o revisa tu correo en Mailpit." };
+    return { error: "No pudimos reenviar el código. Espera un minuto y vuelve a intentarlo." };
   }
   return {
-    ok: "Reenviamos un código nuevo de seis dígitos (válido por 15 minutos). Revisa Mailpit.",
+    ok: "Reenviamos un código nuevo de seis dígitos (válido por 15 minutos). Revisa tu correo.",
   };
 }
 
@@ -171,7 +171,7 @@ export async function requestReset(
   if (error) return { error: "No pudimos enviar el enlace. Inténtalo de nuevo en un momento." };
 
   return {
-    ok: "Si la cuenta existe, enviamos un enlace de recuperación. En el demo local revisa Mailpit.",
+    ok: "Si la cuenta existe, enviamos un enlace de recuperación.",
   };
 }
 

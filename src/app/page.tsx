@@ -126,7 +126,7 @@ export default async function HomePage() {
 
       {dbDown && (
         <p className={card} role="status">
-          No se pudo conectar con los datos locales. Inicia los servicios del proyecto y vuelve a cargar.
+          No se pudo cargar el inicio. Vuelve a intentarlo en un momento.
         </p>
       )}
 

@@ -1,4 +1,6 @@
 import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type DbRole = "anon" | "authenticated";
@@ -12,18 +14,22 @@ export type SecureClient = {
 };
 
 const globalForPg = globalThis as unknown as { pool?: Pool };
-const connectionString = process.env.DATABASE_URL ?? "";
-const isLocalDb =
-  !connectionString ||
-  connectionString.includes("127.0.0.1") ||
-  connectionString.includes("localhost") ||
-  connectionString.includes("@postgres:");
+const databaseUrl = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL) : undefined;
+const localDatabase = !databaseUrl || ["127.0.0.1", "localhost", "[::1]", "postgres", "db"].includes(databaseUrl.hostname);
+const hostedSupabase = databaseUrl?.hostname.endsWith(".pooler.supabase.com") || databaseUrl?.hostname.endsWith(".supabase.co");
+if (hostedSupabase && databaseUrl) {
+  // pg gives URI TLS parameters precedence over the verified configuration below.
+  for (const name of ["ssl", "sslmode", "sslrootcert", "sslcert", "sslkey"]) databaseUrl.searchParams.delete(name);
+}
 
 const rawPool =
   globalForPg.pool ??
   new Pool({
-    connectionString,
-    ssl: isLocalDb ? undefined : { rejectUnauthorized: false },
+    connectionString: databaseUrl?.href,
+    ssl: localDatabase ? undefined : {
+      rejectUnauthorized: true,
+      ca: hostedSupabase ? readFileSync(join(process.cwd(), "db/supabase-prod-ca-2021.crt"), "utf8") : undefined,
+    },
     max: process.env.VERCEL ? 5 : 10,
   });
 if (process.env.NODE_ENV !== "production") globalForPg.pool = rawPool;

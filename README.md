@@ -44,6 +44,23 @@ No entrega un objeto en persona ni exige que un prefecto esté presente. Tampoco
 
 ## Ejecutar el proyecto
 
+### Producción en Vercel
+
+Importa la rama `main` desde la raíz del repositorio. Selecciona **Next.js**, Node.js **24.x** y el comando de compilación `npm run build`. Conserva el directorio de salida automático. Para reproducir el servidor de producción en tu equipo, ejecuta `npm run build` y después `npm start`. El comando `npm run dev` sirve para desarrollo local.
+
+Configura las variables del entorno **Production** antes de compilar. Las variables `NEXT_PUBLIC_*` se integran al build. Si cambian, genera un despliegue nuevo.
+
+- `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` corresponden a la URL HTTPS y la clave pública del mismo proyecto Supabase.
+- `SUPABASE_SECRET_KEY` es la clave privada de administración. `DATABASE_URL` es la cadena privada del **Session pooler** de ese proyecto en el puerto **5432**. Algunas operaciones conservan el rol de PostgreSQL durante toda una conexión. La aplicación verifica TLS con la CA pública de Supabase incluida en `db/supabase-prod-ca-2021.crt`.
+- `NEXT_PUBLIC_SITE_URL` es el origen HTTPS definitivo de la plataforma. Puedes omitirla para usar el dominio de producción que Vercel proporciona al build. Si usas un dominio personalizado, escribe la URL completa.
+- `GOOGLE_GENERATIVE_AI_API_KEY` habilita la generación de comunicados y el procesamiento de documentos. Para el correo de coordinación de clubes por Resend, configura `RESEND_API_KEY` y `MAIL_FROM_EMAIL` con un remitente verificado.
+
+En **Supabase Auth**, configura el mismo dominio en **Site URL**, permite el callback `/auth/callback` con sus parámetros de recuperación y activa la confirmación de correo. Configura SMTP para entregar mensajes a las cuentas institucionales. El formulario espera un OTP de seis dígitos con vigencia de 900 segundos. Las plantillas de confirmación y recuperación están en `supabase/templates/`.
+
+La base necesita el esquema de `supabase/migrations/`, incluidos permisos, buckets de Storage y publicación Realtime. Para una base nueva, aplica las migraciones una vez antes del primer despliegue. El proyecto remoto existente tiene un historial agrupado. Compara su esquema antes de aplicar cambios. Reserva `npm run db:seed` y Docker Compose para la demo local.
+
+Los adjuntos que pasan por Server Actions están sujetos al máximo de **4.5 MB por petición completa** de Vercel. Los límites por archivo de algunas pantallas son mayores. Para admitir esos tamaños en Vercel hace falta subir los archivos directamente a Storage. [Límites de Vercel Functions](https://vercel.com/docs/functions/limitations#request-body-size)
+
 ### Con Docker Compose
 
 Instala y abre [Docker Desktop](https://www.docker.com/products/docker-desktop/) (o Docker Engine con el complemento Compose). En la carpeta del repositorio ejecuta:
@@ -64,7 +81,7 @@ Esta configuración es exclusivamente para una demo local: usa credenciales púb
 
 ### Requisitos
 
-- [Node.js](https://nodejs.org/) 20.9 o superior y npm 10 o superior.
+- [Node.js](https://nodejs.org/) 22 o superior y npm 10 o superior.
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) abierto y en ejecución.
 - La [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started). Puede instalarse globalmente con `npm install -g supabase` o ejecutarse con `npx supabase`.
 

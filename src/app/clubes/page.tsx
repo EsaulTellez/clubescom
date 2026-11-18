@@ -235,7 +235,7 @@ export default async function ClubesPage() {
 
       {dbDown && (
         <p className={card} role="status">
-          No se pudo conectar con los datos locales. Inicia los servicios del proyecto y vuelve a cargar.
+          No se pudieron cargar los datos. Vuelve a intentarlo en un momento.
         </p>
       )}
 

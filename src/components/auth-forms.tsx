@@ -42,7 +42,7 @@ export function RegisterForm({
         Acepto el aviso de privacidad y el uso de mi boleta y correo solo para autenticación y comunicación académica.
       </label>
       <Note state={state} />
-      <p className="text-xs text-[#667085]">La verificación llega por correo. En la demo local puedes abrir Mailpit.</p>
+      <p className="text-xs text-[#667085]">La verificación llega por correo.</p>
       <button className={btn} disabled={pending}>
         {pending ? "Creando…" : "Crear cuenta"}
       </button>
