@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { FormDialogTrigger } from "@/components/form-dialog";
+import { ReportForm } from "./nuevo/form";
 import { ReportNotice } from "./report-notice";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
@@ -71,9 +73,16 @@ export default async function ObjetosPage({
           <h1 className="text-4xl leading-tight font-bold tracking-tight text-[#193c4a] sm:text-5xl">
             Perdidos y encontrados
           </h1>
-          <Link className="rounded-sm bg-[#155775] px-4 py-3 text-sm font-bold text-white hover:bg-[#123e54]" href={user ? "/objetos/nuevo" : "/entrar"}>
-            {user ? "+ Reportar objeto" : "Inicia sesión para reportar"}
-          </Link>
+          {user ? (
+            <FormDialogTrigger title="Reportar objeto" triggerLabel="+ Reportar objeto"
+              triggerClassName="rounded-sm bg-[#155775] px-4 py-3 text-sm font-bold text-white hover:bg-[#123e54]">
+              <ReportForm />
+            </FormDialogTrigger>
+          ) : (
+            <Link className="rounded-sm bg-[#155775] px-4 py-3 text-sm font-bold text-white hover:bg-[#123e54]" href="/entrar">
+              Inicia sesión para reportar
+            </Link>
+          )}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-x-4 border-t border-[#d6d6ca]">
           <nav aria-label="Filtrar reportes" className="flex flex-wrap gap-x-4 sm:gap-x-6">

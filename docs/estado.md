@@ -52,6 +52,8 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 ## Cambios
 
+- 2026-11-18. CU-13, CU-21 y CU-28 siguen parciales. «Nueva publicación» en Foro y Guías, «Publicar evento» en Eventos y «Reportar objeto» en Objetos abren formularios en diálogos sobre su listado, con foco contenido, cierre por Escape o clic fuera y desplazamiento interno en móvil; se conservan validaciones y permisos existentes.
+
 - 2026-11-18. CU-01, CU-05, CU-08, CU-14, CU-15, CU-19, CU-20, CU-28 y CU-32 siguen parciales. Se aplicaron y verificaron en el proyecto remoto `clebescom` (`qmqvqklvhnyjjipurgyv`) las migraciones `20261118000100_area_roles.sql`, `20261118000200_club_event_venues.sql` y `20261118000300_office_moderation.sql` (con `20261117000300_public_event_access.sql` ya presente), se aprovisionaron los 21 perfiles de prueba por Auth Admin API y los 4 clubes de prueba con sus membresías conservando los datos reales, y se comprobaron con sesiones Auth + RLS las reglas de eventos públicos, oficinas de trámites, sedes (Auditorio/Sala 14), alternancia de perfil de operación y asignación de roles exclusiva de superadministración.
 - 2026-11-18. CU-01 y CU-32 siguen parciales. La demo local incluye 21 cuentas de Supabase Auth. Operación alterna entre administración, alumno y profesor. Superadministración asigna roles y áreas desde el panel.
 - 2026-11-18. CU-05, CU-14, CU-15, CU-19 y CU-20 siguen parciales. Becas, CATT y Gestión Escolar trabajan con sus trámites y guías. Subdirección ve los clubes académicos. Cuatro clubes tienen parejas distintas de responsables y asesores, con perfiles adicionales de integrante y alumna sin club.

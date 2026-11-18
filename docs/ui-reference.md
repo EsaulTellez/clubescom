@@ -12,6 +12,8 @@ Esta guía es la referencia persistente para cambios de interfaz de ESCOM. Leerl
 
 ## Patrones de interacción
 
+- **Altas en diálogo (confirmado 2026-11-18)**: «Nueva publicación» de Foro y Guías, «Publicar evento» de Eventos y «Reportar objeto» de Perdidos y encontrados abren el formulario en un diálogo sobre el listado actual. Usar papel claro, azul institucional, cierre visible, Escape, foco contenido y desplazamiento interno en pantallas pequeñas.
+
 - **Cero texto redundante o auto-descriptivo de la UI/UX (confirmado 2026-11-16)**: Si la interfaz necesita explicar qué es un componente con subtítulos, párrafos descriptivos, cintas o etiquetas («Resumen visual con...», «Feed inteligente», «Clasificación según...», «Lectura directa completa»), la UX está mal. Nunca agregar textos explicativos sobre cómo funciona la propia interfaz.
 - **Datos estrictamente reales en tarjetas (confirmado 2026-11-16)**: No rellenar las tarjetas con metadatos inventados, códigos de referencia artificiales, sellos de verificación falsos ni tablas de atributos que no existen en el registro. Mostrar únicamente los campos que el elemento tiene en la base de datos; si un campo opcional no existe, no se renderiza nada.
 - **Carrusel de Comunicados en inicio (confirmado 2026-11-16)**: Destinado a comunicados oficiales compactados de redes de la ESCOM. Sin etiquetas ni chips encima de las tarjetas; el contenedor de cada tarjeta toma la proporción natural de la imagen subida (horizontal o vertical) con un límite máximo, lleva título y descripción dentro sobre un gradiente vertical oscuro de abajo hacia arriba, y al hacer clic abre un popup con el comunicado completo.

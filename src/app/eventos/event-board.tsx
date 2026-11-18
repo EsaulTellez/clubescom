@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ClubEventReviewButtons, DeleteClubEventButton } from "../clubes/forms";
 import { AttendButton } from "@/components/attend-button";
+import { FormDialog } from "@/components/form-dialog";
 import { btn, btnGhost, card } from "@/lib/ui";
 import { deleteSpaceEvent, reviewSpaceEvent } from "../espacios/actions";
 import { SpaceEventForm } from "../espacios/forms";
@@ -267,10 +268,11 @@ export function EventBoard({
             {(canPublishEvents || canSubmitForReview) && spaces.length > 0 && (
               <button
                 type="button"
-                onClick={() => setShowPublishForm((v) => !v)}
+                aria-haspopup="dialog"
+                onClick={() => setShowPublishForm(true)}
                 className="rounded border border-[#6ca3c1] bg-[#006699] px-2.5 py-0.5 text-[11px] font-extrabold tracking-wider text-white transition hover:bg-[#005580]"
               >
-                {showPublishForm ? "Cerrar formulario" : "+ Publicar evento"}
+                + Publicar evento
               </button>
             )}
           </div>
@@ -347,25 +349,15 @@ export function EventBoard({
         </div>
       </header>
 
-      {/* FORMULARIO COLAPSABLE DE PUBLICACIÓN / REVISIÓN */}
+      {/* DIÁLOGO DE PUBLICACIÓN / REVISIÓN */}
       {showPublishForm && (canPublishEvents || canSubmitForReview) && spaces.length > 0 && (
-        <section className={`${card} max-w-2xl space-y-3 border-2 border-[#173142]`}>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-serif text-lg font-extrabold text-[#142c3c]">
-              {canPublishEvents
-                ? "Publicar evento autorizado en el itinerario"
-                : "Enviar evento ya autorizado a revisión para el itinerario"}
-            </h2>
-            <button
-              type="button"
-              onClick={() => setShowPublishForm(false)}
-              className="text-xs font-bold text-[#5f6e78] hover:text-[#173142]"
-            >
-              Cerrar ✕
-            </button>
-          </div>
+        <FormDialog
+          title={canPublishEvents ? "Publicar evento autorizado" : "Enviar evento autorizado a revisión"}
+          onClose={() => setShowPublishForm(false)}
+          serifTitle
+        >
           <SpaceEventForm spaces={spaces.map((space) => ({ id: space.id, name: space.name }))} />
-        </section>
+        </FormDialog>
       )}
 
       {/* CUERPO PRINCIPAL: CARTELERA PROTAGONISTA + ALMANAQUE COMPACTO */}

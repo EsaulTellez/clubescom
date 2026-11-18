@@ -2,9 +2,10 @@
 
 import { officeModules, procedureOffice } from "@/lib/areas";
 import { CatalogSearch } from "@/components/catalog-search";
+import { FormDialog } from "@/components/form-dialog";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { saveGuideProgress } from "@/app/guias/actions";
 import type { GuideFaq, GuideStep } from "@/app/guias/shared";
 import { btn, btnGhost, input } from "@/lib/ui";
@@ -233,7 +234,13 @@ export function ForoGuiasBoard({
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [lightboxItem, setLightboxItem] = useState<{ src: string; title: string } | null>(null);
 
-  const questionSectionRef = useRef<HTMLElement>(null);
+  const [showQuestionForm, setShowQuestionForm] = useState(false);
+  const [prevInitialDudaId, setPrevInitialDudaId] = useState(initialDudaId);
+  if (prevInitialDudaId !== initialDudaId) {
+    setPrevInitialDudaId(initialDudaId);
+    setShowQuestionForm(false);
+    if (initialDudaId) setExpandedThreads((prev) => ({ ...prev, [initialDudaId]: true }));
+  }
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -549,7 +556,9 @@ export function ForoGuiasBoard({
   }
 
   function jumpToQuestion(questionId: string) {
+    setShowQuestionForm(false);
     setAreaFilter(office ?? "all");
+    setKindFilter("all");
     setViewMode("todo");
     setQuery("");
     setExpandedThreads((prev) => ({ ...prev, [questionId]: true }));
@@ -562,7 +571,7 @@ export function ForoGuiasBoard({
     if (targetArea && targetArea !== "all") {
       setAreaFilter(targetArea);
     }
-    questionSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setShowQuestionForm(true);
   }
 
   return (
@@ -580,11 +589,12 @@ export function ForoGuiasBoard({
             <div className="flex flex-wrap items-center gap-2.5">
               <button
                 type="button"
+                aria-haspopup="dialog"
                 onClick={() => jumpToNewQuestion()}
                 className={btn}
               >
                 <span aria-hidden="true">+</span>
-                <span>Preguntar</span>
+                <span>Nueva publicación</span>
               </button>
               {canCreateGuide && (
                 <Link
@@ -600,7 +610,7 @@ export function ForoGuiasBoard({
 
           {/* Buscador instantáneo unificado */}
           <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            <CatalogSearch value={query} onChange={setQuery} label="Buscar guías o preguntas" shortcutEnabled={!lightboxItem} />
+            <CatalogSearch value={query} onChange={setQuery} label="Buscar guías o preguntas" shortcutEnabled={!lightboxItem && !showQuestionForm} />
 
             {/* Selector de vista */}
             <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Tipo de contenido">
@@ -1338,37 +1348,8 @@ export function ForoGuiasBoard({
           )}
         </div>
 
-        {/* Columna Lateral: Nueva Duda + Directorio de Ventanillas */}
+        {/* Directorio de Ventanillas */}
         <aside className="space-y-5 lg:col-span-4 lg:sticky lg:top-24">
-          <section
-            id="nueva-duda"
-            ref={questionSectionRef}
-            className="scroll-mt-28 rounded-sm border border-[#d6d3c6] border-t-4 border-t-[#b88917] bg-[#fffdf7] p-5 shadow-[0_2px_0_rgba(23,49,66,0.04)]"
-            aria-labelledby="new-question-heading"
-          >
-            <h2 id="new-question-heading" className="text-lg font-extrabold text-[#14374a]">
-              Nueva publicación en el foro
-            </h2>
-            {viewer ? (
-              <div className="mt-3">
-                <QuestionForm
-                  office={office}
-                  action={publishQuestion}
-                  defaultArea={areaFilter !== "all" ? areaFilter : undefined}
-                  guides={guides.map((g) => ({ id: g.id, title: g.title, area: g.area }))}
-                  onSelectQuestion={jumpToQuestion}
-                />
-              </div>
-            ) : (
-              <div className="mt-3 space-y-3 text-sm leading-relaxed text-[#4f626c]">
-                <p>Entra con tu correo institucional para preguntar, responder y votar.</p>
-                <Link href="/entrar" className={`${btn} rounded-lg`}>
-                  Entrar
-                </Link>
-              </div>
-            )}
-          </section>
-
           {directoryRooms.length > 0 && (
             <section
               className="rounded-sm border border-[#d6d3c6] border-t-4 border-t-[#004d73] bg-[#fffdf7] p-5 shadow-[0_2px_0_rgba(23,49,66,0.04)]"
@@ -1406,6 +1387,25 @@ export function ForoGuiasBoard({
           )}
         </aside>
       </div>
+
+      {showQuestionForm && (
+        <FormDialog title="Nueva publicación en el foro" onClose={() => setShowQuestionForm(false)}>
+          {viewer ? (
+            <QuestionForm
+              office={office}
+              action={publishQuestion}
+              defaultArea={areaFilter !== "all" ? areaFilter : undefined}
+              guides={guides.map((g) => ({ id: g.id, title: g.title, area: g.area }))}
+              onSelectQuestion={jumpToQuestion}
+            />
+          ) : (
+            <div className="space-y-4 text-sm text-[#4f626c]">
+              <p>Entra con tu correo institucional para publicar.</p>
+              <Link href="/entrar" className={btn}>Entrar</Link>
+            </div>
+          )}
+        </FormDialog>
+      )}
 
       {/* Visor de imagen adjunta en dudas */}
       {lightboxItem && (
