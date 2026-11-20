@@ -96,7 +96,7 @@ export default async function ModeracionPage({ searchParams }: { searchParams: S
           <label className="grid gap-1.5 text-sm font-bold md:col-span-2">Motivo y contexto
             <textarea required minLength={8} maxLength={1000} name="reason" rows={4} defaultValue={params.reason ?? ""} className={`${input} resize-y`} placeholder="Describe qué ocurrió y por qué corresponde registrar una infracción." />
           </label>
-          <p className="text-xs leading-5 text-[#5d7079] md:col-span-2">Escalera vigente: 3 infracciones → 1 mes; 6 → 3 meses; 9 → 6 meses; 12 o más → permanente. El conteo es acumulado durante la vida de la cuenta, como quedó definido para la demo.</p>
+          <p className="text-xs leading-5 text-[#5d7079] md:col-span-2">Escalera vigente: 3 infracciones → 1 mes; 6 → 3 meses; 9 → 6 meses; 12 o más → permanente. El conteo es acumulado durante la vida de la cuenta.</p>
           <button className="min-h-11 w-fit rounded-md bg-[#006699] px-4 py-2 text-sm font-extrabold text-white hover:bg-[#004d73]">Registrar infracción</button>
         </form>
       </section>

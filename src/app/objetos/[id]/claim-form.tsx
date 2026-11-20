@@ -20,10 +20,10 @@ export function ClaimForm({ id, question }: { id: string; question: string }) {
         <textarea className={`${input} mt-1 min-h-20`} name="note" maxLength={500} />
       </label>
       <label className={label}>
-        Foto o archivo comprobante de propiedad (opcional · JPG, PNG, WEBP o PDF · CU-23)
+        Foto o archivo comprobante de propiedad (opcional · JPG, PNG, WEBP o PDF)
         <input className={`${input} mt-1`} name="evidence" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" />
         <span className="mt-1 block text-xs font-normal text-[#667085]">
-          Se almacena de forma privada en el bucket <code>lost-evidence</code>; solo quien encontró el objeto puede consultarlo.
+          Se almacena de forma privada; solo quien encontró el objeto puede consultarlo.
         </span>
       </label>
       {state.error && <p className="text-sm text-[#8C1D18]">{state.error}</p>}

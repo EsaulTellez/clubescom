@@ -197,7 +197,7 @@ export default async function GuidePage({
       {collaborators.length > 0 && (
         <section className="rounded-2xl border border-[#d5e4ee] bg-white p-4">
           <p className="text-xs font-extrabold uppercase tracking-wide text-[#006699]">
-            Colaboradores de la comunidad (CU-GUA-02-01)
+            Colaboradores de la comunidad
           </p>
           <p className="mt-1 text-xs text-[#667085]">
             Personas cuyas sugerencias de mejora fueron verificadas e integradas en esta guía:
@@ -279,7 +279,7 @@ export default async function GuidePage({
       {staff && <section id="analiticas" className="space-y-4 rounded-3xl border border-[#b7d4e4] bg-[#f2f8fb] p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">Panel de analíticas · CU-12</p>
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#006699]">Panel de analíticas</p>
             <h2 className="text-lg font-extrabold text-[#1b4053]">Uso y abandono por paso</h2>
           </div>
           <div className="flex gap-1.5 text-xs">

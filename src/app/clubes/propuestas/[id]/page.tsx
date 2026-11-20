@@ -181,7 +181,7 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
     dbDown = true;
   }
 
-  if (dbDown) return <p className={card}>No se pudo consultar esta propuesta. Revisa el estado local de Supabase.</p>;
+  if (dbDown) return <p className={card}>No se pudo consultar esta propuesta. Vuelve a intentarlo en un momento.</p>;
   if (!proposal) notFound();
 
   const plan = safeHttpUrl(proposal.plan_url);

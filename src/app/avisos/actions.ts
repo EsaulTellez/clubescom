@@ -860,7 +860,7 @@ async function uploadNoticeImage(userId: string, form: FormData): Promise<{ url:
     cacheControl: "3600",
     upsert: false,
   });
-  if (error) return { error: "No se pudo subir el cartel a Supabase Storage." };
+  if (error) return { error: "No se pudo subir el cartel. Inténtalo de nuevo." };
   const { data } = supabase.storage.from("public-media").getPublicUrl(path);
   return { url: data.publicUrl };
 }

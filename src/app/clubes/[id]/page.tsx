@@ -284,7 +284,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
     dbDown = true;
   }
 
-  if (dbDown) return <p className={card}>No se pudo consultar el club. Revisa que Postgres esté en marcha.</p>;
+  if (dbDown) return <p className={card}>No se pudo consultar el club. Vuelve a intentarlo en un momento.</p>;
   if (!club) notFound();
 
   const isAreaStaff = canModerateClubKind(user, club.kind);

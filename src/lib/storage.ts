@@ -34,7 +34,7 @@ export async function uploadPublicImage(
   });
 
   if (error) {
-    return { error: "No se pudo subir la imagen a Supabase Storage." };
+    return { error: "No se pudo subir la imagen. Inténtalo de nuevo." };
   }
 
   const { data } = supabase.storage.from("public-media").getPublicUrl(path);

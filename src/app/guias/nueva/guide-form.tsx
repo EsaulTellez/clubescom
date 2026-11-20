@@ -121,7 +121,7 @@ export function GuideForm({
       </p>
 
       <label className={label}>
-        Formato o documento PDF descargable del trámite (opcional · RF-12 · máx. 10 MB)
+        Formato o documento PDF descargable del trámite (opcional · máx. 10 MB)
         <input className={input} name="attachment" type="file" accept="application/pdf" />
       </label>
 

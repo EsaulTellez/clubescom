@@ -101,7 +101,7 @@ export function EditGuideForm({
 
       <div className="border-t border-[#d5e4ee] pt-4">
         <label className={label}>
-          Reemplazar o adjuntar formato PDF descargable del trámite (RF-12 · máx. 10 MB)
+          Reemplazar o adjuntar formato PDF descargable del trámite (máx. 10 MB)
           <input className={input} name="attachment" type="file" accept="application/pdf" />
         </label>
         {attachmentName && (

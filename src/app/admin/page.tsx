@@ -141,7 +141,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <style>{`@media print { body * { visibility: hidden !important; } .admin-print, .admin-print * { visibility: visible !important; } .admin-print { position: relative; } .admin-print button, .admin-print form, .admin-print a { display: none !important; } }`}</style>
       <PageIntro kicker="Administración" title="Panel" text="Cuentas, indicadores, respaldo, solicitudes ARCO y auditoría." />
 
-      {metricsResult.error && <p role="alert" className="text-sm text-[#8C1D18]">No se pudieron cargar los indicadores. Comprueba que las migraciones estén aplicadas.</p>}
+      {metricsResult.error && <p role="alert" className="text-sm text-[#8C1D18]">No se pudieron cargar los indicadores. Vuelve a intentarlo en un momento.</p>}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map(([labelText, value]) => (
@@ -156,7 +156,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
       <section className={`${card} admin-print space-y-4`}>
         <div>
-          <h2 className="text-lg font-semibold">Gráfica visual de impacto institucional (CU-35)</h2>
+          <h2 className="text-lg font-semibold">Gráfica visual de impacto institucional</h2>
           <p className="text-sm text-[#667085]">Comparativa visual de actividad en la plataforma para reportes y seguimiento académico.</p>
         </div>
         <div className="space-y-2.5">
@@ -279,14 +279,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <RosterImport />
 
       <section className={`${card} space-y-2`}>
-        <h2 className="text-lg font-semibold">Respaldo y restauración local (RNF-11)</h2>
+        <h2 className="text-lg font-semibold">Respaldo y restauración local</h2>
         <p className="text-sm text-[#667085]">
           Ejecuta en terminal <code>bash scripts/backup.sh</code> para generar un volcado SQL completo de esquemas y datos en <code>backups/</code>, y <code>bash scripts/restore.sh &lt;archivo.sql&gt;</code> para restaurarlo.
         </p>
       </section>
 
       <section className="admin-print space-y-3">
-        <h2 className="text-lg font-semibold">Auditoría (CU-34)</h2>
+        <h2 className="text-lg font-semibold">Auditoría</h2>
         <p className="text-sm text-[#667085]">Hasta 500 movimientos con registro de actor, IP, valor anterior/nuevo y fecha.</p>
         <form className="flex flex-wrap gap-2" method="get">
           <input className="rounded border p-2 text-sm" name="actor" defaultValue={filters.actor} placeholder="Nombre de usuario" aria-label="Nombre de usuario" />

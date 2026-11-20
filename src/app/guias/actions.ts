@@ -79,7 +79,7 @@ async function uploadGuideAttachment(
   const file = form.get("attachment");
   if (!(file instanceof File) || file.size === 0) return { url: null, name: null };
   if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-    return { error: "El formato descargable adjunto (RF-12) debe ser un archivo PDF." };
+    return { error: "El formato descargable adjunto debe ser un archivo PDF." };
   }
   if (file.size > 10 * 1024 * 1024) {
     return { error: "El PDF adjunto debe pesar 10 MB o menos." };
@@ -90,7 +90,7 @@ async function uploadGuideAttachment(
     contentType: "application/pdf",
     upsert: false,
   });
-  if (error) return { error: "No se pudo subir el PDF adjunto a Supabase Storage." };
+  if (error) return { error: "No se pudo subir el PDF adjunto. Inténtalo de nuevo." };
   const { data } = supabase.storage.from("public-media").getPublicUrl(path);
   return { url: data.publicUrl, name: file.name.slice(0, 120) };
 }

@@ -149,7 +149,7 @@ export function AppShell({
     <div className="min-h-screen text-[#173142]">
       {idleWarning && (
         <div role="alert" className="bg-[#f4e7b5] px-4 py-2 text-center text-xs font-bold text-[#58491e]">
-          Tu sesión se cerrará en menos de 2 minutos por inactividad (RNF-05). Mueve el cursor o presiona una tecla para continuar.
+          Tu sesión se cerrará en menos de 2 minutos por inactividad. Mueve el cursor o presiona una tecla para continuar.
         </div>
       )}
       <header className="sticky top-0 z-30 border-t-[3px] border-t-[#173e50] border-b border-[#c4c8bf] bg-[#fffdf7]">

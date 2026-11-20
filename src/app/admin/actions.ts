@@ -166,7 +166,7 @@ export async function importRoster(_prev: RosterImportState, form: FormData): Pr
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const secret = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !secret) return { error: "Falta la clave privada local de Supabase para crear invitaciones." };
+  if (!url || !secret) return { error: "Falta configurar el servicio de invitaciones para crear cuentas." };
   const admin = createClient(url, secret, { auth: { autoRefreshToken: false, persistSession: false } });
   const redirectTo = new URL("/auth/callback", process.env.NEXT_PUBLIC_SITE_URL || "http://127.0.0.1:3001").toString();
   const resultRows: NonNullable<RosterImportState["rows"]> = [];
@@ -177,7 +177,7 @@ export async function importRoster(_prev: RosterImportState, form: FormData): Pr
       redirectTo,
     });
     if (error) {
-      resultRows.push({ row: row.row, email: row.email, status: "error", detail: "Supabase no pudo crear la invitación. Confirma que el correo no se haya creado parcialmente y vuelve a intentar." });
+      resultRows.push({ row: row.row, email: row.email, status: "error", detail: "No se pudo crear la invitación. Confirma que el correo no se haya registrado parcialmente y vuelve a intentar." });
       continue;
     }
     created += 1;

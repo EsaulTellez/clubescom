@@ -39,7 +39,7 @@ async function savePhotoField(userId: string, form: FormData, fieldName: string)
     cacheControl: "3600",
     upsert: false,
   });
-  if (error) return { error: "No se pudo subir la foto a Supabase Storage." };
+  if (error) return { error: "No se pudo subir la foto. Inténtalo de nuevo." };
   const { data } = supabase.storage.from("public-media").getPublicUrl(path);
   return { url: data.publicUrl };
 }
@@ -116,7 +116,7 @@ export async function claimItem(_prev: FormState, form: FormData): Promise<FormS
       contentType: evidenceFile.type,
       upsert: false,
     });
-    if (uploaded.error) return { error: "No se pudo subir el comprobante a Supabase Storage." };
+    if (uploaded.error) return { error: "No se pudo subir el comprobante. Inténtalo de nuevo." };
     evidencePath = path;
   }
 
