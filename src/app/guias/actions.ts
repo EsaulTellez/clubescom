@@ -8,7 +8,8 @@ import { procedureOffice } from "@/lib/areas";
 import { audit, getSession } from "@/lib/auth";
 import { pool, type SecureClient } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { MAX_SOURCE_MB, validateSteps, asSteps, isArea, isStaff, isUuid, type GuideFaq, type GuideStep } from "./shared";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { editableGuideAreas, MAX_SOURCE_MB, canEditGuideArea, validateSteps, asSteps, isArea, isStaff, isUuid, type GuideFaq, type GuideStep } from "./shared";
 
 export type GuideState = { error?: string };
 export type SuggestState = { error?: string };
@@ -56,19 +57,50 @@ function parseFaqPairs(raw: string) {
 }
 
 export async function parseGuideDocumentDraft(form: FormData): Promise<{
-  title?: string; summary?: string; steps?: GuideStep[]; faqs?: string; notice?: string; error?: string;
+  title?: string;
+  summary?: string;
+  steps?: GuideStep[];
+  faqs?: string;
+  notice?: string;
+  aiUsed?: boolean;
+  error?: string;
 }> {
   const user = await getSession();
-  if (!user || (user.role !== "admin" && !procedureOffice(user))) return { error: "Solo el personal de trámites puede procesar instructivos." };
-  const file = form.get("source_doc");
-  if (!(file instanceof File) || !file.size) return { error: "Selecciona una foto o un documento." };
-  if (file.size > MAX_SOURCE_MB * 1024 * 1024) return { error: `El archivo supera el límite de ${MAX_SOURCE_MB} MB.` };
+  if (!user || !isStaff(user.role) || editableGuideAreas(user).length === 0) {
+    return { error: "Solo moderación o administración habilitada puede procesar instructivos." };
+  }
+  const storagePath = String(form.get("storagePath") ?? "").trim();
+  const explicitName = String(form.get("fileName") ?? "").trim();
+  const file = form.get("source") ?? form.get("source_doc");
+
+  let bytes: Buffer;
+  let name: string;
+
+  if (storagePath) {
+    if (storagePath.includes("..") || !storagePath.includes(`/${user.id}/`)) {
+      return { error: "La ruta del documento no es válida." };
+    }
+    const admin = createSupabaseAdminClient();
+    const { data, error } = await admin.storage.from("guide-source").download(storagePath);
+    if (error || !data) {
+      return { error: "No pudimos recuperar el archivo subido. Intenta cargarlo de nuevo." };
+    }
+    bytes = Buffer.from(await data.arrayBuffer());
+    name = explicitName || storagePath.split("/").pop() || "documento";
+    void admin.storage.from("guide-source").remove([storagePath]);
+  } else {
+    if (!(file instanceof File) || !file.size) return { error: "Selecciona una foto o un documento." };
+    if (file.size > MAX_SOURCE_MB * 1024 * 1024) return { error: `El archivo supera el límite de ${MAX_SOURCE_MB} MB.` };
+    bytes = Buffer.from(await file.arrayBuffer());
+    name = file.name;
+  }
+
   try {
-    return await generateDraft(Buffer.from(await file.arrayBuffer()), file.name);
+    return await generateDraft(bytes, name);
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
-    if (/^(Usa un PDF|El archivo Word|Divide el PDF|No se distingue|El instructivo excede)/.test(message)) return { error: message };
-    return { error: "No se pudo leer el archivo. Comprueba que abre correctamente o prueba con otra foto." };
+    if (/^(Usa un PDF|El archivo Word|Divide el PDF|No se distingue|No pudimos leer)/.test(message)) return { error: message };
+    return { error: "No se pudo leer el archivo. Comprueba que abre correctamente o prueba con otra imagen o PDF." };
   }
 }
 
@@ -76,6 +108,16 @@ async function uploadGuideAttachment(
   userId: string,
   form: FormData,
 ): Promise<{ url: string | null; name: string | null } | { error: string }> {
+  const preUrl = String(form.get("attachment_uploaded_url") ?? "").trim();
+  const preName = String(form.get("attachment_uploaded_name") ?? "").trim();
+  if (preUrl) {
+    const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
+    if (!baseUrl || !preUrl.startsWith(`${baseUrl}/storage/v1/object/public/public-media/${userId}/`)) {
+      return { error: "La ruta del PDF adjunto no es válida." };
+    }
+    return { url: preUrl, name: (preName || "documento.pdf").slice(0, 120) };
+  }
+
   const file = form.get("attachment");
   if (!(file instanceof File) || file.size === 0) return { url: null, name: null };
   if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
@@ -111,7 +153,7 @@ export async function publishGuide(
   const faqsRaw = String(form.get("faqs") ?? "");
 
   if (!isArea(area)) return { error: "Elige un área válida." };
-  if (user.role !== "admin" && user.area !== area) return { error: "Solo puedes publicar guías de tu área." };
+  if (!canEditGuideArea(user, area)) return { error: "Solo puedes publicar guías de tu área." };
   if (title.length < 4 || title.length > 180) {
     return { error: "El título debe tener entre 4 y 180 caracteres." };
   }
@@ -165,12 +207,15 @@ export async function editGuide(_prev: GuideState, form: FormData): Promise<Guid
   const summary = String(form.get("summary") ?? "").trim();
   const stepsJson = String(form.get("steps_json") ?? "");
   const faqsJson = String(form.get("faqs_json") ?? "");
+  const faqsRaw = String(form.get("faqs") ?? "");
+  const note = String(form.get("note") ?? "").trim().slice(0, 240);
+  const removeAttachment = String(form.get("remove_attachment") ?? "0") === "1";
 
   if (!user || !isStaff(user.role) || !isUuid(id)) return { error: "No tienes permiso para editar esta guía." };
   if (!Number.isInteger(expectedVersion) || expectedVersion < 1) return { error: "Recarga la guía antes de editarla." };
   if (title.length < 4 || title.length > 180 || summary.length < 8 || summary.length > 800) return { error: "Revisa la longitud del título y del resumen." };
 
-  const uploaded = await uploadGuideAttachment(user.id, form);
+  const uploaded = removeAttachment ? { url: null, name: null } : await uploadGuideAttachment(user.id, form);
   if ("error" in uploaded) return { error: uploaded.error };
 
   const result = await withTx(async (client) => {
@@ -178,7 +223,7 @@ export async function editGuide(_prev: GuideState, form: FormData): Promise<Guid
       "select area, version, steps, faqs from guides where id = $1 for update", [id],
     );
     const guide = found.rows[0];
-    if (!guide || (user.role !== "admin" && user.area !== guide.area)) return "permission";
+    if (!guide || !canEditGuideArea(user, guide.area)) return "permission";
     if (guide.version !== expectedVersion) return "version";
 
     const parsed = validateSteps(stepsJson);
@@ -197,6 +242,10 @@ export async function editGuide(_prev: GuideState, form: FormData): Promise<Guid
       } catch {
         return "steps";
       }
+    } else if (faqsRaw.trim()) {
+      const faqsParsed = parseFaqPairs(faqsRaw);
+      if ("error" in faqsParsed) return { error: faqsParsed.error };
+      faqs = faqsParsed.pairs.map((p) => ({ q: p.left.slice(0, 200), a: p.right.slice(0, 2000) }));
     }
 
     await client.query(
@@ -210,16 +259,17 @@ export async function editGuide(_prev: GuideState, form: FormData): Promise<Guid
               summary = $3,
               steps = $4::jsonb,
               faqs = $5::jsonb,
-              attachment_url = coalesce($6, attachment_url),
-              attachment_name = coalesce($7, attachment_name),
+              attachment_url = case when $8::boolean then null else coalesce($6, attachment_url) end,
+              attachment_name = case when $8::boolean then null else coalesce($7, attachment_name) end,
               version = version + 1,
               updated_at = now()
         where id = $1`,
-      [id, title, summary, JSON.stringify(steps), JSON.stringify(faqs), uploaded.url, uploaded.name],
+      [id, title, summary, JSON.stringify(steps), JSON.stringify(faqs), uploaded.url, uploaded.name, removeAttachment],
     );
     await client.query(
       `insert into guide_versions (guide_id, version, edited_by, title, summary, steps, faqs, change_note)
-       select id, version, $2, title, summary, steps, faqs, 'Edición de guía' from guides where id = $1`, [id, user.id],
+       select id, version, $2, title, summary, steps, faqs, $3 from guides where id = $1`,
+      [id, user.id, note || "Edición de guía"],
     );
     return "ok";
   });
@@ -270,7 +320,7 @@ export async function suggestImprovement(
   );
   await audit(user.id, "guide.suggest", "guide_suggestions", inserted.rows[0].id, body);
   revalidatePath(`/guias/${guideId}`);
-  redirect(`/guias/${guideId}?paso=${stepIndex}&panel=editar#ruta`);
+  redirect(`/guias/${guideId}?paso=${stepIndex}&sugerida=1#ruta`);
 }
 
 export async function reviewSuggestion(form: FormData) {
@@ -309,7 +359,7 @@ export async function reviewSuggestion(form: FormData) {
     const guide = await client.query<{ steps: unknown; area: string; version: number }>(
       "select area, steps, version from guides where id = $1 for update", [row.guide_id],
     );
-    if (!guide.rows[0] || (user.role !== "admin" && user.area !== guide.rows[0].area)) return null;
+    if (!guide.rows[0] || !canEditGuideArea(user, guide.rows[0].area)) return null;
     if (decision === "rechazar") {
       await client.query(
         `update guide_suggestions
@@ -393,7 +443,7 @@ export async function answerStepQuestion(form: FormData) {
   );
   const row = question.rows[0];
   if (!row || row.status === "cerrada") redirect("/guias");
-  const official = user.role === "admin" || (user.role === "moderador" && user.area === row.area);
+  const official = canEditGuideArea(user, row.area);
   const inserted = await pool.query<{ id: string }>(
     `insert into guide_step_answers (question_id, author_id, body, official) values ($1, $2, $3, $4) returning id`,
     [questionId, user.id, body, official],
@@ -462,11 +512,12 @@ export async function deleteGuide(form: FormData) {
   const user = await getSession();
   const id = String(form.get("id") ?? "");
   if (!user || !isUuid(id)) redirect("/guias");
-  const result = await pool.query("delete from guides where id = $1 and (author_id = $2 or $3::boolean) returning id", [
-    id,
-    user.id,
-    user.role === "admin",
-  ]);
+  const existing = await pool.query<{ area: string; author_id: string }>("select area, author_id from guides where id = $1", [id]);
+  const guide = existing.rows[0];
+  if (!guide || (!canEditGuideArea(user, guide.area) && guide.author_id !== user.id && user.role !== "admin")) {
+    redirect("/guias");
+  }
+  const result = await pool.query("delete from guides where id = $1 returning id", [id]);
   if (result.rowCount) await audit(user.id, "guide.delete", "guides", id);
   revalidatePath("/foro");
   revalidatePath("/guias");
@@ -477,9 +528,14 @@ export async function deleteSuggestion(form: FormData) {
   const user = await getSession();
   const id = String(form.get("id") ?? "");
   const guideId = String(form.get("guideId") ?? "");
+  const stepIndex = Number.parseInt(String(form.get("stepIndex") ?? "1"), 10) || 1;
   if (!user || !isUuid(id) || !isUuid(guideId)) redirect("/guias");
+  const guideRow = await pool.query<{ area: string }>("select area from guides where id = $1", [guideId]);
+  if (!guideRow.rows[0] || !canEditGuideArea(user, guideRow.rows[0].area)) {
+    redirect(`/guias/${guideId}`);
+  }
   const result = await pool.query("delete from guide_suggestions where id = $1 and guide_id = $2 returning id", [id, guideId]);
   if (result.rowCount) await audit(user.id, "guide.suggestion.delete", "guide_suggestions", id);
   revalidatePath(`/guias/${guideId}`);
-  redirect(`/guias/${guideId}`);
+  redirect(`/guias/${guideId}?paso=${stepIndex}#ruta`);
 }

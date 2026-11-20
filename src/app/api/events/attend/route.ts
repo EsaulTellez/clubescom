@@ -19,6 +19,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Evento inválido." }, { status: 400 });
     }
 
+    const validEvent =
+      eventKind === "club"
+        ? await pool.query<{ ok: boolean }>(
+            `select exists (select 1 from public.club_events where id = $1::uuid and approval_status = 'aprobado') as ok`,
+            [eventId],
+          )
+        : await pool.query<{ ok: boolean }>(
+            `select exists (select 1 from public.space_events where id = $1::uuid and approval_status = 'aprobado' and is_public = true) as ok`,
+            [eventId],
+          );
+
+    if (!validEvent.rows[0]?.ok) {
+      return NextResponse.json({ error: "El evento no está disponible para confirmar asistencia." }, { status: 404 });
+    }
+
     const existing = await pool.query(
       `select 1 from public.event_attendees where event_kind = $1 and event_id = $2::uuid and user_id = $3::uuid`,
       [eventKind, eventId, user.id],

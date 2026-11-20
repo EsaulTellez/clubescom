@@ -1,16 +1,48 @@
 import Link from "next/link";
+import { ResendLinkForm } from "@/components/auth-forms";
 import { getSession } from "@/lib/auth";
+import { confirmEmailTokenAction, resendConfirmation } from "@/lib/auth-actions";
 import { btn, btnGhost, card } from "@/lib/ui";
 import { AutoRedirect } from "./auto-redirect";
 
 export const dynamic = "force-dynamic";
 
+const ALLOWED_TYPES = new Set(["signup", "invite", "magiclink", "recovery", "email_change", "email"]);
+
 export default async function AuthConfirmadoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; token_hash?: string; type?: string }>;
 }) {
-  const [{ error }, user] = await Promise.all([searchParams, getSession()]);
+  const [{ error, token_hash, type }, user] = await Promise.all([searchParams, getSession()]);
+
+  if (token_hash && type && ALLOWED_TYPES.has(type)) {
+    const isRecovery = type === "recovery";
+    const isInvite = type === "invite";
+    return (
+      <section className={`${card} mx-auto max-w-md space-y-4`}>
+        <h1 className="text-xl font-semibold text-[#173142]">
+          {isRecovery
+            ? "Confirma tu solicitud de recuperación"
+            : isInvite
+              ? "Activa tu invitación a ESCOM"
+              : "Confirma tu correo institucional"}
+        </h1>
+        <p className="text-sm text-[#304958]">
+          {isRecovery
+            ? "Presiona el botón de abajo para verificar tu enlace y elegir tu nueva contraseña."
+            : "Presiona el botón para completar la verificación de tu cuenta. Este paso protege el enlace ante escáneres automáticos de correo."}
+        </p>
+        <form action={confirmEmailTokenAction} className="space-y-3">
+          <input type="hidden" name="token_hash" value={token_hash} />
+          <input type="hidden" name="type" value={type} />
+          <button className={btn}>
+            {isRecovery ? "Continuar a nueva contraseña" : "Confirmar y activar cuenta"}
+          </button>
+        </form>
+      </section>
+    );
+  }
 
   if (user) {
     return (
@@ -62,8 +94,9 @@ export default async function AuthConfirmadoPage({
     <section className={`${card} mx-auto max-w-md space-y-4`}>
       <h1 className="text-xl font-semibold text-[#8C1D18]">No pudimos validar el enlace</h1>
       <p className="text-sm text-[#304958]">
-        El enlace de confirmación ya expiró, ya fue utilizado o no es válido. Si ya confirmaste tu cuenta, puedes iniciar sesión directamente; si no, vuelve a intentarlo desde registro.
+        El enlace de confirmación ya expiró, ya fue utilizado o no es válido. Si ya confirmaste tu cuenta, inicia sesión; de lo contrario, reenvía un nuevo enlace aquí mismo.
       </p>
+      <ResendLinkForm action={resendConfirmation} />
       <div className="flex flex-wrap gap-2">
         <Link href="/entrar" className={btn}>
           Iniciar sesión

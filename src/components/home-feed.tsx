@@ -44,10 +44,16 @@ export function HomeFeed({
     return [...initialBatch.items, ...rest];
   }, [initialBatch, loadedItems, mode, realtimeItems]);
 
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
   useEffect(() => {
     async function refreshActiveMode() {
       if (switchingMode) return;
-      const fetchLimit = Math.min(12, Math.max(5, items.length));
+      const currentItems = itemsRef.current;
+      const fetchLimit = Math.min(12, Math.max(5, currentItems.length));
       const res = await fetch(
         `/api/feed?mode=${encodeURIComponent(mode)}&offset=0&limit=${fetchLimit}`,
         { cache: "no-store" },
@@ -55,13 +61,13 @@ export function HomeFeed({
       if (!res.ok) return;
       const data: FeedBatchResult = await res.json();
       setRealtimeItems((prev) => {
-        const base = prev ?? items;
+        const base = prev ?? currentItems;
         if (base.length <= fetchLimit) return data.items;
         const incomingIds = new Set(data.items.map((item) => item.id));
         const rest = base.filter((item) => !incomingIds.has(item.id));
         return [...data.items, ...rest];
       });
-      if (items.length <= fetchLimit) {
+      if (currentItems.length <= fetchLimit) {
         setHasMore(data.hasMore);
         setNextOffset(data.nextOffset);
       }
@@ -71,7 +77,7 @@ export function HomeFeed({
     };
     window.addEventListener("escom:realtime-update", handler);
     return () => window.removeEventListener("escom:realtime-update", handler);
-  }, [mode, items, switchingMode]);
+  }, [mode, switchingMode]);
 
   useEffect(() => {
     if (!lightboxItem) return;
@@ -92,7 +98,12 @@ export function HomeFeed({
       );
       if (!res.ok) return;
       const data: FeedBatchResult = await res.json();
-      setRealtimeItems(null);
+      setRealtimeItems((prev) => {
+        if (!prev) return null;
+        const seen = new Set(prev.map((i) => i.id));
+        const fresh = data.items.filter((i) => !seen.has(i.id));
+        return [...prev, ...fresh];
+      });
       setLoadedItems((prev) => {
         const seen = new Set(prev.map((i) => i.id));
         const fresh = data.items.filter((i) => !seen.has(i.id));

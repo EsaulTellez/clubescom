@@ -1,4 +1,5 @@
 <h2>Confirma tu correo de ESCOM</h2>
 <p>Abre este enlace para confirmar tu cuenta e ingresar a la plataforma:</p>
-<p><a href="{{ .ConfirmationURL }}">Confirmar cuenta</a></p>
+<p><a href="{{ .SiteURL }}/auth/confirmado?token_hash={{ .TokenHash }}&type=signup">Confirmar cuenta</a></p>
+<p>Si el botón no abre directamente, entra a <strong>{{ .SiteURL }}/auth/confirmado</strong> desde el navegador.</p>
 <p>Si no solicitaste una cuenta, puedes ignorar este mensaje.</p>

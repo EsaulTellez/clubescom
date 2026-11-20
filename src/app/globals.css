@@ -22,7 +22,7 @@
 
 html {
   scroll-behavior: smooth;
-  scroll-padding-top: 5rem;
+  scroll-padding-top: 7.5rem;
 }
 
 body {
@@ -737,6 +737,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 .board-proposal-card {
   display: flex;
+  flex-direction: column;
   padding: 1rem;
   border: 1px solid var(--paper-edge);
   border-radius: 3px;

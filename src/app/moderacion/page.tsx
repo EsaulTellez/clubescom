@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { officeModules } from "@/lib/areas";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { card, input } from "@/lib/ui";
@@ -30,24 +31,36 @@ function when(value: Date | string) {
 export default async function ModeracionPage({ searchParams }: { searchParams: Search }) {
   const user = await getSession();
   if (!user || (user.role !== "admin" && user.role !== "moderador")) redirect("/entrar");
+  const modules = officeModules(user);
+  if (modules) redirect(modules[0]);
+
+  const isAreaMod = user.role === "moderador";
+  const areaScope = isAreaMod ? user.area : null;
 
   const [peopleResult, strikesResult, suspensionsResult, appealsResult] = await Promise.all([
     pool.query<Person>(
       `select id, name, role, area from users
-        where is_active and role <> 'admin' and id <> $1
-        order by name limit 500`, [user.id],
+        where is_active
+          and id <> $1
+          and ($2::boolean and role in ('alumno', 'profesor') or (not $2::boolean and role <> 'admin'))
+        order by name limit 500`,
+      [user.id, isAreaMod],
     ),
     pool.query<Strike>(
       `select s.id, u.name as user_name, s.area, s.reason, s.source_type, s.created_at,
               (select count(*)::int from moderation_strikes all_s where all_s.user_id = s.user_id) as strike_total
          from moderation_strikes s join users u on u.id = s.user_id
+        where ($1::text is null or s.area = $1::text)
         order by s.created_at desc limit 100`,
+      [areaScope],
     ),
     pool.query<Suspension>(
       `select s.id, u.name as user_name, s.area, s.strike_count, s.duration,
               s.starts_at, s.ends_at, s.is_permanent
          from moderation_suspensions s join users u on u.id = s.user_id
+        where ($1::text is null or s.area = $1::text)
         order by s.starts_at desc limit 100`,
+      [areaScope],
     ),
     pool.query<Appeal>(
       `select a.id, a.suspension_id, a.body, a.status, a.created_at,
@@ -55,7 +68,9 @@ export default async function ModeracionPage({ searchParams }: { searchParams: S
          from moderation_appeals a
          join moderation_suspensions s on s.id = a.suspension_id
          join users u on u.id = a.user_id
+        where ($1::text is null or s.area = $1::text)
         order by (a.status = 'pendiente') desc, a.created_at desc limit 100`,
+      [areaScope],
     ),
   ]);
   const params = await searchParams;

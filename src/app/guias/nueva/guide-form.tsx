@@ -1,132 +1,213 @@
 "use client";
 
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useActionState, useState } from "react";
+import { uploadFileDirectly } from "@/lib/direct-upload";
 import { btn, btnGhost, input, label } from "@/lib/ui";
-import { parseGuideDocumentDraft, type GuideState } from "../actions";
+import type { GuideState } from "../actions";
+import { serializeFaqs, type GuideFaq, type GuideStep } from "../shared";
+import { GuideSourceDropzone } from "../source-dropzone";
 import { StepEditor } from "../step-editor";
-import { AREAS, MAX_SOURCE_MB, SOURCE_ACCEPT, type GuideStep } from "../shared";
+
+function parseFaqLines(raw: string): GuideFaq[] {
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const idx = line.indexOf("|");
+      return idx > 0
+        ? { q: line.slice(0, idx).trim(), a: line.slice(idx + 1).trim() }
+        : { q: line, a: "" };
+    })
+    .filter((item) => item.q.length > 0 && item.a.length > 0);
+}
 
 export function GuideForm({
   action,
   areas,
 }: {
-  areas: readonly (typeof AREAS)[number][];
   action: (state: GuideState, form: FormData) => Promise<GuideState>;
+  areas: readonly { id: string; label: string }[];
 }) {
   const [state, formAction, pending] = useActionState(action, {});
+  const [area, setArea] = useState(areas[0]?.id ?? "general");
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
-  const [steps, setSteps] = useState<GuideStep[]>([{ id: 0, title: "", body: "" }]);
-  const [faqs, setFaqs] = useState("");
-  const [parseNotice, setParseNotice] = useState("");
-  const [parseError, setParseError] = useState("");
-  const [parsing, startParsing] = useTransition();
-  const sourceFileRef = useRef<HTMLInputElement | null>(null);
+  const [faqItems, setFaqItems] = useState<GuideFaq[]>([]);
+  const [steps, setSteps] = useState<GuideStep[]>([
+    {
+      id: 1,
+      title: "Primer paso del trámite",
+      body: "Explica qué documentos o requisitos necesita reunir el estudiante antes de iniciar.",
+    },
+  ]);
+  const [version, setVersion] = useState(0);
+  const [attachmentUrl, setAttachmentUrl] = useState("");
+  const [attachmentName, setAttachmentName] = useState("");
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState("");
 
-  function handleExtractDraft() {
-    setParseError("");
-    setParseNotice("");
-    const file = sourceFileRef.current?.files?.[0];
-    if (!file) {
-      setParseError("Selecciona primero una foto o un documento.");
+  async function handlePdfUpload(file: File | undefined) {
+    setPdfError("");
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      setPdfError("El documento descargable oficial debe estar en formato PDF.");
       return;
     }
-    if (file.size > MAX_SOURCE_MB * 1024 * 1024) { setParseError(`El archivo supera el límite de ${MAX_SOURCE_MB} MB.`); return; }
-    const fd = new FormData();
-    fd.set("source_doc", file);
-    startParsing(async () => {
-      try {
-        const result = await parseGuideDocumentDraft(fd);
-        if (result.error) setParseError(result.error);
-        if (result.notice) setParseNotice(result.notice);
-        if (result.title) setTitle(result.title);
-        if (result.summary) setSummary(result.summary);
-        if (result.steps) setSteps(result.steps);
-        if (result.faqs !== undefined) setFaqs(result.faqs);
-      } catch { setParseError("Se interrumpió la lectura del archivo. Vuelve a intentarlo."); }
-    });
+    if (file.size > 10 * 1024 * 1024) {
+      setPdfError("El PDF adjunto supera el límite de 10 MB.");
+      return;
+    }
+    setUploadingPdf(true);
+    try {
+      const uploaded = await uploadFileDirectly(file, { bucket: "public-media" });
+      if (uploaded.publicUrl) {
+        setAttachmentUrl(uploaded.publicUrl);
+        setAttachmentName(file.name);
+      }
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : "No se pudo subir el PDF adjunto.");
+    } finally {
+      setUploadingPdf(false);
+    }
   }
 
   return (
     <form action={formAction} className="space-y-4">
-      <div className="space-y-2 rounded-xl border border-[#d5e4ee] bg-[#f8fbfd] p-4">
-        <p className={label}>Generar guía desde un instructivo</p>
-        <p className="text-xs text-[#667085]">
-          Foto JPG, PNG o WebP, PDF, Word (.docx) o texto. Hasta {MAX_SOURCE_MB} MB.
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            ref={sourceFileRef}
-            type="file"
-            accept={SOURCE_ACCEPT} aria-label="Foto o documento del trámite" disabled={parsing}
-            className={`${input} max-w-md`}
-          />
-          <button type="button" onClick={handleExtractDraft} disabled={parsing} className={btnGhost}>
-            {parsing ? "Extrayendo borrador…" : "Generar borrador"}
-          </button>
-        </div>
-        {parseError && <p role="alert" className="text-xs text-[#8C1D18]">{parseError}</p>}
-        {parseNotice && <p role="status" className="text-xs font-semibold text-[#004d73]">{parseNotice}</p>}
-      </div>
+      <GuideSourceDropzone
+        area={area}
+        onParsed={(draft) => {
+          if (draft.title) setTitle(draft.title);
+          if (draft.summary) setSummary(draft.summary);
+          if (draft.faqs) setFaqItems(parseFaqLines(draft.faqs));
+          if (draft.steps.length) setSteps(draft.steps);
+          setVersion((v) => v + 1);
+        }}
+      />
 
       <label className={label}>
-        Área
-        <select className={input} name="area" defaultValue={areas[0]?.id}>
-          {areas.map((area) => (
-            <option key={area.id} value={area.id}>
-              {area.label}
+        Área responsable
+        <select
+          className={input}
+          name="area"
+          value={area}
+          onChange={(e) => setArea(e.target.value)}
+        >
+          {areas.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.label}
             </option>
           ))}
         </select>
       </label>
+
       <label className={label}>
-        Título
+        Título de la guía
         <input
           className={input}
           name="title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
           required
           minLength={4}
           maxLength={180}
-          placeholder="Constancia de estudios"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Ej. Registro de Protocolo ante la CATT"
         />
       </label>
+
       <label className={label}>
-        Resumen
+        Resumen para el estudiante
         <textarea
           className={`${input} min-h-20`}
           name="summary"
-          value={summary}
-          onChange={(e) => setSummary(e.target.value)}
           required
           minLength={8}
           maxLength={800}
-          placeholder="Qué resuelve esta guía y quién la necesita."
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+          placeholder="Qué trámite cubre esta guía, a quién va dirigida y qué obtiene al completarla."
         />
       </label>
-      <StepEditor steps={steps} setSteps={setSteps} />
-      <label className={label}>
-        Preguntas frecuentes (opcional)
-        <textarea
-          className={`${input} min-h-24 font-mono text-xs`}
-          name="faqs"
-          value={faqs}
-          onChange={(e) => setFaqs(e.target.value)}
-          placeholder={"¿Cuál es el horario? | De lunes a viernes, de 10:00 a 14:00."}
-        />
-      </label>
-      <p className="text-xs text-[#667085]">
-        Una pregunta por línea, con el formato pregunta | respuesta.
-      </p>
 
-      <label className={label}>
-        Formato o documento PDF descargable del trámite (opcional · máx. 10 MB)
-        <input className={input} name="attachment" type="file" accept="application/pdf" />
-      </label>
+      <input type="hidden" name="steps_json" value={JSON.stringify(steps)} />
+      <StepEditor steps={steps} setSteps={setSteps} version={version} />
 
-      {state.error && <p className="text-sm text-[#8C1D18]">{state.error}</p>}
-      <button className={btn} disabled={pending || parsing}>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-[#173142]">Preguntas frecuentes ({faqItems.length})</span>
+          <button
+            type="button"
+            className={btnGhost}
+            onClick={() => setFaqItems((list) => [...list, { q: "", a: "" }])}
+          >
+            + Añadir pregunta frecuente
+          </button>
+        </div>
+        <input type="hidden" name="faqs" value={serializeFaqs(faqItems)} />
+        {faqItems.map((item, idx) => (
+          <div key={idx} className="space-y-2 rounded-2xl border border-[#d5e4ee] bg-white p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-[#006699]">FAQ #{idx + 1}</span>
+              <button
+                type="button"
+                className={btnGhost}
+                onClick={() => setFaqItems((list) => list.filter((_, j) => j !== idx))}
+              >
+                Quitar
+              </button>
+            </div>
+            <input
+              className={input}
+              maxLength={240}
+              value={item.q}
+              onChange={(e) =>
+                setFaqItems((list) => list.map((f, j) => (j === idx ? { ...f, q: e.target.value } : f)))
+              }
+              placeholder="Ej. ¿Puedo entregar el formato sin firma digital?"
+            />
+            <textarea
+              className={`${input} min-h-16`}
+              maxLength={500}
+              value={item.a}
+              onChange={(e) =>
+                setFaqItems((list) => list.map((f, j) => (j === idx ? { ...f, a: e.target.value } : f)))
+              }
+              placeholder="Respuesta clara para el alumno."
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-[#d5e4ee] bg-[#fafcfd] p-3.5 text-sm">
+        <p className="font-semibold text-[#173142]">Documento o formato descargable en PDF (opcional, máx. 10 MB)</p>
+        <input type="hidden" name="attachment_uploaded_url" value={attachmentUrl} />
+        <input type="hidden" name="attachment_uploaded_name" value={attachmentName} />
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="file"
+            accept="application/pdf"
+            onChange={(e) => void handlePdfUpload(e.target.files?.[0])}
+            className="block flex-1 text-xs text-[#667085]"
+          />
+          {attachmentUrl && (
+            <button
+              type="button"
+              className="text-xs font-bold text-[#8c1d18] underline"
+              onClick={() => {
+                setAttachmentUrl("");
+                setAttachmentName("");
+              }}
+            >
+              Quitar PDF ({attachmentName})
+            </button>
+          )}
+        </div>
+        {uploadingPdf && <p className="text-xs text-[#006699]">Subiendo PDF oficial...</p>}
+        {pdfError && <p className="text-xs text-[#8C1D18]">{pdfError}</p>}
+      </div>
+
+      {state.error && <p role="alert" className="text-sm font-medium text-[#8C1D18]">{state.error}</p>}
+      <button className={btn} disabled={pending || uploadingPdf}>
         {pending ? "Publicando…" : "Publicar guía"}
       </button>
     </form>

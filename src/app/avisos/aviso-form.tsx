@@ -64,7 +64,7 @@ export function AvisoForm({
   const [featured, setFeatured] = useState(initial.featured);
   const [externalUrl, setExternalUrl] = useState(initial.externalUrl ?? "");
   const [socialTwitter, setSocialTwitter] = useState(initial.socialTwitter ?? "");
-  const [socialFacebook, setSocialFacebook] = useState(initial.socialFacebook ?? "");
+  const [socialFacebook, setSocialFacebook] = useState(initial.socialFacebook || initial.socialCopy || "");
   const [socialInstagram, setSocialInstagram] = useState(initial.socialInstagram ?? "");
   const [socialCopy, setSocialCopy] = useState(initial.socialCopy);
   const [aiError, setAiError] = useState("");
@@ -85,7 +85,7 @@ export function AvisoForm({
       if (result.body) setBody(result.body);
       if (result.category) setCategory(result.category);
       if (result.sourceArea) setSourceArea(result.sourceArea);
-      if (result.externalUrl !== undefined) setExternalUrl(result.externalUrl);
+      if (result.externalUrl) setExternalUrl(result.externalUrl);
       if (typeof result.featured === "boolean") setFeatured(result.featured);
       if (result.twitter) setSocialTwitter(result.twitter);
       if (result.facebook) setSocialFacebook(result.facebook);
@@ -344,7 +344,7 @@ export function AvisoForm({
             className={`${input} mt-1 min-h-24`}
             value={socialFacebook}
             onChange={(event) => setSocialFacebook(event.target.value)}
-            maxLength={800}
+            maxLength={1000}
             placeholder="Versión completa con contexto institucional para Facebook"
           />
         </div>
@@ -370,7 +370,7 @@ export function AvisoForm({
             className={`${input} mt-1 min-h-24`}
             value={socialInstagram}
             onChange={(event) => setSocialInstagram(event.target.value)}
-            maxLength={800}
+            maxLength={1000}
             placeholder="Pie de publicación para Instagram con hashtags institucionales"
           />
         </div>

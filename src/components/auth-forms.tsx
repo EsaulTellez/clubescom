@@ -8,9 +8,44 @@ import { btn, btnGhost, input, label } from "@/lib/ui";
 function Note({ state }: { state: AuthState }) {
   return (
     <>
-      {state.error && <p className="text-sm text-[#8C1D18]">{state.error}</p>}
-      {state.ok && <p className="text-sm text-[#1C1416]">{state.ok}</p>}
+      {state.error && <p className="text-sm text-[#8C1D18]" role="alert">{state.error}</p>}
+      {state.ok && <p className="text-sm text-[#14593e]" role="status">{state.ok}</p>}
     </>
+  );
+}
+
+function PasswordInput({
+  name,
+  autoComplete,
+  minLength,
+  required,
+}: {
+  name: string;
+  autoComplete: string;
+  minLength?: number;
+  required?: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative mt-1">
+      <input
+        className={`${input} pr-20`}
+        name={name}
+        type={visible ? "text" : "password"}
+        autoComplete={autoComplete}
+        minLength={minLength}
+        maxLength={72}
+        required={required}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-xs font-bold text-[#006699] hover:bg-[#eaf4f8]"
+      >
+        {visible ? "Ocultar" : "Mostrar"}
+      </button>
+    </div>
   );
 }
 
@@ -97,21 +132,92 @@ export function RegisterForm({
         <input className={input} name="email" type="email" autoComplete="email" required placeholder="boleta@alumno.ipn.mx" />
       </label>
       <label className={label}>
-        Boleta o número de empleado
-        <input className={input} name="boleta" />
+        Boleta o número de empleado (opcional al inicio)
+        <input className={input} name="boleta" maxLength={32} placeholder="Ej. 2023630001 o número de empleado" />
       </label>
       <label className={label}>
-        Contraseña
-        <input className={input} name="password" type="password" autoComplete="new-password" minLength={8} required />
+        Contraseña (mínimo 8 caracteres)
+        <PasswordInput name="password" autoComplete="new-password" minLength={8} required />
       </label>
       <label className="flex items-start gap-2 text-sm">
         <input name="consent" type="checkbox" className="mt-1" required />
         Acepto el aviso de privacidad y el uso de mi boleta y correo solo para autenticación y comunicación académica.
       </label>
       <Note state={state} />
+      {state.alreadyExists && state.email && resendAction && (
+        <div className="space-y-2 rounded-lg border border-[#d6e4ed] bg-[#f6fafc] p-3 text-xs">
+          <p className="font-semibold text-[#19435b]">¿Ya intentaste registrarte antes?</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={resendPending || cooldown > 0}
+              onClick={() => {
+                const fd = new FormData();
+                fd.set("email", state.email!);
+                setCooldown(60);
+                resendFormAction(fd);
+              }}
+              className={btnGhost}
+            >
+              {cooldown > 0 ? `Reenviar enlace (${cooldown} s)` : resendPending ? "Reenviando…" : "Reenviar enlace de activación"}
+            </button>
+            <Link href="/entrar" className="font-bold text-[#006699] underline">
+              Ir a iniciar sesión →
+            </Link>
+          </div>
+          <Note state={resendState} />
+        </div>
+      )}
       <p className="text-xs text-[#667085]">Te enviaremos un enlace de confirmación a tu correo institucional.</p>
       <button className={btn} disabled={pending}>
         {pending ? "Creando…" : "Crear cuenta"}
+      </button>
+    </form>
+  );
+}
+
+export function ResendLinkForm({
+  action,
+  defaultEmail = "",
+}: {
+  action: (state: AuthState, form: FormData) => Promise<AuthState>;
+  defaultEmail?: string;
+}) {
+  const [state, formAction, pending] = useActionState(action, {});
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  return (
+    <form
+      action={(fd) => {
+        setCooldown(60);
+        formAction(fd);
+      }}
+      className="space-y-3 rounded-lg border border-[#d6e4ed] bg-[#f8fbfd] p-4"
+    >
+      <label className={label}>
+        Reenviar enlace de confirmación a tu correo institucional
+        <input
+          className={`${input} mt-1`}
+          name="email"
+          type="email"
+          required
+          defaultValue={defaultEmail}
+          placeholder="boleta@alumno.ipn.mx"
+        />
+      </label>
+      <Note state={state} />
+      <button className={btnGhost} disabled={pending || cooldown > 0}>
+        {cooldown > 0
+          ? `Espera ${cooldown} s`
+          : pending
+            ? "Reenviando…"
+            : "Reenviar enlace de activación"}
       </button>
     </form>
   );
@@ -126,12 +232,12 @@ export function LoginForm({
   return (
     <form action={formAction} className="space-y-3">
       <label className={label}>
-        Correo
+        Correo institucional
         <input className={input} name="email" type="email" autoComplete="email" required />
       </label>
       <label className={label}>
         Contraseña
-        <input className={input} name="password" type="password" autoComplete="current-password" required />
+        <PasswordInput name="password" autoComplete="current-password" required />
       </label>
       <Note state={state} />
       <button className={btn} disabled={pending}>
@@ -150,8 +256,8 @@ export function ResetRequestForm({
   return (
     <form action={formAction} className="space-y-3">
       <label className={label}>
-        Correo
-        <input className={input} name="email" type="email" required />
+        Correo institucional
+        <input className={input} name="email" type="email" required placeholder="boleta@alumno.ipn.mx" />
       </label>
       <Note state={state} />
       <button className={btn} disabled={pending}>
@@ -170,12 +276,12 @@ export function ResetForm({
   return (
     <form action={formAction} className="space-y-3">
       <label className={label}>
-        Nueva contraseña
-        <input className={input} name="password" type="password" autoComplete="new-password" minLength={8} required />
+        Nueva contraseña (mínimo 8 caracteres)
+        <PasswordInput name="password" autoComplete="new-password" minLength={8} required />
       </label>
       <label className={label}>
         Confirma la contraseña
-        <input className={input} name="passwordConfirm" type="password" autoComplete="new-password" minLength={8} required />
+        <PasswordInput name="passwordConfirm" autoComplete="new-password" minLength={8} required />
       </label>
       <Note state={state} />
       <button className={btn} disabled={pending}>

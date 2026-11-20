@@ -124,15 +124,14 @@ export default async function EspaciosPage() {
             false as viewer_attending
           from public.space_events e
           join public.spaces s on s.id = e.space_id
-          where e.approval_status = 'pendiente' and private.can_manage_space_event(e.space_id)
+          where e.approval_status = 'pendiente'
           union all
-          select ce.id::text, 'club', ce.title, ce.description, ce.starts_at, null,
+          select ce.id::text, 'club', ce.title, ce.description, ce.starts_at, ce.ends_at,
                  trim(split_part(ce.location, '·', 1)), null, null, ce.club_id::text, c.name,
                  ce.image_url, 0, false
           from public.club_events ce join public.clubs c on c.id = ce.club_id
           where c.active and ce.approval_status = 'pendiente'
             and private.club_event_venue_area(ce.location) is not null
-            and private.can_review_club_event(ce.club_id, ce.location)
           order by starts_at asc
         `)
       : Promise.resolve({ rows: [] as RawCarteleraEvent[] }),
@@ -141,6 +140,10 @@ export default async function EspaciosPage() {
   const publishableSpaces = canPublishEvents
     ? spaces.rows.filter((space) => canManageSpaceByName(user, space.name))
     : spaces.rows;
+
+  const visiblePendingEvents = canPublishEvents
+    ? pendingEvents.rows.filter((ev) => canManageSpaceByName(user, ev.space_name))
+    : [];
 
   return (
     <div className="space-y-6">
@@ -163,7 +166,7 @@ export default async function EspaciosPage() {
           canManageEvent:
             (event.event_kind === "space" || !!clubEventVenueArea(event.space_name)) && canManageSpaceByName(user, event.space_name),
         }))}
-        pendingEvents={pendingEvents.rows.map((event) => ({
+        pendingEvents={visiblePendingEvents.map((event) => ({
           id: event.id,
           eventKind: event.event_kind,
           title: event.title,

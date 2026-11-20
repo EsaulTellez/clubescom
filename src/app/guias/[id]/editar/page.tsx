@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { card } from "@/lib/ui";
-import { asFaqs, asSteps, isUuid } from "../../shared";
+import { asFaqs, asSteps, canEditGuideArea, isUuid } from "../../shared";
 import { EditGuideForm } from "./edit-form";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export default async function EditGuidePage({ params }: { params: Promise<{ id: 
     [id],
   );
   const guide = result.rows[0];
-  if (!guide || (user.role !== "admin" && !(user.role === "moderador" && user.area === guide.area))) notFound();
+  if (!guide || !canEditGuideArea(user, guide.area)) notFound();
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <Link href={`/guias/${id}`} className="text-sm text-[#006699] hover:underline">
@@ -37,6 +37,7 @@ export default async function EditGuidePage({ params }: { params: Promise<{ id: 
         <h1 className="text-2xl font-semibold">Editar guía</h1>
         <EditGuideForm
           id={guide.id}
+          area={guide.area}
           version={guide.version}
           title={guide.title}
           summary={guide.summary}

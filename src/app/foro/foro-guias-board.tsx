@@ -98,6 +98,7 @@ export type ViewerSession = {
 type ViewMode = "todo" | "guias" | "oficiales" | "abiertas";
 
 function roleBadge(role: string, official: boolean, area: string | null) {
+  if (official && role === "profesor") return "Oficial · Profesor";
   if (official) return "Oficial";
   if (role === "profesor") return "Profesor";
   if (role === "moderador") return area ? areaLabel(area) : "Moderación";
@@ -279,7 +280,16 @@ export function ForoGuiasBoard({
   const canCreateGuide = Boolean(
     viewer &&
       (viewer.role === "admin" ||
-        (viewer.role === "moderador" && ["gestion_escolar", "becas", "catt"].includes(viewer.area ?? ""))),
+        (viewer.role === "moderador" &&
+          [
+            "gestion_escolar",
+            "becas",
+            "catt",
+            "clubes_academicos",
+            "clubes_culturales",
+            "prefectura",
+            "comunicacion",
+          ].includes(viewer.area ?? ""))),
   );
   const cleanQuery = normalizeSearchText(query.trim());
 
@@ -505,7 +515,14 @@ export function ForoGuiasBoard({
       return;
     }
     setQuestions((prev) =>
-      prev.map((q) => (q.id === questionId ? { ...q, isPinned: res.isPinned } : q)),
+      prev
+        .map((q) => (q.id === questionId ? { ...q, isPinned: res.isPinned } : q))
+        .sort(
+          (a, b) =>
+            Number(b.isPinned) - Number(a.isPinned) ||
+            b.votes - a.votes ||
+            b.createdAtIso.localeCompare(a.createdAtIso),
+        ),
     );
   }
 
@@ -650,8 +667,11 @@ export function ForoGuiasBoard({
           <div className="mt-4 flex flex-wrap items-end gap-x-5 gap-y-3 border-t border-[#dfdccc] pt-3">
             <label className="min-w-0 flex-auto text-xs font-semibold text-[#405861] sm:flex-none">
               Área
-              <select value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)}
-                className={`${input} mt-1 block`}>
+              <select
+                value={areaFilter}
+                onChange={(event) => setAreaFilter(event.target.value)}
+                className={`${input} mt-1 block py-2 sm:min-w-[13rem]`}
+              >
                 {!office && <option value="all">Todas las áreas ({areaCounts.all})</option>}
                 {AREAS.filter((area) => !office || area.id === office).map((area) => <option key={area.id} value={area.id}>{area.label} ({areaCounts[area.id] ?? 0})</option>)}
               </select>
@@ -659,8 +679,11 @@ export function ForoGuiasBoard({
             {viewMode !== "guias" && (
               <label className="min-w-0 flex-auto text-xs font-semibold text-[#405861] sm:flex-none">
                 Tipo de publicación
-                <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}
-                  className={`${input} mt-1 block`}>
+                <select
+                  value={kindFilter}
+                  onChange={(event) => setKindFilter(event.target.value)}
+                  className={`${input} mt-1 block py-2 sm:min-w-[14rem]`}
+                >
                   <option value="all">Todos los tipos</option>
                   {REQUEST_KINDS.map((kind) => <option key={kind.id} value={kind.id}>{kind.label}</option>)}
                 </select>
@@ -722,7 +745,7 @@ export function ForoGuiasBoard({
                     const isOpen = Boolean(expandedGuides[guide.id]);
                     const doneList = (guideProgress[guide.id] ?? []).filter(id => guide.steps.some(step => step.id === id));
                     const pct = guide.steps.length
-                      ? Math.round((doneList.length / guide.steps.length) * 100)
+                      ? Math.min(100, Math.round((doneList.length / guide.steps.length) * 100))
                       : 0;
 
                     return (
@@ -761,7 +784,7 @@ export function ForoGuiasBoard({
                           </h3>
                           <p className="mt-2 text-sm leading-relaxed text-[#485d68]">{guide.summary}</p>
 
-                          {doneList.length > 0 && !guide.steps.some(step => step.choices !== undefined) && (
+                          {doneList.length > 0 && (
                             <div className="mt-3 flex items-center gap-2.5 text-xs font-bold text-[#004d73]">
                               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e6e2d6]">
                                 <div
@@ -906,11 +929,18 @@ export function ForoGuiasBoard({
                     const st = areaStyle(q.area);
                     const officialAnswers = q.answers.filter((a) => a.official);
                     const primaryOfficial = officialAnswers[0] ?? null;
+                    const profesorMentor = !primaryOfficial
+                      ? q.answers.find((a) => a.authorRole === "profesor") ?? null
+                      : null;
                     const threadAnswers = primaryOfficial
                       ? q.answers.filter((a) => a.id !== primaryOfficial.id)
                       : q.answers;
                     const sortedThread = [...threadAnswers].sort(
-                      (a, b) => Number(b.official) - Number(a.official) || b.score - a.score || a.createdAtIso.localeCompare(b.createdAtIso),
+                      (a, b) =>
+                        Number(b.official) - Number(a.official) ||
+                        Number(b.authorRole === "profesor") - Number(a.authorRole === "profesor") ||
+                        b.score - a.score ||
+                        a.createdAtIso.localeCompare(b.createdAtIso),
                     );
                     const isThreadOpen = Boolean(expandedThreads[q.id]);
                     const canModerateQuestion = canModerateForumQuestion(viewer, q.area, q.requestKind);
@@ -966,6 +996,10 @@ export function ForoGuiasBoard({
                                   {primaryOfficial ? (
                                     <span className="inline-flex items-center rounded border border-[#b4d3c6] bg-[#e9f5f0] px-2 py-0.5 text-[11px] font-extrabold text-[#11503d]">
                                       ✓ Respuesta oficial
+                                    </span>
+                                  ) : profesorMentor ? (
+                                    <span className="inline-flex items-center rounded border border-[#a8d8c5] bg-[#eaf8f2] px-2 py-0.5 text-[11px] font-extrabold text-[#0f5b43]">
+                                      Orientación de profesor
                                     </span>
                                   ) : (
                                     <span className="inline-flex items-center rounded border border-[#e3cf99] bg-[#fcf5de] px-2 py-0.5 text-[11px] font-extrabold text-[#6e5008]">
@@ -1321,42 +1355,47 @@ export function ForoGuiasBoard({
         </div>
 
         {/* Directorio de Ventanillas */}
-        <aside className="space-y-5 lg:col-span-4 lg:sticky lg:top-24">
-          {directoryRooms.length > 0 && (
-            <section
-              className="rounded-sm border border-[#d6d3c6] border-t-4 border-t-[#004d73] bg-[#fffdf7] p-5 shadow-[0_2px_0_rgba(23,49,66,0.04)]"
-              aria-labelledby="directory-heading"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <h2 id="directory-heading" className="text-lg font-extrabold text-[#14374a]">
-                  Ventanillas en ESCOM
-                </h2>
-                <Link href="/mapa" className="text-xs font-extrabold text-[#005a87] hover:underline">
-                  Mapa 3D →
-                </Link>
-              </div>
-              <ul className="mt-3.5 space-y-3">
-                {directoryRooms.map((room) => (
-                  <li
-                    key={room.code}
-                    className="rounded-lg border border-[#e2dfd3] bg-white p-3.5"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-extrabold text-[#14374a]">{room.name}</span>
-                      <span className="rounded border border-[#c3d9e4] bg-[#eaf4f8] px-2 py-0.5 text-[11px] font-extrabold text-[#004d73]">
-                        {room.code}
-                      </span>
-                    </div>
-                    {room.description && (
-                      <p className="mt-1.5 text-xs leading-relaxed text-[#4c616c]">
-                        {room.description}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+        <aside className="space-y-5 lg:col-span-4 lg:sticky lg:top-32">
+          <section
+            className="rounded-sm border border-[#d6d3c6] border-t-4 border-t-[#004d73] bg-[#fffdf7] p-5 shadow-[0_2px_0_rgba(23,49,66,0.04)]"
+            aria-labelledby="directory-heading"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h2 id="directory-heading" className="text-lg font-extrabold text-[#14374a]">
+                Ventanillas en ESCOM
+              </h2>
+              <Link href="/mapa" className="text-xs font-extrabold text-[#005a87] hover:underline">
+                Mapa 3D →
+              </Link>
+            </div>
+            <ul className="mt-3.5 space-y-3">
+              {(directoryRooms.length > 0
+                ? directoryRooms
+                : [
+                    { code: "G002", kind: "servicio", name: "Gestión Escolar", description: "Constancias, boletas, reinscripciones y trámites escolares (Edificio de Gobierno, PB)." },
+                    { code: "G101", kind: "oficina", name: "Subdirección Académica", description: "Sala 14, coordinación académica y validación de clubes." },
+                    { code: "G103", kind: "oficina", name: "SSEIS · Becas y CATT", description: "Atención a becas institucionales, Trabajo Terminal y cultura/deportes (Piso 1 Gobierno)." },
+                  ]
+              ).map((room) => (
+                <li
+                  key={room.code}
+                  className="rounded-lg border border-[#e2dfd3] bg-white p-3.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-extrabold text-[#14374a]">{room.name}</span>
+                    <span className="rounded border border-[#c3d9e4] bg-[#eaf4f8] px-2 py-0.5 text-[11px] font-extrabold text-[#004d73]">
+                      {room.code}
+                    </span>
+                  </div>
+                  {room.description && (
+                    <p className="mt-1.5 text-xs leading-relaxed text-[#4c616c]">
+                      {room.description}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
         </aside>
       </div>
 

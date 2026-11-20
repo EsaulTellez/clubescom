@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AvisoExternalLink, AvisoViewTracker } from "@/components/aviso-external-link";
+import { CopyTextButton } from "@/components/copy-button";
 import { demoNoticeArt } from "@/lib/demo-art";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
@@ -100,24 +101,39 @@ export default async function AvisoPage({ params }: { params: Promise<{ id: stri
           <h2 className="text-sm font-semibold">Formatos para redes sociales</h2>
           {aviso.social_twitter && (
             <div>
-              <p className="text-xs font-bold uppercase text-[#006699]">Twitter / X</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold uppercase text-[#006699]">Twitter / X</p>
+                <CopyTextButton text={aviso.social_twitter} />
+              </div>
               <p className="mt-1 whitespace-pre-wrap text-sm text-[#667085]">{aviso.social_twitter}</p>
             </div>
           )}
           {aviso.social_facebook && (
             <div>
-              <p className="text-xs font-bold uppercase text-[#006699]">Facebook</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold uppercase text-[#006699]">Facebook</p>
+                <CopyTextButton text={aviso.social_facebook} />
+              </div>
               <p className="mt-1 whitespace-pre-wrap text-sm text-[#667085]">{aviso.social_facebook}</p>
             </div>
           )}
           {aviso.social_instagram && (
             <div>
-              <p className="text-xs font-bold uppercase text-[#006699]">Instagram</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold uppercase text-[#006699]">Instagram</p>
+                <CopyTextButton text={aviso.social_instagram} />
+              </div>
               <p className="mt-1 whitespace-pre-wrap text-sm text-[#667085]">{aviso.social_instagram}</p>
             </div>
           )}
           {!aviso.social_twitter && !aviso.social_facebook && !aviso.social_instagram && aviso.social_copy && (
-            <p className="whitespace-pre-wrap text-sm text-[#667085]">{aviso.social_copy}</p>
+            <div>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <p className="text-xs font-bold uppercase text-[#006699]">Texto para difusión</p>
+                <CopyTextButton text={aviso.social_copy} />
+              </div>
+              <p className="whitespace-pre-wrap text-sm text-[#667085]">{aviso.social_copy}</p>
+            </div>
           )}
         </section>
       )}

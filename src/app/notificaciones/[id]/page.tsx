@@ -23,6 +23,8 @@ export default async function OpenNotificationPage({ params }: { params: Promise
   if (!notice) notFound();
 
   await pool.query("update notifications set read = true where id = $1 and user_id = $2 and read = false", [id, user.id]);
-  if (notice.href?.startsWith("/") && !notice.href.startsWith("//")) redirect(notice.href);
+  if (notice.href?.startsWith("/") && !notice.href.startsWith("//") && !notice.href.includes("\\")) {
+    redirect(notice.href);
+  }
   redirect("/notificaciones");
 }

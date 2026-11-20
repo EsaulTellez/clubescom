@@ -12,10 +12,10 @@ import { pathToStep, routesFrom, type GuideStep } from "./shared";
 export type StepThread = { id: string; stepId: number; title: string; status: string };
 type Panel = "preguntar" | "editar";
 
-export function GuideRoute({ steps, guideId, area, signedIn, done, toggle, threads, stepExtras, initialStep, initialPanel }: {
+export function GuideRoute({ steps, guideId, area, signedIn, done, toggle, threads, stepExtras, initialStep, initialPanel, pendingByStep }: {
   steps: GuideStep[]; guideId: string; area: string; signedIn: boolean; done: number[];
   toggle: (id: number) => void; threads: StepThread[]; stepExtras?: Record<number, ReactNode>;
-  initialStep?: number; initialPanel?: Panel;
+  initialStep?: number; initialPanel?: Panel; pendingByStep?: Record<number, number>;
 }) {
   const [path, setPath] = useState(() => pathToStep(steps, initialStep));
   const [panel, setPanel] = useState<Panel | undefined>(initialPanel);
@@ -34,7 +34,7 @@ export function GuideRoute({ steps, guideId, area, signedIn, done, toggle, threa
   function showPanel(next: Panel) { setPanel(panel === next ? undefined : next); }
   const control = "rounded-md border border-[#bad0db] bg-white px-3 py-2 text-sm font-bold text-[#005880] hover:bg-[#eff6f9]";
   return <div className="space-y-3">
-    {steps.length > 1 && <RouteMap steps={steps} current={step.id} onSelect={id => navigate(pathToStep(steps, id))} />}
+    {steps.length > 1 && <RouteMap steps={steps} current={step.id} onSelect={id => navigate(pathToStep(steps, id))} completedSteps={done} pendingByStep={pendingByStep} />}
     {path.length > 1 && <nav aria-label="Ruta recorrida" className="flex flex-wrap items-center gap-1 text-xs text-[#466271]">
       {path.map((id, i) => {
         const node = steps.find(s => s.id === id);
@@ -51,6 +51,13 @@ export function GuideRoute({ steps, guideId, area, signedIn, done, toggle, threa
         </div>
         <h3 ref={heading} tabIndex={-1} className="text-xl font-extrabold text-[#15374a]">{step.title}</h3>
         {step.body !== step.title && <p className="whitespace-pre-wrap text-sm leading-6 text-[#425967]">{step.body}</p>}
+        {step.imageUrl && (
+          <img
+            src={step.imageUrl}
+            alt={`Referencia visual: ${step.title}`}
+            className="max-h-80 w-auto rounded-xl border border-[#d5e4ee] bg-[#fafcfd] object-contain"
+          />
+        )}
         {choices.length ? <div className="space-y-2 pt-2">
           {choices.length > 1 && <p className="text-sm font-bold">¿Qué opción corresponde a tu caso?</p>}
           <div className="ml-2 grid gap-2 border-l-2 border-[#8eb8ca] pl-4">

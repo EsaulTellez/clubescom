@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSession } from "@/lib/auth";
+import { audit, getSession } from "@/lib/auth";
+import { parseMxLocalDate } from "@/lib/datetime";
 import { pool } from "@/lib/db";
-import { uploadPublicImage } from "@/lib/storage";
+import { resolveUploadedPublicImage } from "@/lib/resolve-upload";
 import { canManageSpaceByName } from "./shared";
 
 type FormState = { error?: string; ok?: string };
@@ -20,12 +21,6 @@ function coord(value: string) {
   return number;
 }
 
-function parseWhen(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null;
-  const date = new Date(`${value}:00-06:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
 export async function saveCubicle(_prev: FormState, form: FormData): Promise<FormState> {
   const user = await getSession();
   if (!user || user.role !== "profesor") {
@@ -35,7 +30,7 @@ export async function saveCubicle(_prev: FormState, form: FormData): Promise<For
   const label = text(form, "label");
   const building = text(form, "building");
   const floor = text(form, "floor");
-  const roomCodeRaw = text(form, "room_code");
+  const roomCodeRaw = text(form, "room_code").toUpperCase();
   const x = coord(text(form, "x"));
   const y = coord(text(form, "y"));
 
@@ -45,7 +40,7 @@ export async function saveCubicle(_prev: FormState, form: FormData): Promise<For
   if (floor.length > 20) return { error: "El piso es demasiado largo." };
   if (
     roomCodeRaw &&
-    !/^G[0-1][0-9]{2}$/.test(roomCodeRaw) &&
+    !/^G[01]0[0-9]$/.test(roomCodeRaw) &&
     (!/^[1-4][0-2](0[1-9]|1[0-3])$/.test(roomCodeRaw) ||
       (Number(roomCodeRaw[0]) >= 3 && Number(roomCodeRaw.slice(2)) < 4))
   ) {
@@ -72,6 +67,24 @@ export async function saveCubicle(_prev: FormState, form: FormData): Promise<For
         [user.id, label, building, floor || null, x, y, roomCode],
       );
     }
+    if (roomCode) {
+      await client.query(
+        `insert into map_rooms (code, kind, name, description)
+         values ($1, 'cubiculo', $2, '')
+         on conflict (code) do nothing`,
+        [roomCode, label],
+      );
+      await client.query(
+        `delete from map_room_professors where professor_id = $1 and room_code <> $2`,
+        [user.id, roomCode],
+      );
+      await client.query(
+        `insert into map_room_professors (room_code, professor_id) values ($1, $2) on conflict do nothing`,
+        [roomCode, user.id],
+      );
+    } else {
+      await client.query(`delete from map_room_professors where professor_id = $1`, [user.id]);
+    }
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
@@ -82,6 +95,7 @@ export async function saveCubicle(_prev: FormState, form: FormData): Promise<For
     client.release();
   }
 
+  await audit(user.id, "guardar_cubiculo", "cubicles", user.id, roomCode ?? label);
   revalidatePath("/eventos");
   revalidatePath("/mapa");
   return { ok: "Cubículo guardado." };
@@ -98,16 +112,16 @@ export async function addSpaceEvent(_prev: FormState, form: FormData): Promise<F
   const description = text(form, "description");
   const speaker = text(form, "speaker");
   const isPublic = form.has("is_public_field") ? form.get("is_public") === "on" : true;
-  const starts = parseWhen(text(form, "starts_at"));
+  const starts = parseMxLocalDate(text(form, "starts_at"));
   const endsValue = text(form, "ends_at");
-  const ends = endsValue ? parseWhen(endsValue) : null;
+  const ends = endsValue ? parseMxLocalDate(endsValue) : null;
 
   if (!UUID.test(spaceId)) return { error: "Elige un espacio." };
   if (title.length < 3 || title.length > 160) return { error: "El título debe tener entre 3 y 160 caracteres." };
   if (description.length > 2000) return { error: "La descripción no debe superar los 2,000 caracteres." };
   if (speaker.length > 160) return { error: "El nombre del ponente es demasiado largo." };
   if (!starts || (endsValue && !ends) || (starts && ends && ends <= starts)) {
-    return { error: "Revisa la fecha y la hora de fin del evento." };
+    return { error: "Revisa la fecha de inicio y asegúrate de que el fin sea posterior al inicio." };
   }
 
   const spaceRow = await pool.query<{ name: string }>("select name from spaces where id = $1", [spaceId]);
@@ -122,19 +136,33 @@ export async function addSpaceEvent(_prev: FormState, form: FormData): Promise<F
     return { error: "Tu área no gestiona eventos en este espacio." };
   }
 
-  const uploaded = await uploadPublicImage(user.id, "space-events", form.get("image"));
+  const overlap = await pool.query<{ conflict_title: string | null }>(
+    `select public.check_space_event_overlap($1::uuid, $2::timestamptz, $3::timestamptz, null) as conflict_title`,
+    [spaceId, starts.toISOString(), ends ? ends.toISOString() : null],
+  );
+  const conflict = overlap.rows[0]?.conflict_title;
+  if (conflict) {
+    return {
+      error: `${spaceName} ya tiene programado «${conflict}» en ese horario. Elige otra hora o espacio.`,
+    };
+  }
+
+  const uploaded = await resolveUploadedPublicImage(form, "image", user.id, "space-events");
   if ("error" in uploaded) return { error: uploaded.error };
 
   const status = isStaffPublisher ? "aprobado" : "pendiente";
   const authorizedBy = isStaffPublisher ? user.id : null;
 
-  const inserted = await pool.query(
+  const inserted = await pool.query<{ id: string }>(
     `insert into space_events
        (space_id, title, description, speaker, is_public, starts_at, ends_at, created_by, approval_status, authorized_by, image_url)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      returning id`,
     [spaceId, title, description, speaker || null, isPublic, starts, ends, user.id, status, authorizedBy, uploaded.url],
   );
+  if (inserted.rows[0]?.id) {
+    await audit(user.id, "crear_evento_espacio", "space_events", inserted.rows[0].id, `${spaceName}: ${title}`);
+  }
   revalidatePath("/");
   revalidatePath("/eventos");
   revalidatePath("/mapa");
@@ -152,12 +180,29 @@ export async function reviewSpaceEvent(form: FormData) {
   const id = text(form, "id");
   const decision = text(form, "decision");
   if (!user || !UUID.test(id) || !["aprobado", "rechazado"].includes(decision)) return;
-  const ev = await pool.query<{ space_name: string }>(
-    `select s.name as space_name from space_events e join spaces s on s.id = e.space_id where e.id = $1`,
+  const ev = await pool.query<{
+    space_id: string;
+    space_name: string;
+    starts_at: Date;
+    ends_at: Date | null;
+  }>(
+    `select e.space_id, s.name as space_name, e.starts_at, e.ends_at
+       from space_events e join spaces s on s.id = e.space_id where e.id = $1`,
     [id],
   );
-  const spaceName = ev.rows[0]?.space_name;
-  if (!spaceName || !canManageSpaceByName(user, spaceName)) return;
+  const row = ev.rows[0];
+  if (!row || !canManageSpaceByName(user, row.space_name)) return;
+
+  if (decision === "aprobado") {
+    const overlap = await pool.query<{ conflict_title: string | null }>(
+      `select public.check_space_event_overlap($1::uuid, $2::timestamptz, $3::timestamptz, $4::uuid) as conflict_title`,
+      [row.space_id, row.starts_at.toISOString(), row.ends_at ? row.ends_at.toISOString() : null, id],
+    );
+    if (overlap.rows[0]?.conflict_title) {
+      return;
+    }
+  }
+
   await pool.query(
     `update space_events
         set approval_status = $1,
@@ -165,6 +210,7 @@ export async function reviewSpaceEvent(form: FormData) {
       where id = $3`,
     [decision, user.id, id],
   );
+  await audit(user.id, `evento_espacio_${decision}`, "space_events", id, row.space_name);
   revalidatePath("/");
   revalidatePath("/eventos");
   revalidatePath("/mapa");

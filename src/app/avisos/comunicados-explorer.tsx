@@ -5,6 +5,7 @@ import { CatalogSearch } from "@/components/catalog-search";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AvisoExternalLink, trackAvisoInteraction } from "@/components/aviso-external-link";
+import { CopyTextButton } from "@/components/copy-button";
 import { btn } from "@/lib/ui";
 import { actualizarAviso, crearAviso } from "./actions";
 import { AvisoForm } from "./aviso-form";
@@ -177,7 +178,7 @@ export function ComunicadosExplorer({
   const carouselRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
-  const lastTrackedViewRef = useRef<string | null>(null);
+  const trackedViewsRef = useRef<Set<string>>(new Set());
 
   const applyServerCounts = useCallback(
     (
@@ -208,8 +209,8 @@ export function ComunicadosExplorer({
   const openComunicado = useCallback(
     (id: string) => {
       setSelectedId(id);
-      if (lastTrackedViewRef.current !== id) {
-        lastTrackedViewRef.current = id;
+      if (!trackedViewsRef.current.has(id)) {
+        trackedViewsRef.current.add(id);
         void trackAvisoInteraction(id, "view").then((counts) => {
           applyServerCounts(id, "view", counts);
         });
@@ -217,12 +218,6 @@ export function ComunicadosExplorer({
     },
     [applyServerCounts],
   );
-
-  useEffect(() => {
-    if (!selectedId) {
-      lastTrackedViewRef.current = null;
-    }
-  }, [selectedId]);
 
   const counts = useMemo(() => {
     const map: Record<Category | "all", number> = {
@@ -779,8 +774,10 @@ export function ComunicadosExplorer({
                 <button key={item.id} type="button" onClick={() => openComunicado(item.id)}
                   className="group flex w-[min(84%,23rem)] shrink-0 snap-start flex-col border-t-2 border-[#264b58] bg-[#fffdf7] text-left sm:w-[calc((100%-2rem)/3)]">
                   {item.imageUrl && (
-                    <img src={item.imageUrl} alt="" onLoad={updateCarouselState}
-                      className="aspect-[2/1] w-full bg-[#eeece3] object-contain" />
+                    <div className="h-56 w-full overflow-hidden bg-[#13232e]">
+                      <img src={item.imageUrl} alt="" onLoad={updateCarouselState}
+                        className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.02]" />
+                    </div>
                   )}
                   <div className="w-full p-4">
                     <p className="flex flex-wrap justify-between gap-2 text-xs text-[#53656c]">
@@ -936,14 +933,11 @@ export function ComunicadosExplorer({
                       </div>
 
                       <div className="mt-5 flex items-center justify-between border-t border-[#eae7dc] pt-3.5 text-xs">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-[#c5d6de] bg-[#e9f2f5] text-[11px] font-extrabold text-[#004d73]">
-                            {item.authorName.slice(0, 1).toUpperCase()}
-                          </span>
-                          <span className="truncate font-bold text-[#35505e]">
-                            {item.authorName}
-                          </span>
-                        </div>
+                        <span className="font-semibold text-[#5d717b]">
+                          {item.sourceArea && item.sourceArea !== "general"
+                            ? sourceAreaShortLabel(item.sourceArea)
+                            : "ESCOM · IPN"}
+                        </span>
 
                         <span className="inline-flex shrink-0 items-center gap-1 font-extrabold text-[#006699] transition group-hover:translate-x-0.5">
                           Ver comunicado
@@ -1126,7 +1120,10 @@ export function ComunicadosExplorer({
                   <div className="grid gap-3 sm:grid-cols-2">
                     {selectedItem.socialTwitter && (
                       <div className="rounded-lg border border-[#dce7ec] bg-white p-3">
-                        <p className="text-[11px] font-extrabold uppercase text-[#006699]">Twitter / X</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[11px] font-extrabold uppercase text-[#006699]">Twitter / X</p>
+                          <CopyTextButton text={selectedItem.socialTwitter} />
+                        </div>
                         <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-[#425660]">
                           {selectedItem.socialTwitter}
                         </p>
@@ -1134,7 +1131,10 @@ export function ComunicadosExplorer({
                     )}
                     {selectedItem.socialFacebook && (
                       <div className="rounded-lg border border-[#dce7ec] bg-white p-3">
-                        <p className="text-[11px] font-extrabold uppercase text-[#006699]">Facebook</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[11px] font-extrabold uppercase text-[#006699]">Facebook</p>
+                          <CopyTextButton text={selectedItem.socialFacebook} />
+                        </div>
                         <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-[#425660]">
                           {selectedItem.socialFacebook}
                         </p>
@@ -1142,7 +1142,10 @@ export function ComunicadosExplorer({
                     )}
                     {selectedItem.socialInstagram && (
                       <div className="rounded-lg border border-[#dce7ec] bg-white p-3 sm:col-span-2">
-                        <p className="text-[11px] font-extrabold uppercase text-[#006699]">Instagram</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[11px] font-extrabold uppercase text-[#006699]">Instagram</p>
+                          <CopyTextButton text={selectedItem.socialInstagram} />
+                        </div>
                         <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-[#425660]">
                           {selectedItem.socialInstagram}
                         </p>
@@ -1150,9 +1153,14 @@ export function ComunicadosExplorer({
                     )}
                   </div>
                   {!selectedItem.socialTwitter && !selectedItem.socialFacebook && !selectedItem.socialInstagram && selectedItem.socialCopy && (
-                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#425660]">
-                      {selectedItem.socialCopy}
-                    </p>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-end">
+                        <CopyTextButton text={selectedItem.socialCopy} />
+                      </div>
+                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#425660]">
+                        {selectedItem.socialCopy}
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
@@ -1214,7 +1222,6 @@ export function ComunicadosExplorer({
           aria-modal="true"
           aria-labelledby="aviso-form-modal-title"
           className="aviso-modal-backdrop fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-3 backdrop-blur-xs sm:p-5"
-          onClick={() => setFormModal(null)}
         >
           <div
             className="aviso-modal-panel relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-sm border border-[#dcd9ce] bg-[#fffdf7] shadow-2xl"
@@ -1244,12 +1251,14 @@ export function ComunicadosExplorer({
                   onCancel={() => setFormModal(null)}
                   onSuccess={() => {
                     setFormModal(null);
+                    setExtra7d({ views: 0, clicks: 0 });
                     router.refresh();
                   }}
                   initial={{
                     title: "",
                     body: "",
                     category: "academico",
+                    sourceArea: "general",
                     featured: false,
                     isPublic: true,
                     publishAt: defaultPublishAt,
@@ -1257,6 +1266,7 @@ export function ComunicadosExplorer({
                     socialCopy: "",
                     socialTwitter: "",
                     socialFacebook: "",
+                    socialInstagram: "",
                   }}
                 />
               ) : (

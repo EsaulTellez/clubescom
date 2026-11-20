@@ -14,37 +14,63 @@ function subscribe(update: () => void) {
 }
 
 export function GuideSteps({
-  initialDone = [], ...props
+  initialDone = [],
+  ...props
 }: Omit<ComponentProps<typeof GuideRoute>, "done" | "toggle"> & { initialDone?: number[] }) {
   const { signedIn, guideId } = props;
   const [saved, setSaved] = useState(initialDone);
-  const guestValue = useSyncExternalStore(subscribe, () => {
-    try { return window.localStorage.getItem(`escom-guide-progress-${guideId}`) ?? "[]"; }
-    catch { return "[]"; }
-  }, () => "[]");
+  const [saveError, setSaveError] = useState("");
+  const guestValue = useSyncExternalStore(
+    subscribe,
+    () => {
+      try {
+        return window.localStorage.getItem(`escom-guide-progress-${guideId}`) ?? "[]";
+      } catch {
+        return "[]";
+      }
+    },
+    () => "[]",
+  );
   let done = saved;
   if (!signedIn) {
     try {
       const value: unknown = JSON.parse(guestValue);
       if (Array.isArray(value)) done = value.filter((id): id is number => typeof id === "number");
-    } catch { /* Ignore an invalid local progress entry. */ }
+    } catch {
+      /* Ignore an invalid local progress entry. */
+    }
   }
 
-  function toggleStep(index: number) {
+  async function toggleStep(index: number) {
+    setSaveError("");
     const checked = done.includes(index);
     const next = checked ? done.filter((item) => item !== index) : [...done, index];
     if (signedIn) {
       setSaved(next);
-      void saveGuideProgress(guideId, next, checked ? undefined : index);
+      try {
+        await saveGuideProgress(guideId, next, checked ? undefined : index);
+      } catch {
+        setSaved(done);
+        setSaveError("No se pudo guardar tu avance; revisa tu conexión o sesión.");
+      }
     } else {
       try {
         window.localStorage.setItem(`escom-guide-progress-${guideId}`, JSON.stringify(next));
-        window.dispatchEvent(new Event("escom-guide-progress"));
+        window.dispatchEvent(new Event("storage"));
       } catch {
         // ignore
       }
     }
   }
 
-  return <GuideRoute {...props} done={done} toggle={toggleStep} />;
+  return (
+    <div className="space-y-2">
+      {saveError && (
+        <p role="alert" className="text-xs font-semibold text-[#8C1D18]">
+          {saveError}
+        </p>
+      )}
+      <GuideRoute {...props} done={done} toggle={toggleStep} />
+    </div>
+  );
 }

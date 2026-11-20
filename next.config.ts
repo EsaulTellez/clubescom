@@ -27,7 +27,22 @@ const nextConfig: NextConfig = {
   ...(process.env.VERCEL && { env: vercelEnvironment() }),
   serverExternalPackages: ["pdfjs-dist", "@napi-rs/canvas", "tesseract.js"],
   outputFileTracingIncludes: {
-    "/guias/nueva": ["./node_modules/@tesseract.js-data/spa/4.0.0_best_int/*", "./node_modules/tesseract.js-core/*lstm*", "./node_modules/tesseract.js/src/**/*", "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"],
+    "/guias/nueva": [
+      "./node_modules/@tesseract.js-data/spa/4.0.0_best_int/*",
+      "./node_modules/tesseract.js-core/*lstm*",
+      "./node_modules/tesseract.js/src/**/*",
+      "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+      "./node_modules/pdfjs-dist/standard_fonts/**/*",
+      "./node_modules/pdfjs-dist/cmaps/**/*",
+    ],
+    "/guias/[id]/editar": [
+      "./node_modules/@tesseract.js-data/spa/4.0.0_best_int/*",
+      "./node_modules/tesseract.js-core/*lstm*",
+      "./node_modules/tesseract.js/src/**/*",
+      "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+      "./node_modules/pdfjs-dist/standard_fonts/**/*",
+      "./node_modules/pdfjs-dist/cmaps/**/*",
+    ],
   },
   allowedDevOrigins: ["127.0.0.1", "::1", "[::1]"],
   experimental: {

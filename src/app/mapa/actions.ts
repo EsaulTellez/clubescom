@@ -1,14 +1,21 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSession } from "@/lib/auth";
+import { audit, getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const VALID_KINDS = ["salon", "laboratorio", "cubiculo", "oficina", "servicio", "biblioteca", "auditorio", "otro"];
 
+function canManageMapRooms(user: Awaited<ReturnType<typeof getSession>>) {
+  return Boolean(
+    user && (user.role === "admin" || (user.role === "moderador" && user.area === "prefectura")),
+  );
+}
+
 function isValidRoomCode(code: string) {
-  if (/^G[0-1][0-9]{2}$/.test(code)) return true;
+  if (/^G[0-1]0[0-9]$/.test(code)) return true;
   if (!/^[1-4][0-2](0[1-9]|1[0-3])$/.test(code)) return false;
   if (Number(code[0]) >= 3 && Number(code.slice(2)) < 4) return false;
   return true;
@@ -19,8 +26,10 @@ export async function saveRoom(
   form: FormData,
 ): Promise<{ error?: string; ok?: string }> {
   const user = await getSession();
-  if (user?.role !== "admin") return { error: "Solo administración puede editar la ficha base del espacio." };
-  const code = String(form.get("code") ?? "").trim();
+  if (!canManageMapRooms(user) || !user) {
+    return { error: "Solo administración o Prefectura puede editar la ficha base del espacio." };
+  }
+  const code = String(form.get("code") ?? "").trim().toUpperCase();
   const kind = String(form.get("kind") ?? "").trim();
   const name = String(form.get("name") ?? "").trim();
   const description = String(form.get("description") ?? "").trim();
@@ -72,6 +81,7 @@ export async function saveRoom(
   } finally {
     client.release();
   }
+  await audit(user.id, "editar_espacio_mapa", "map_rooms", code, name || kind);
   revalidatePath("/mapa");
   return { ok: "Espacio actualizado." };
 }
@@ -85,18 +95,18 @@ export async function assignSelfToRoom(
     return { error: "Solo un profesor puede asignarse directamente como confirmado." };
   }
 
-  const code = String(form.get("code") ?? "").trim();
+  const code = String(form.get("code") ?? "").trim().toUpperCase();
   const mode = String(form.get("mode") ?? "assign").trim();
-  const customLabel = String(form.get("label") ?? "").trim();
+  const customLabel = String(form.get("label") ?? "").trim().slice(0, 80);
 
   if (!isValidRoomCode(code)) {
     return { error: "El código del espacio no es válido." };
   }
 
-  const client = await pool.connect();
-  try {
-    await client.query("begin");
-    if (mode === "remove") {
+  if (mode === "remove") {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
       await client.query(
         "delete from map_room_professors where room_code = $1 and professor_id = $2",
         [code, user.id],
@@ -106,62 +116,35 @@ export async function assignSelfToRoom(
         [user.id, code],
       );
       await client.query("commit");
-      revalidatePath("/mapa");
-      return { ok: "Te retiraste de este espacio." };
+    } catch {
+      await client.query("rollback");
+      return { error: "No se pudo retirar tu asignación." };
+    } finally {
+      client.release();
     }
-
-    const buildingLabel = code.startsWith("G") ? "Edificio de Gobierno" : `Edificio ${code[0]}`;
-    const floorLabel = code[1] === "0" ? "PB" : code[1];
-    const roomLabel = customLabel || (code.startsWith("G") ? `Espacio ${code}` : `Espacio ${code}`);
-
-    await client.query(
-      `insert into map_rooms (code, kind, name, description)
-       values ($1, 'cubiculo', $2, '')
-       on conflict (code) do update
-         set name = case when map_rooms.name = '' and $2 <> '' then $2 else map_rooms.name end`,
-      [code, customLabel],
-    );
-
-    await client.query(
-      `insert into map_room_professors (room_code, professor_id)
-       values ($1, $2)
-       on conflict (room_code, professor_id) do nothing`,
-      [code, user.id],
-    );
-
-    const updatedCubicle = await client.query(
-      `update cubicles
-          set room_code = $2,
-              label = case when $3 <> '' then $3 else label end,
-              building = $4,
-              floor = $5
-        where professor_id = $1`,
-      [user.id, code, roomLabel, buildingLabel, floorLabel],
-    );
-    if (!updatedCubicle.rowCount) {
-      await client.query(
-        `insert into cubicles (professor_id, label, building, floor, x, y, room_code)
-         values ($1, $2, $3, $4, 50, 50, $5)`,
-        [user.id, roomLabel, buildingLabel, floorLabel, code],
-      );
-    }
-
-    // Si había una sugerencia de alumno para este profesor en este espacio, queda validada como verdad oficial
-    await client.query(
-      "delete from map_room_suggestions where room_code = $1 and professor_id = $2",
-      [code, user.id],
-    );
-
-    await client.query("commit");
-  } catch {
-    await client.query("rollback");
-    return { error: "No se pudo guardar tu asignación." };
-  } finally {
-    client.release();
+    await audit(user.id, "retirar_cubiculo_mapa", "map_rooms", code);
+    revalidatePath("/mapa");
+    return { ok: "Te retiraste de este espacio." };
   }
 
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("assign_my_map_room", {
+    p_code: code,
+    p_label: customLabel,
+  });
+  if (error) {
+    return { error: error.message || "No se pudo guardar tu asignación." };
+  }
+
+  // Limpiar sugerencias pendientes del mismo profesor en ese espacio
+  await pool.query(
+    "delete from map_room_suggestions where room_code = $1 and professor_id = $2",
+    [code, user.id],
+  );
+
+  await audit(user.id, "asignar_cubiculo_mapa", "map_rooms", code, customLabel || code);
   revalidatePath("/mapa");
-  return { ok: "Ubicación confirmada como oficial." };
+  return { ok: "Ubicación confirmada correctamente." };
 }
 
 export async function suggestProfessorInRoom(
@@ -318,19 +301,40 @@ export async function resolveRoomSuggestion(formData: FormData) {
     }
     const sug = row.rows[0];
     const isTargetProfessor = user.role === "profesor" && user.id === sug.professor_id;
-    const isAdmin = user.role === "admin";
+    const isStaff = canManageMapRooms(user);
     const isAuthor = user.id === sug.suggested_by;
 
-    if (decision === "confirm" && (isTargetProfessor || isAdmin)) {
+    if (decision === "confirm" && (isTargetProfessor || isStaff)) {
+      await client.query(
+        `insert into map_rooms (code, kind, name, description)
+         values ($1, 'cubiculo', $2, '')
+         on conflict (code) do nothing`,
+        [sug.room_code, `Cubículo ${sug.room_code}`],
+      );
+      await client.query(
+        `delete from map_room_professors where professor_id = $1 and room_code <> $2`,
+        [sug.professor_id, sug.room_code],
+      );
       await client.query(
         `insert into map_room_professors (room_code, professor_id)
          values ($1, $2)
          on conflict (room_code, professor_id) do nothing`,
         [sug.room_code, sug.professor_id],
       );
+      const buildingLabel = sug.room_code.startsWith("G")
+        ? "Edificio de Gobierno"
+        : `Edificio ${sug.room_code[0]}`;
+      const floorLabel = sug.room_code[1] === "0" ? "Planta baja" : `Piso ${sug.room_code[1]}`;
+      await client.query(
+        `update cubicles set room_code = $2, building = $3, floor = $4
+          where professor_id = $1`,
+        [sug.professor_id, sug.room_code, buildingLabel, floorLabel],
+      );
       await client.query("delete from map_room_suggestions where id = $1", [suggestionId]);
-    } else if (decision === "dismiss" && (isTargetProfessor || isAdmin || isAuthor)) {
+      await audit(user.id, "confirmar_sugerencia_mapa", "map_room_suggestions", suggestionId, sug.room_code);
+    } else if (decision === "dismiss" && (isTargetProfessor || isStaff || isAuthor)) {
       await client.query("delete from map_room_suggestions where id = $1", [suggestionId]);
+      await audit(user.id, "descartar_sugerencia_mapa", "map_room_suggestions", suggestionId, sug.room_code);
     }
     await client.query("commit");
   } catch {

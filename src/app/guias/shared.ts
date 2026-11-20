@@ -2,13 +2,12 @@ export const AREAS = [
   { id: "gestion_escolar", label: "Gestión escolar" },
   { id: "becas", label: "Becas" },
   { id: "catt", label: "CATT" },
+  { id: "clubes", label: "Clubes" },
+  { id: "infraestructura", label: "Cubículos y Espacios" },
   { id: "general", label: "General" },
 ] as const;
 
 export type AreaId = (typeof AREAS)[number]["id"];
-
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function isArea(value: string): value is AreaId {
   return AREAS.some((area) => area.id === value);
@@ -19,14 +18,14 @@ export function areaLabel(value: string) {
 }
 
 export function isUuid(value: string) {
-  return UUID.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
 export function formatDate(value: Date | string) {
   return new Intl.DateTimeFormat("es-MX", {
     dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+    timeZone: "America/Mexico_City",
+  }).format(typeof value === "string" ? new Date(value) : value);
 }
 
 export function firstParam(value: string | string[] | undefined) {
@@ -37,115 +36,190 @@ export function isStaff(role: string) {
   return role === "moderador" || role === "admin";
 }
 
+export function editableGuideAreas(
+  user: { role?: string | null; area?: string | null } | null,
+): readonly (typeof AREAS)[number][] {
+  if (!user || !isStaff(user.role ?? "")) return [];
+  if (user.role === "admin") return AREAS;
+  const area = user.area ?? "";
+  if (area === "gestion_escolar" || area === "becas" || area === "catt") {
+    return AREAS.filter((item) => item.id === area);
+  }
+  if (area === "clubes_academicos" || area === "clubes_culturales") {
+    return AREAS.filter((item) => item.id === "clubes");
+  }
+  if (area === "prefectura") {
+    return AREAS.filter((item) => item.id === "infraestructura");
+  }
+  if (area === "comunicacion") {
+    return AREAS.filter((item) => item.id === "general");
+  }
+  return [];
+}
+
+export function canEditGuideArea(
+  user: { role?: string | null; area?: string | null } | null,
+  guideArea: string,
+): boolean {
+  return editableGuideAreas(user).some((item) => item.id === guideArea);
+}
+
 export type GuideChoice = { label: string; to: number };
-export type GuideStep = { id: number; title: string; body: string; choices?: GuideChoice[] };
-export const MAX_SOURCE_MB = 4;
+export type GuideStep = {
+  id: number;
+  title: string;
+  body: string;
+  choices?: GuideChoice[];
+  imageUrl?: string;
+};
+
+export const MAX_SOURCE_MB = 15;
 export const SOURCE_ACCEPT = ".pdf,.docx,.txt,.md,image/jpeg,image/png,image/webp";
 
 export function routesFrom(steps: GuideStep[], index: number): GuideChoice[] {
-  const next = steps[index + 1];
-  return steps[index].choices ?? (next ? [{ label: "Continuar", to: next.id }] : []);
+  const step = steps[index];
+  if (step.choices) return step.choices;
+  return steps[index + 1] ? [{ label: "Siguiente paso", to: steps[index + 1].id }] : [];
 }
 
 export function pathToStep(steps: GuideStep[], target?: number) {
-  if (!steps.length) return [];
-  const paths = [[steps[0].id]];
-  const visited = new Set<number>();
-  for (const path of paths) {
-    const id = path[path.length - 1];
-    if (id === target) return path;
-    if (visited.has(id)) continue;
-    visited.add(id);
-    const index = steps.findIndex(step => step.id === id);
-    if (index >= 0) for (const choice of routesFrom(steps, index)) paths.push([...path, choice.to]);
+  const byId = new Map(steps.map((step, index) => [step.id, index]));
+  const start = steps[0]?.id;
+  if (!start) return [];
+  if (target === undefined || target === start || !byId.has(target)) return [start];
+  const queue = [[start]];
+  const seen = new Set([start]);
+  while (queue.length) {
+    const path = queue.shift()!;
+    const current = path[path.length - 1];
+    for (const next of routesFrom(steps, byId.get(current)!)) {
+      if (next.to === target) return [...path, target];
+      if (byId.has(next.to) && !seen.has(next.to)) {
+        seen.add(next.to);
+        queue.push([...path, next.to]);
+      }
+    }
   }
-  return [steps[0].id];
+  return [start];
+}
+
+function normalizeStepImageUrl(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const val = raw.trim();
+  if (!val) return undefined;
+  if (val.startsWith("/") && !val.startsWith("//")) return val;
+  try {
+    const u = new URL(val);
+    if (u.protocol === "http:" || u.protocol === "https:") return val;
+  } catch {
+    // invalid url
+  }
+  return undefined;
 }
 
 export function validateSteps(value: unknown): { steps: GuideStep[] } | { error: string } {
-  const data = parseJson(value);
-  if (!Array.isArray(data) || !data.length || data.length > 30) return { error: "Incluye entre 1 y 30 pasos." };
-  const ids = new Set<number>();
+  let list: unknown = value;
+  if (typeof value === "string") {
+    try {
+      list = JSON.parse(value);
+    } catch {
+      return { error: "El formato de los pasos no es válido." };
+    }
+  }
+  if (!Array.isArray(list) || !list.length || list.length > 30) {
+    return { error: "La guía debe incluir entre 1 y 30 pasos." };
+  }
   const steps: GuideStep[] = [];
-  for (const item of data) {
-    const row = asRecord(item);
-    const id = row?.id;
-    if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 0 || id >= 2147483647 || ids.has(id)) return { error: "Cada paso necesita un identificador único." };
-    ids.add(id);
-    if (typeof row?.title !== "string" || !row.title.trim() || row.title.length > 160 || typeof row.body !== "string" || !row.body.trim() || row.body.length > 2000) return { error: "Completa el título (hasta 160 caracteres) y las indicaciones (hasta 2000) de cada paso." };
-    const step: GuideStep = { id, title: row.title.trim(), body: row.body.trim() };
-    if (row.choices !== undefined) {
-      if (!Array.isArray(row.choices) || row.choices.length > 30) return { error: "Revisa las salidas del paso." };
-      step.choices = [];
-      for (const choice of row.choices) {
-        if (typeof choice?.label !== "string" || !choice.label.trim() || choice.label.length > 140 || typeof choice.to !== "number") return { error: "Cada opción necesita una condición y un paso de destino." };
-        step.choices.push({ label: choice.label.trim(), to: choice.to });
+  for (let i = 0; i < list.length; i += 1) {
+    const row = list[i] as Record<string, unknown>;
+    const title = String(row?.title ?? "").trim();
+    const body = String(row?.body ?? "").trim();
+    if (title.length < 2 || title.length > 160 || body.length < 4 || body.length > 2000) {
+      return { error: `Revisa el título (2–160) y texto (4–2000) del paso ${i + 1}.` };
+    }
+    const id = Number.isInteger(row?.id) && Number(row.id) > 0 ? Number(row.id) : i + 1;
+    let choices: GuideChoice[] | undefined;
+    if (row?.choices !== undefined) {
+      if (!Array.isArray(row.choices)) return { error: "Las opciones del paso deben ser una lista." };
+      choices = row.choices.map((item) => ({
+        label: String((item as Record<string, unknown>)?.label ?? "").trim(),
+        to: Number((item as Record<string, unknown>)?.to),
+      }));
+      if (choices.some((choice) => choice.label.length < 2 || choice.label.length > 140 || !Number.isInteger(choice.to))) {
+        return { error: `Revisa las opciones del paso ${i + 1}.` };
       }
     }
+    const imageUrl = normalizeStepImageUrl(row?.imageUrl);
+    const step: GuideStep = { id, title, body };
+    if (choices) step.choices = choices;
+    if (imageUrl) step.imageUrl = imageUrl;
     steps.push(step);
   }
-  const reached = new Set<number>();
-  const visiting = new Set<number>();
-  function walk(id: number): boolean {
-    if (visiting.has(id) || !ids.has(id)) return false;
-    if (reached.has(id)) return true;
-    const index = steps.findIndex(step => step.id === id);
-    visiting.add(id);
-    if (!routesFrom(steps, index).every(choice => walk(choice.to))) return false;
-    visiting.delete(id);
-    reached.add(id);
-    return true;
+  const ids = new Set(steps.map((step) => step.id));
+  if (ids.size !== steps.length) return { error: "Cada paso debe tener un identificador distinto." };
+  if (steps.some((step, i) => routesFrom(steps, i).some((choice) => !ids.has(choice.to)))) {
+    return { error: "Un botón de decisión apunta a un paso que no existe." };
   }
-  if (!walk(steps[0].id)) return { error: "Revisa las rutas. Hay un destino inexistente o un recorrido que regresa a un paso anterior y forma un ciclo." };
-  if (reached.size !== steps.length) return { error: "Hay pasos sin conexión. Enlázalos desde la ruta que empieza en el primer paso." };
+  const byId = new Map(steps.map((step, i) => [step.id, i]));
+  const state = new Map<number, 1 | 2>();
+  const dfs = (id: number): boolean => {
+    state.set(id, 1);
+    for (const choice of routesFrom(steps, byId.get(id)!)) {
+      const next = state.get(choice.to);
+      if (next === 1 || (!next && dfs(choice.to))) return true;
+    }
+    state.set(id, 2);
+    return false;
+  };
+  if (dfs(steps[0].id)) return { error: "La ruta vuelve sobre sí misma y no tiene fin." };
+  if (state.size !== steps.length) return { error: "Hay pasos sin conexión desde el inicio de la guía." };
   return { steps };
 }
+
 export type GuideFaq = { q: string; a: string };
 
-function asRecord(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function parseJson(value: unknown) {
-  if (typeof value !== "string") return value;
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
+export function serializeFaqs(faqs: GuideFaq[]): string {
+  return faqs
+    .map((f) => ({ q: f.q.replace(/[|\n\r]+/g, " ").trim(), a: f.a.replace(/[\n\r]+/g, " ").trim() }))
+    .filter((f) => f.q.length >= 4 && f.a.length >= 2)
+    .map((f) => `${f.q} | ${f.a}`)
+    .join("\n");
 }
 
 export function asSteps(value: unknown): GuideStep[] {
-  const data = parseJson(value);
-  if (!Array.isArray(data)) return [];
-  return data.map((item, index) => {
-    const row = asRecord(item);
-    return {
-      id: typeof row?.id === "number" ? row.id : index,
-      ...(Array.isArray(row?.choices) && { choices: row.choices }),
-      title: typeof row?.title === "string" ? row.title : "Paso",
-      body: typeof row?.body === "string" ? row.body : "",
-    };
-  });
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter((item): item is GuideStep => typeof item === "object" && item !== null);
 }
 
 export function asFaqs(value: unknown): GuideFaq[] {
-  const data = parseJson(value);
-  if (!Array.isArray(data)) return [];
-  return data.flatMap((item) => {
-    const row = asRecord(item);
-    if (typeof row?.q !== "string" || typeof row.a !== "string") return [];
-    return [{ q: row.q, a: row.a }];
-  });
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(
+    (item): item is GuideFaq =>
+      typeof item === "object" &&
+      item !== null &&
+      typeof (item as GuideFaq).q === "string" &&
+      typeof (item as GuideFaq).a === "string",
+  );
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  pendiente: "Pendiente",
-  aceptada: "Aceptada",
-  rechazada: "Rechazada",
-};
-
 export function statusLabel(status: string) {
-  return STATUS_LABEL[status] ?? status;
+  if (status === "aceptada") return "Aplicada en la guía";
+  if (status === "rechazada") return "Descartada";
+  return "Pendiente de revisión";
 }

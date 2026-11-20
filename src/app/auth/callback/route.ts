@@ -68,9 +68,11 @@ export async function GET(request: NextRequest) {
           ? next
           : type === "recovery"
             ? "/recuperar?cambiar=1"
-            : type === "signup" || type === "email" || type === "invite"
-              ? "/auth/confirmado"
-              : "/";
+            : type === "invite"
+              ? "/recuperar?cambiar=1&invitacion=1"
+              : type === "signup" || type === "email"
+                ? "/auth/confirmado"
+                : "/";
       if (data.user && destination === "/auth/confirmado") {
         try {
           await audit(data.user.id, "verificar", "users", data.user.id);

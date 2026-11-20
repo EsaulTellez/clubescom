@@ -50,11 +50,12 @@ function keyDate(date: Date) {
 
 function monthLabel(value: string) {
   const [year, month] = value.split("-").map(Number);
-  return new Intl.DateTimeFormat("es-MX", {
+  const formatted = new Intl.DateTimeFormat("es-MX", {
     month: "long",
     year: "numeric",
     timeZone: TZ,
   }).format(new Date(Date.UTC(year, month - 1, 15)));
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
 function moveMonth(value: string, delta: number) {
@@ -247,7 +248,7 @@ export function EventBoard({
             <span className="inline-block h-2 w-2 rounded-full bg-[#e3b341]" aria-hidden="true" />
             <span>ESCOM · IPN</span>
             <span className="text-[#69899c]" aria-hidden="true">|</span>
-            <span className="capitalize">{monthLabel(month)}</span>
+            <span>{monthLabel(month)}</span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
@@ -311,7 +312,7 @@ export function EventBoard({
 
           <nav
             aria-label="Filtrar eventos por espacio"
-            className="mt-3.5 flex flex-wrap items-center gap-2"
+            className="mt-3.5 flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0"
           >
             {spaceTabs.map((item) => {
               const active = spaceFilter === item.value;
@@ -324,7 +325,7 @@ export function EventBoard({
                     setSpaceFilter(item.value);
                     setSelectedDay(null);
                   }}
-                  className={`inline-flex min-h-9 items-center gap-2 rounded border px-3.5 py-1.5 text-xs font-extrabold uppercase tracking-wide transition ${
+                  className={`inline-flex min-h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded border px-3.5 py-1.5 text-xs font-extrabold uppercase tracking-wide transition ${
                     active
                       ? "border-[#142c3c] bg-[#142c3c] text-[#fffdf7] shadow-[2px_2px_0_#006699]"
                       : "border-[#cfc8b6] bg-[#faf7ef] text-[#284454] hover:border-[#142c3c] hover:bg-[#f1ede0]"
@@ -356,7 +357,11 @@ export function EventBoard({
           onClose={() => setShowPublishForm(false)}
           serifTitle
         >
-          <SpaceEventForm spaces={spaces.map((space) => ({ id: space.id, name: space.name }))} />
+          <SpaceEventForm
+            spaces={spaces.map((space) => ({ id: space.id, name: space.name }))}
+            isDirectPublisher={canPublishEvents}
+            onSuccess={() => setShowPublishForm(false)}
+          />
         </FormDialog>
       )}
 
@@ -428,7 +433,7 @@ export function EventBoard({
                 ‹
               </button>
               <div className="text-center">
-                <h2 className="font-serif text-sm font-extrabold capitalize text-[#142c3c]">
+                <h2 className="font-serif text-sm font-extrabold text-[#142c3c]">
                   {monthLabel(month)}
                 </h2>
                 <p className="text-[11px] font-bold text-[#5f6e78]">
@@ -538,7 +543,7 @@ export function EventBoard({
                         <span className="font-normal text-[#5f6e78]">· {ev.spaceName}</span>
                       </p>
                       <p className="text-[11px] text-[#5f6e78]">
-                        {new Date(ev.startsAt).toLocaleString("es-MX")}
+                        {new Date(ev.startsAt).toLocaleString("es-MX", { timeZone: TZ })}
                       </p>
                       {ev.description && (
                         <p className="mt-1 text-[11px] text-[#536974]">{ev.description}</p>

@@ -159,6 +159,9 @@ export function canModerateForumQuestion(
   ) {
     return true;
   }
+  if (area === "general" && user.area === "comunicacion") {
+    return true;
+  }
   return false;
 }
 

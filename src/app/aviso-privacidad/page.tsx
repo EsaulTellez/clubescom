@@ -6,10 +6,10 @@ export default function AvisoPage() {
     <article className={`${card} mx-auto max-w-3xl space-y-4`}>
       <h1 className="text-2xl font-bold text-[#173142]">Aviso de privacidad integral</h1>
       <p className="text-sm leading-6 text-[#52596a]">
-        La Escuela Superior de Cómputo (ESCOM), como unidad académica del Instituto Politécnico Nacional (IPN), recaba nombre completo, número de boleta o número de empleado y correo electrónico institucional (`@alumno.ipn.mx` o `@ipn.mx`) con la finalidad exclusiva de autenticar a los integrantes de la comunidad, gestionar propuestas y membresías de clubes, orientar trámites escolares, facilitar la devolución de objetos perdidos y difundir avisos institucionales.
+        La Escuela Superior de Cómputo (ESCOM), como unidad académica del Instituto Politécnico Nacional (IPN), recaba nombre completo, número de boleta o número de empleado y correo electrónico institucional (<code>@alumno.ipn.mx</code> o <code>@ipn.mx</code>) con la finalidad exclusiva de autenticar a los integrantes de la comunidad, gestionar propuestas y membresías de clubes, orientar trámites escolares, facilitar la devolución de objetos perdidos y difundir avisos institucionales.
       </p>
       <p className="text-sm leading-6 text-[#52596a]">
-        Los datos privados (correo y boleta) se resguardan en un esquema protegido (`private.user_private`) con políticas de seguridad a nivel de fila (RLS) y no se exponen públicamente ni se transfieren a terceros ajenos al IPN. En el módulo de Objetos Perdidos, el correo institucional solo se comparte entre quien encontró el objeto y quien acreditó su propiedad mediante la pregunta de seguridad y la aprobación del reclamo.
+        Los datos privados (correo institucional y boleta o número de empleado) se resguardan en almacenamiento privado con políticas de control de acceso por usuario autenticado y no se exponen públicamente ni se transfieren a terceros ajenos al IPN. En el módulo de Objetos Perdidos, el correo institucional solo se comparte entre quien encontró el objeto y quien acreditó su propiedad mediante la pregunta llave y la aprobación del reclamo.
       </p>
 
       <section className="space-y-2 border-t border-[#dcd9ce] pt-4">

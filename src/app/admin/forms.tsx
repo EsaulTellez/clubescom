@@ -23,12 +23,14 @@ function Feedback({ state }: { state: FormState }) {
 
 export function UserControls({
   canAssignRoles,
+  canBan = true,
   userId,
   role,
   area,
   banned,
 }: {
   canAssignRoles: boolean;
+  canBan?: boolean;
   userId: string;
   role: Role;
   area: string | null;
@@ -39,25 +41,27 @@ export function UserControls({
 
   return (
     <div className="space-y-3">
-      <form action={banAction} className="space-y-2 border-b border-[#dcd9ce] pb-3">
-        <input type="hidden" name="user_id" value={userId} />
-        <input type="hidden" name="banned" value={banned ? "false" : "true"} />
-        <label className={label}>
-          Motivo {banned ? "para retirar veto" : "de baneo"} (obligatorio)
-          <input
-            className={input}
-            name="reason"
-            required
-            minLength={10}
-            maxLength={500}
-            placeholder="Mínimo 10 caracteres para auditoría"
-          />
-        </label>
-        <button className={btnGhost} disabled={banPending}>
-          {banned ? "Quitar veto" : "Vetar y cerrar sesión"}
-        </button>
-        <Feedback state={banState} />
-      </form>
+      {canBan && (
+        <form action={banAction} className="space-y-2 border-b border-[#dcd9ce] pb-3">
+          <input type="hidden" name="user_id" value={userId} />
+          <input type="hidden" name="banned" value={banned ? "false" : "true"} />
+          <label className={label}>
+            Motivo {banned ? "para retirar veto" : "de baneo"} (obligatorio)
+            <input
+              className={input}
+              name="reason"
+              required
+              minLength={10}
+              maxLength={500}
+              placeholder="Mínimo 10 caracteres para auditoría"
+            />
+          </label>
+          <button className={btnGhost} disabled={banPending}>
+            {banned ? "Quitar veto" : "Vetar y cerrar sesión"}
+          </button>
+          <Feedback state={banState} />
+        </form>
+      )}
       {canAssignRoles && <form action={roleAction} className="space-y-2">
         <input type="hidden" name="user_id" value={userId} />
         <label className={label}>

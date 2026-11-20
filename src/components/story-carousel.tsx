@@ -64,19 +64,24 @@ export function StoryCarousel({ items }: { items: StoryCard[] }) {
                 setSelected(item);
                 trackAvisoInteraction(item.id, "view");
               }}
-              className="group relative h-60 w-auto max-w-[26rem] min-w-[12.5rem] shrink-0 snap-start overflow-hidden rounded-sm border border-[#d6d3c6] bg-[#10212b] text-left  sm:h-68"
+              className="group flex w-56 shrink-0 snap-start flex-col overflow-hidden rounded-sm border border-[#d6d3c6] bg-[#10212b] text-left sm:w-64"
             >
-              <img
-                src={item.image}
-                alt={item.title}
-                onLoad={updateScrollState}
-                className="block h-full w-auto max-w-[26rem] min-w-[12.5rem] object-cover transition duration-300 group-hover:scale-[1.03]"
-              />
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col justify-end bg-gradient-to-t from-black/95 via-black/60 to-transparent p-4 pt-16 text-white">
-                <h3 className="line-clamp-2 text-lg font-bold leading-tight text-white sm:text-xl">
-                  {item.title}
-                </h3>
-                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/80">
+              <div className="relative h-52 w-full overflow-hidden bg-[#0c1a23]">
+                <img
+                  src={item.image}
+                  alt={item.title}
+                  onLoad={updateScrollState}
+                  className="h-full w-full object-cover object-top transition duration-300 group-hover:scale-[1.03]"
+                />
+              </div>
+              <div className="flex flex-1 flex-col justify-between border-t border-white/10 bg-[#12232e] p-3.5 text-white">
+                <div>
+                  <p className="text-[11px] font-semibold text-[#9fc5d8]">{item.dateLabel}</p>
+                  <h3 className="mt-1 line-clamp-2 text-sm font-bold leading-snug text-white">
+                    {item.title}
+                  </h3>
+                </div>
+                <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-white/75">
                   {item.summary}
                 </p>
               </div>

@@ -5,8 +5,14 @@ export function FlowRail({
   steps: { title: string; detail: string }[];
   current: number;
 }) {
+  const colsClass =
+    steps.length >= 5
+      ? "lg:grid-cols-5"
+      : steps.length === 3
+        ? "lg:grid-cols-3"
+        : "lg:grid-cols-4";
   return (
-    <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <ol className={`grid gap-3 sm:grid-cols-2 ${colsClass}`}>
       {steps.map((step, index) => {
         const done = index < current;
         const now = index === current;

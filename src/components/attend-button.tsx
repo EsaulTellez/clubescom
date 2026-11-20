@@ -19,9 +19,23 @@ export function AttendButton({
   compact?: boolean;
 }) {
   const router = useRouter();
-  const [attending, setAttending] = useState(initialAttending);
-  const [count, setCount] = useState(initialCount);
+  const [override, setOverride] = useState<{
+    baseAttending: boolean;
+    baseCount: number;
+    attending: boolean;
+    count: number;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const activeOverride =
+    override &&
+    override.baseAttending === initialAttending &&
+    override.baseCount === initialCount
+      ? override
+      : null;
+
+  const attending = activeOverride?.attending ?? initialAttending;
+  const count = activeOverride?.count ?? initialCount;
 
   async function toggle() {
     if (!isAuthenticated) {
@@ -30,9 +44,16 @@ export function AttendButton({
     }
     if (busy) return;
     setBusy(true);
-    const nextAttending = !attending;
-    setAttending(nextAttending);
-    setCount((c) => Math.max(0, c + (nextAttending ? 1 : -1)));
+    const prevAttending = attending;
+    const prevCount = count;
+    const nextAttending = !prevAttending;
+    const nextCount = Math.max(0, prevCount + (nextAttending ? 1 : -1));
+    setOverride({
+      baseAttending: initialAttending,
+      baseCount: initialCount,
+      attending: nextAttending,
+      count: nextCount,
+    });
 
     try {
       const res = await fetch("/api/events/attend", {
@@ -42,16 +63,28 @@ export function AttendButton({
       });
       if (res.ok) {
         const data = (await res.json()) as { attending: boolean; attendeesCount: number };
-        setAttending(data.attending);
-        setCount(data.attendeesCount);
+        setOverride({
+          baseAttending: initialAttending,
+          baseCount: initialCount,
+          attending: data.attending,
+          count: data.attendeesCount,
+        });
         router.refresh();
       } else {
-        setAttending(!nextAttending);
-        setCount(initialCount);
+        setOverride({
+          baseAttending: initialAttending,
+          baseCount: initialCount,
+          attending: prevAttending,
+          count: prevCount,
+        });
       }
     } catch {
-      setAttending(!nextAttending);
-      setCount(initialCount);
+      setOverride({
+        baseAttending: initialAttending,
+        baseCount: initialCount,
+        attending: prevAttending,
+        count: prevCount,
+      });
     } finally {
       setBusy(false);
     }

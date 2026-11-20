@@ -17,6 +17,13 @@ import {
   RemoveMemberButton,
 } from "../forms";
 import { canModerateClubKind, isUuid, kindLabel } from "../format";
+import { clubEventVenueArea } from "../../espacios/shared";
+import {
+  parseApplicationAnswers,
+  parseJoinQuestions,
+  type ClubApplicationAnswer,
+  type ClubJoinQuestion,
+} from "../questions";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +38,7 @@ type Club = {
   contact_email: string | null;
   contact_info: string | null;
   join_requirements: string | null;
+  join_questions: ClubJoinQuestion[];
   leader_id: string | null;
   advisor_id: string | null;
   active: boolean;
@@ -44,7 +52,12 @@ type ContactDirectory = {
   advisor_email: string | null;
   advisor_room: string | null;
 };
-type Pending = { user_id: string; name: string; application_note: string | null };
+type Pending = {
+  user_id: string;
+  name: string;
+  application_note: string | null;
+  application_answers: ClubApplicationAnswer[];
+};
 type Member = { id: string; name: string; role: string };
 type Post = { id: string; title: string; body: string; image_url: string | null; author_name: string; created_at: Date };
 type EventRow = {
@@ -118,7 +131,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
   try {
     const result = await pool.query<Club>(
       `select c.id, c.name, c.kind, c.description, c.schedule, c.logo_url,
-              c.external_links, c.contact_email, c.contact_info, c.join_requirements,
+              c.external_links, c.contact_email, c.contact_info, c.join_requirements, c.join_questions,
               c.leader_id, c.advisor_id, c.active,
               leader.name as leader_name,
               advisor.name as advisor_name
@@ -132,11 +145,23 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
     if (club) {
       const isAreaStaff = canModerateClubKind(user, club.kind);
       const managesClub = Boolean(
-        user && (user.id === club.leader_id || user.id === club.advisor_id),
+        user &&
+          ((user.role === "alumno" && user.id === club.leader_id) ||
+            (user.role === "profesor" && user.id === club.advisor_id)),
       );
       const canModerate = Boolean(user && (managesClub || isAreaStaff));
 
-      const [roster, feed, upcoming, pendingEvs, peopleRes, membershipRes] = await Promise.all([
+      const membershipRes = user
+        ? await pool.query<{ status: string }>(
+            `select status from memberships where club_id = $1 and user_id = $2`,
+            [id, user.id],
+          )
+        : { rows: [] as { status: string }[] };
+      membership = membershipRes.rows[0]?.status ?? null;
+      const isMemberEarly = managesClub || membership === "aceptada";
+      const canViewFeedEarly = isMemberEarly || isAreaStaff;
+
+      const [roster, feed, upcoming, pendingEvs, peopleRes] = await Promise.all([
         pool.query<Member>(
           `select distinct u.id, u.name,
                   case when u.id = c.leader_id then 'Responsable'
@@ -150,12 +175,14 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
            order by role, u.name`,
           [id],
         ),
-        pool.query<Post>(
-          `select p.id, p.title, p.body, p.image_url, p.created_at, u.name as author_name
-           from club_posts p join users u on u.id = p.author_id
-           where p.club_id = $1 order by p.created_at desc limit 20`,
-          [id],
-        ),
+        canViewFeedEarly
+          ? pool.query<Post>(
+              `select p.id, p.title, p.body, p.image_url, p.created_at, u.name as author_name
+               from club_posts p join users u on u.id = p.author_id
+               where p.club_id = $1 order by p.created_at desc limit 20`,
+              [id],
+            )
+          : Promise.resolve({ rows: [] as Post[] }),
         pool.query<EventRow>(
           `select ce.id, ce.title, ce.description, ce.location, ce.starts_at, ce.approval_status, ce.image_url,
                   coalesce(count(ea.user_id), 0)::int as attendees_count,
@@ -167,12 +194,11 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
            order by ce.starts_at asc limit 8`,
           [id, user?.id ?? null],
         ),
-        isAreaStaff
+        isAreaStaff || user?.role === "moderador"
           ? pool.query<EventRow>(
               `select ce.id, ce.title, ce.description, ce.location, ce.starts_at, ce.approval_status, ce.image_url,
                       0::int as attendees_count, false as user_attending
                from club_events ce where ce.club_id = $1 and ce.approval_status = 'pendiente'
-                 and private.can_review_club_event(ce.club_id, ce.location)
                order by ce.starts_at asc`,
               [id],
             )
@@ -182,20 +208,17 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
               "select id, name, role from users where is_active and role in ('alumno', 'profesor') order by name",
             )
           : Promise.resolve({ rows: [] as { id: string; name: string; role: string }[] }),
-        user
-          ? pool.query<{ status: string }>(
-              `select status from memberships where club_id = $1 and user_id = $2`,
-              [id, user.id],
-            )
-          : Promise.resolve({ rows: [] as { status: string }[] }),
       ]);
 
       members = roster.rows;
       posts = feed.rows;
       events = upcoming.rows;
-      pendingEvents = pendingEvs.rows;
+      pendingEvents = pendingEvs.rows.filter((ev) => {
+        const venueArea = clubEventVenueArea(ev.location);
+        if (venueArea) return user?.role === "admin" || (user?.role === "moderador" && user.area === venueArea);
+        return isAreaStaff;
+      });
       directoryPeople = peopleRes.rows;
-      membership = membershipRes.rows[0]?.status ?? null;
 
       const isMember = managesClub || membership === "aceptada";
       if (user && (isMember || isAreaStaff)) {
@@ -210,7 +233,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
       if (canModerate) {
         const [queueRes, metricsRes, eventAttendeesRes] = await Promise.all([
           pool.query<Pending>(
-            `select m.user_id, u.name, m.application_note
+            `select m.user_id, u.name, m.application_note, coalesce(m.application_answers, '[]'::jsonb) as application_answers
              from memberships m join users u on u.id = m.user_id
              where m.club_id = $1 and m.status = 'pendiente' order by u.name`,
             [id],
@@ -288,11 +311,25 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
   if (!club) notFound();
 
   const isAreaStaff = canModerateClubKind(user, club.kind);
-  const manages = Boolean(user && (user.id === club.leader_id || user.id === club.advisor_id));
+  const manages = Boolean(
+    user &&
+      ((user.role === "alumno" && user.id === club.leader_id) ||
+        (user.role === "profesor" && user.id === club.advisor_id)),
+  );
   const isMember = manages || membership === "aceptada";
   const canViewFeed = isMember || isAreaStaff;
   const canModerate = Boolean(user && (manages || isAreaStaff));
-  const canRequest = Boolean(user && club.active && !manages && !isAreaStaff && membership !== "pendiente" && membership !== "aceptada");
+  const joinQuestions = parseJoinQuestions(club.join_questions);
+  const hasJoinFilter = joinQuestions.length > 0 || Boolean(club.join_requirements?.trim());
+  const canRequest = Boolean(
+    user &&
+      user.role === "alumno" &&
+      club.active &&
+      !manages &&
+      !isAreaStaff &&
+      membership !== "pendiente" &&
+      membership !== "aceptada",
+  );
   const canPost = Boolean(user && club.active && canModerate);
   const canEditClub = canModerate;
   const logo = club.logo_url ?? demoClubArt(club.name);
@@ -322,29 +359,38 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
             </div>
           </div>
           <div className="flex flex-wrap gap-2 sm:pb-1">
-            {canRequest && !club.join_requirements?.trim() && <JoinButton clubId={club.id} />}
+            {canRequest && !hasJoinFilter && <JoinButton clubId={club.id} />}
+            {canRequest && hasJoinFilter && (
+              <a href="#solicitar-ingreso" className={btn}>
+                Responder filtro y unirme
+              </a>
+            )}
             {!user && club.active && <Link href="/entrar" className={btn}>Iniciar sesión para unirme</Link>}
             {membership === "pendiente" && <span className="rounded-full bg-[#fff4d8] px-4 py-2 text-sm font-semibold text-[#8d6720]">Solicitud pendiente</span>}
+            {membership === "rechazada" && canRequest && (
+              <span className="rounded-full bg-[#fff1ef] px-4 py-2 text-xs font-semibold text-[#8C1D18]">Solicitud anterior rechazada · puedes volver a postularte</span>
+            )}
             {membership === "aceptada" && <span className="rounded-full bg-[#e4f5ed] px-4 py-2 text-sm font-semibold text-[#26734e]">✓ Ya eres integrante</span>}
             {manages && <span className="rounded-full bg-[#e9f4f8] px-4 py-2 text-sm font-semibold text-[#006699]">Moderador del club</span>}
             {isAreaStaff && !manages && <span className="rounded-full bg-[#e9f4f8] px-4 py-2 text-sm font-semibold text-[#006699]">Control de área</span>}
           </div>
         </div>
-        <nav className="flex gap-6 overflow-x-auto border-t border-[#edf2f5] px-5 text-sm font-bold text-[#657787] sm:px-7" aria-label="Secciones del club">
-          <a href="#publicaciones" className="border-b-[3px] border-[#0079a5] py-3 text-[#006699]">Publicaciones</a>
-          <a href="#eventos" className="py-3 hover:text-[#006699]">Eventos</a>
-          <a href="#integrantes" className="py-3 hover:text-[#006699]">Integrantes</a>
-          <a href="#acerca" className="py-3 hover:text-[#006699]">Acerca y contacto</a>
-          {canModerate && <a href="#solicitudes" className="py-3 hover:text-[#006699]">Solicitudes ({pending.length})</a>}
-          {canModerate && <a href="#metricas" className="py-3 hover:text-[#006699]">Métricas</a>}
-          {canEditClub && <a href="#gestion" className="py-3 hover:text-[#006699]">Gestión</a>}
+        <nav className="flex gap-5 overflow-x-auto border-t border-[#edf2f5] px-5 text-sm font-bold text-[#657787] sm:px-7" aria-label="Secciones del club">
+          <a href="#publicaciones" className="shrink-0 whitespace-nowrap border-b-[3px] border-[#0079a5] py-3 text-[#006699]">Publicaciones</a>
+          <a href="#eventos" className="shrink-0 whitespace-nowrap py-3 hover:text-[#006699]">Eventos</a>
+          <a href="#integrantes" className="shrink-0 whitespace-nowrap py-3 hover:text-[#006699]">Integrantes</a>
+          <a href="#acerca" className="shrink-0 whitespace-nowrap py-3 hover:text-[#006699]">Acerca y contacto</a>
+          {canRequest && <a href="#solicitar-ingreso" className="shrink-0 whitespace-nowrap py-3 text-[#006699]">Solicitar ingreso</a>}
+          {canModerate && <a href="#solicitudes" className="shrink-0 whitespace-nowrap py-3 hover:text-[#006699]">Solicitudes ({pending.length})</a>}
+          {canModerate && <a href="#metricas" className="shrink-0 whitespace-nowrap py-3 hover:text-[#006699]">Métricas</a>}
+          {canEditClub && <a href="#gestion" className="shrink-0 whitespace-nowrap py-3 hover:text-[#006699]">Gestión</a>}
         </nav>
       </header>
 
       {!club.active && <p className="rounded-2xl bg-[#fff0ed] p-4 text-sm font-semibold text-[#a14334]">Este club no está activo.</p>}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <main id="publicaciones" className="min-w-0 space-y-4">
+        <main id="publicaciones" className="scroll-mt-32 min-w-0 space-y-4">
           {canPost ? <ClubPostForm clubId={club.id} /> : user && canViewFeed ? (
             <div className="rounded-sm border border-[#e4edf2] bg-white p-4 text-sm text-[#667985]">
               Las publicaciones las comparten el alumno moderador, el profesor coordinador y la coordinación del área.
@@ -387,8 +433,8 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
           ))}
         </main>
 
-        <aside className="space-y-4 lg:sticky lg:top-24">
-          <section id="eventos" className="rounded-sm border border-white bg-white p-5">
+        <aside className="space-y-4 lg:sticky lg:top-32">
+          <section id="eventos" className="scroll-mt-32 rounded-sm border border-[#d0cec2] bg-white p-5">
             <div className="flex items-center justify-between gap-2"><h2 className="text-lg font-extrabold text-[#19384c]">Próximos eventos</h2></div>
             {events.length ? <ul className="mt-4 space-y-4">
               {events.map((event) => {
@@ -448,7 +494,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
             <Link href="/eventos" className="mt-4 inline-flex text-xs font-bold text-[#006699] hover:underline">Ver itinerario de espacios y eventos →</Link>
           </section>
 
-          <section id="integrantes" className="rounded-sm border border-white bg-white p-5">
+          <section id="integrantes" className="scroll-mt-32 rounded-sm border border-[#d0cec2] bg-white p-5">
             <div className="flex items-center justify-between"><h2 className="font-extrabold text-[#19384c]">Integrantes</h2><span className="rounded-full bg-[#eef5f7] px-2.5 py-1 text-xs font-bold text-[#567486]">{members.length}</span></div>
             {members.length ? <ul className="mt-4 space-y-3">
               {(canModerate ? members : members.slice(0, 8)).map((member) => <li key={member.id} className="flex items-center justify-between gap-2">
@@ -461,10 +507,24 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
                 )}
               </li>)}
             </ul> : <p className="mt-3 text-sm text-[#778a96]">Sé la primera persona en unirte.</p>}
-            {!canModerate && members.length > 8 && <p className="mt-3 text-xs font-semibold text-[#71818d]">y {members.length - 8} personas más</p>}
+            {!canModerate && members.length > 8 && (
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-bold text-[#006699] hover:underline">
+                  Ver todos los integrantes ({members.length})
+                </summary>
+                <ul className="mt-3 space-y-2 border-t border-[#edf2f5] pt-3">
+                  {members.slice(8).map((member) => (
+                    <li key={member.id} className="flex items-center gap-3">
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#e7f3f7] text-[10px] font-extrabold text-[#006699]">{initials(member.name)}</span>
+                      <span className="min-w-0"><span className="block truncate text-xs font-bold text-[#355366]">{member.name}</span><span className="block text-[10px] text-[#81909a]">{member.role}</span></span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </section>
 
-          <section id="acerca" className="rounded-sm border border-white bg-white p-5">
+          <section id="acerca" className="scroll-mt-32 rounded-sm border border-[#d0cec2] bg-white p-5">
             <h2 className="font-extrabold text-[#19384c]">Acerca y contacto</h2>
             <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#667985]">{club.description}</p>
             <dl className="mt-4 space-y-3 border-t border-[#edf2f5] pt-4 text-xs">
@@ -497,25 +557,74 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
                 <div><dt className="font-bold text-[#778a96]">Enlaces externos</dt><dd className="mt-1 break-all font-semibold text-[#006699]">{club.external_links}</dd></div>
               )}
               {club.join_requirements && (
-                <div><dt className="font-bold text-[#778a96]">Requisitos de ingreso</dt><dd className="mt-1 whitespace-pre-wrap text-[#355366]">{club.join_requirements}</dd></div>
+                <div><dt className="font-bold text-[#778a96]">Indicaciones de ingreso</dt><dd className="mt-1 whitespace-pre-wrap text-[#355366]">{club.join_requirements}</dd></div>
+              )}
+              {joinQuestions.length > 0 && (
+                <div>
+                  <dt className="font-bold text-[#778a96]">Cuestionario de ingreso</dt>
+                  <dd className="mt-1 text-[#355366]">
+                    {joinQuestions.length} {joinQuestions.length === 1 ? "pregunta configurada" : "preguntas configuradas"}
+                  </dd>
+                </div>
               )}
             </dl>
           </section>
 
-          {canRequest && <section className="rounded-sm border border-[#cfe4ec] bg-[#f2fafc] p-5"><h2 className="font-bold text-[#264a60]">¿Te late este club?</h2><p className="mt-1 text-xs leading-5 text-[#667985]">Manda tu solicitud y el equipo del club la revisará.</p><div className="mt-3"><JoinButton clubId={club.id} joinRequirements={club.join_requirements} /></div></section>}
+          {canRequest && (
+            <section id="solicitar-ingreso" className="scroll-mt-32 rounded-sm border border-[#cfe4ec] bg-[#f2fafc] p-5">
+              <h2 className="font-bold text-[#264a60]">¿Te late este club?</h2>
+              <p className="mt-1 text-xs leading-5 text-[#667985]">
+                {hasJoinFilter
+                  ? "Completa el primer filtro del club y envía tu solicitud al equipo moderador."
+                  : "Manda tu solicitud y el equipo del club la revisará."}
+              </p>
+              <div className="mt-3">
+                <JoinButton
+                  clubId={club.id}
+                  joinRequirements={club.join_requirements}
+                  joinQuestions={joinQuestions}
+                />
+              </div>
+            </section>
+          )}
           {!user && <section className="rounded-sm border border-[#cfe4ec] bg-[#f2fafc] p-5"><h2 className="font-bold text-[#264a60]">¿Te late este club?</h2><p className="mt-1 text-xs leading-5 text-[#667985]">Inicia sesión para solicitar ingreso.</p><Link href="/entrar" className="mt-3 inline-flex rounded-full bg-[#006699] px-4 py-2 text-xs font-bold text-white">Iniciar sesión</Link></section>}
         </aside>
       </div>
 
-      {canModerate && club.active && <section id="solicitudes" className={`${card} space-y-4`}>
-        <div><h2 className="font-extrabold text-[#19384c]">Solicitudes de ingreso por revisar</h2><p className="mt-1 text-sm text-[#71818d]">Acepta o rechaza a quienes pidieron integrarse al club.</p></div>
+      {canModerate && club.active && <section id="solicitudes" className={`scroll-mt-32 ${card} space-y-4`}>
+        <div><h2 className="font-extrabold text-[#19384c]">Solicitudes de ingreso por revisar</h2><p className="mt-1 text-sm text-[#71818d]">Revisa las respuestas al primer filtro del club antes de aceptar o rechazar.</p></div>
         {pending.length === 0 ? <p className="text-sm text-[#667085]">No hay solicitudes pendientes.</p> : <ul className="space-y-3">
-          {pending.map((person) => <li key={person.user_id} className="flex flex-col gap-3 border-t border-[#e6eef2] pt-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold">{person.name}</p>{person.application_note && <p className="mt-1 text-xs text-[#526170]">Respuesta a requisitos: {person.application_note}</p>}</div><DecisionButtons clubId={club.id} userId={person.user_id} /></li>)}
+          {pending.map((person) => {
+            const answers = parseApplicationAnswers(person.application_answers);
+            return (
+              <li key={person.user_id} className="flex flex-col gap-3 border-t border-[#e6eef2] pt-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-2">
+                  <p className="text-sm font-semibold text-[#14374a]">{person.name}</p>
+                  {answers.length > 0 && (
+                    <dl className="space-y-1.5 rounded-xl border border-[#d9e7ef] bg-[#f8fbfd] p-3 text-xs">
+                      {answers.map((a) => (
+                        <div key={a.questionId}>
+                          <dt className="font-bold text-[#355366]">{a.prompt}</dt>
+                          <dd className="whitespace-pre-wrap text-[#1d3948]">{a.answer}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                  {person.application_note && (
+                    <p className="text-xs text-[#526170]">
+                      <strong>Nota adicional:</strong> {person.application_note}
+                    </p>
+                  )}
+                </div>
+                <DecisionButtons clubId={club.id} userId={person.user_id} />
+              </li>
+            );
+          })}
         </ul>}
       </section>}
 
       {canModerate && metrics && (
-        <section id="metricas" className={`${card} space-y-5`}>
+        <section id="metricas" className={`scroll-mt-32 ${card} space-y-5`}>
           <div>
             <p className="text-xs font-extrabold uppercase tracking-[.08em] text-[#006699]">Panel exclusivo para moderadores del club</p>
             <h2 className="mt-1 text-xl font-extrabold text-[#19384c]">Métricas e inscritos a eventos</h2>
@@ -585,7 +694,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
       )}
 
       {canEditClub && (
-        <section id="gestion" className={`${card} space-y-4`}>
+        <section id="gestion" className={`scroll-mt-32 ${card} space-y-4`}>
           <div>
             <h2 className="font-extrabold text-[#19384c]">Configuración, contacto y edición del club</h2>
             <p className="mt-1 text-sm text-[#71818d]">

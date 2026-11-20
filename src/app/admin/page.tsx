@@ -55,17 +55,39 @@ const ROLE_LABEL: Record<Role, string> = {
 };
 
 const ACTION_LABEL: Record<string, string> = {
-  vetar: "Vetar",
+  vetar: "Vetar usuario",
   habilitar: "Quitar veto",
   cambiar_rol: "Cambiar rol",
-  login: "Entrar",
-  logout: "Salir",
+  login: "Inicio de sesión",
+  logout: "Cierre de sesión",
   verificar: "Verificar correo",
   eliminar_cuenta: "Eliminar cuenta",
   crear: "Crear",
   editar: "Editar",
   eliminar: "Eliminar",
-  confirmar_entrega: "Confirmar entrega",
+  publicar: "Publicar",
+  revisar_aviso: "Revisar aviso",
+  confirmar_entrega: "Confirmar entrega QR",
+  renovar_qr_entrega: "Renovar código QR",
+  reclamar_objeto: "Reclamo de objeto",
+  aprobar_reclamo: "Aprobar reclamo",
+  rechazar_reclamo: "Rechazar reclamo",
+  registrar_infraccion: "Registrar infracción",
+  aceptar_apelacion: "Aceptar apelación",
+  rechazar_apelacion: "Rechazar apelación",
+  enviar_registro_formal_club: "Registro formal de club",
+  confirmar_cita_club: "Confirmar junta de club",
+  confirmar_asesoria_directa: "Confirmar coordinación profesor",
+  registrar_directamente: "Registro directo de club",
+  guardar_datos_integrante_club: "Datos de integrante club",
+  asignar_cubiculo_mapa: "Confirmar cubículo en mapa",
+  editar_espacio_mapa: "Editar ficha de mapa",
+  configurar_parametros: "Configurar parámetros",
+  importar_padron: "Importar padrón",
+  solicitud_arco: "Solicitud ARCO",
+  arco_en_revision: "ARCO en revisión",
+  arco_resuelta: "ARCO resuelta",
+  arco_rechazada: "ARCO rechazada",
 };
 
 function formatWhen(value: Date) {
@@ -208,7 +230,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       </section>
 
       {privacyRes.rows.length > 0 && (
-        <section className={`${card} space-y-3`}>
+        <section id="arco" className={`${card} scroll-mt-32 space-y-3`}>
           <h2 className="text-lg font-semibold">Solicitudes de Derechos ARCO e incidentes de privacidad</h2>
           <ul className="space-y-3 text-sm">
             {privacyRes.rows.map((req) => (
@@ -219,10 +241,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 </div>
                 <p className="mt-1 text-[#52596a]">{req.detail}</p>
                 {req.resolution_note && <p className="mt-1 text-xs text-[#17634a]">Resolución: {req.resolution_note}</p>}
-                {req.status === "pendiente" && (
+                {(req.status === "pendiente" || req.status === "en_revision") && (
                   <form action={resolvePrivacyRequest} className="mt-2 flex flex-wrap items-end gap-2">
                     <input type="hidden" name="request_id" value={req.id} />
                     <input className={`${input} flex-1`} name="resolution_note" placeholder="Respuesta para el titular de los datos" required />
+                    {req.status === "pendiente" && (
+                      <button name="status" value="en_revision" className={btnGhost}>En revisión</button>
+                    )}
                     <button name="status" value="resuelta" className={btn}>Marcar resuelta</button>
                     <button name="status" value="rechazada" className={btnGhost}>Rechazar</button>
                   </form>
@@ -260,13 +285,20 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                     </td>
                     <td className="py-3 pr-3">{person.banned ? "Vetado" : "Activo"}</td>
                     <td className="py-3">
-                      {person.is_superadmin ? "Cuenta protegida" : <UserControls
-                        canAssignRoles={user.isSuperadmin}
-                        userId={person.id}
-                        role={person.role}
-                        area={person.area}
-                        banned={person.banned}
-                      />}
+                      {person.is_superadmin ? (
+                        "Cuenta protegida"
+                      ) : person.id === user.id || (person.role === "admin" && !user.isSuperadmin) ? (
+                        "Cuenta administrativa protegida"
+                      ) : (
+                        <UserControls
+                          canAssignRoles={user.isSuperadmin}
+                          canBan={person.role !== "admin" && person.id !== user.id}
+                          userId={person.id}
+                          role={person.role}
+                          area={person.area}
+                          banned={person.banned}
+                        />
+                      )}
                     </td>
                   </tr>
                 ))}

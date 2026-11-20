@@ -2,14 +2,14 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { btnGhost, card } from "@/lib/ui";
 import { publishGuide } from "../actions";
-import { AREAS, isStaff } from "../shared";
+import { editableGuideAreas, isStaff } from "../shared";
 import { GuideForm } from "./guide-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function NuevaGuiaPage() {
   const user = await getSession();
-  const areas = user?.role === "admin" ? AREAS : AREAS.filter((area) => area.id === user?.area);
+  const areas = editableGuideAreas(user);
   const allowed = user ? isStaff(user.role) && areas.length > 0 : false;
 
   return (

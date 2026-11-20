@@ -1,12 +1,10 @@
 "use server";
 
-import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { GoogleGenAI } from "@google/genai";
 import { audit, getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   canManageAvisos,
   categoryLabel,
@@ -20,8 +18,6 @@ import {
   type FormState,
   type SourceArea,
 } from "./shared";
-
-const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 async function publisher() {
   const user = await getSession();
@@ -54,27 +50,31 @@ function stripJsonFences(raw: string): string {
 
 function detectSourceAreaFromText(text: string): SourceArea {
   const lower = text.toLowerCase();
-  if (/celex|ingl[eé]s|idioma\s+extranjero|cursos?\s+de\s+idiomas/.test(lower)) return "celex";
-  if (/ctce|consejo\s+t[eé]cnico\s+consultivo|cosie|dictamen/.test(lower)) return "ctce";
-  if (/sepi|posgrado|maestr[ií]a|doctorado|investigaci[oó]n/.test(lower)) return "sepi";
+  if (/\bcelex\b|idioma\s+extranjero|cursos?\s+de\s+(?:idiomas|ingl[eé]s|franc[eé]s|alem[aá]n)/.test(lower)) return "celex";
+  if (/\bctce\b|consejo\s+t[eé]cnico\s+consultivo|\bcosie\b|\bdictamen\b/.test(lower)) return "ctce";
+  if (/\bsepi\b|posgrado|maestr[ií]a|doctorado/.test(lower)) return "sepi";
   if (/subdirecci[oó]n\s+administrativa|recursos\s+financieros|capital\s+humano|servicios\s+generales/.test(lower)) {
     return "subdireccion_administrativa";
   }
   if (
-    /servicios\s+educativos\s+e\s+integraci[oó]n\s+social|sseis|beca|sibec|servicio\s+social|siss|cultural|deportiv|futbol|f[uú]tbol|burros\s+blancos|cine|combate|salud|enfermer[ií]a|orientaci[oó]n\s+juvenil/.test(
+    /servicios\s+educativos\s+e\s+integraci[oó]n\s+social|\bsseis\b|beca|sibec|servicio\s+social|\bsiss\b|cultural|deportiv|futbol|f[uú]tbol|burros\s+blancos|cine|combate|salud|enfermer[ií]a|orientaci[oó]n\s+juvenil/.test(
       lower,
     )
   ) {
     return "sseis";
   }
   if (
-    /subdirecci[oó]n\s+acad[eé]mica|gesti[oó]n\s+escolar|reinscrip|saes|k[aá]rdex|boleta\s+global|constancia\s+de\s+estudios|catt|trabajo\s+terminal|protocolo\s+de\s+tt|ets|evaluaci[oó]n\s+a\s+t[ií]tulo|sala\s+14/.test(
+    /subdirecci[oó]n\s+acad[eé]mica|gesti[oó]n\s+escolar|reinscrip|\bsaes\b|k[aá]rdex|boleta\s+global|constancia\s+de\s+estudios|\bcatt\b|trabajo\s+terminal|protocolo\s+de\s+tt|\bets\b|evaluaci[oó]n\s+a\s+t[ií]tulo|sala\s+14/.test(
       lower,
     )
   ) {
     return "subdireccion_academica";
   }
-  if (/direcci[oó]n|iv[aá]n\s+giovanny\s+mosso|director\s+de\s+la\s+escom|condolencias/.test(lower)) {
+  if (
+    /\bdirecci[oó]n\b(?!\s+(?:de\s+correo|electr[oó]nica|web|url|del\s+evento|exacta))|iv[aá]n\s+giovanny\s+mosso|director\s+de\s+la\s+escom|condolencias/.test(
+      lower,
+    )
+  ) {
     return "direccion";
   }
   return "general";
@@ -103,15 +103,14 @@ function detectCategoryFromText(text: string, sourceArea: SourceArea): Category 
 function formatFormDateToSpanish(rawDate: string): string | null {
   const clean = rawDate.trim();
   if (!clean) return null;
-  // Match M/d/yyyy or d/M/yyyy or yyyy-MM-dd
-  const mdy = clean.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-  if (mdy) {
-    const a = Number(mdy[1]);
-    const b = Number(mdy[2]);
-    const year = Number(mdy[3]);
-    // Microsoft Forms defaults to M/d/yyyy unless first number > 12
-    const month = a > 12 ? b : a;
-    const day = a > 12 ? a : b;
+  // Formato mexicano D/M/yyyy (solo asumir M/d/yyyy si el segundo campo supera 12)
+  const dmy = clean.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dmy) {
+    const a = Number(dmy[1]);
+    const b = Number(dmy[2]);
+    const year = Number(dmy[3]);
+    const month = b > 12 ? a : b;
+    const day = b > 12 ? b : a;
     if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
       const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
       return new Intl.DateTimeFormat("es-MX", {
@@ -135,6 +134,18 @@ function formatFormDateToSpanish(rawDate: string): string | null {
   return clean.length >= 4 && clean.length <= 80 ? clean : null;
 }
 
+function fitTweet(candidate: string, fallback: string, externalUrl?: string): string {
+  const raw = (candidate || fallback).replace(/\s+/g, " ").trim();
+  if (raw.length <= 280) return raw;
+  const url = externalUrl?.trim();
+  const hasUrl = Boolean(url && raw.includes(url));
+  const hashtags = raw.includes("#ESCOM") ? "" : " #ESCOM #IPN";
+  const tail = `${hasUrl && url ? ` ${url}` : ""}${hashtags}`;
+  const withoutTail = (hasUrl && url ? raw.replace(url, "") : raw).replace(/\s+/g, " ").trim();
+  const avail = Math.max(24, 280 - tail.length);
+  return `${truncateClean(withoutTail, avail)}${tail}`.slice(0, 280).trim();
+}
+
 function buildFallbackSocial(input: {
   title: string;
   body: string;
@@ -147,7 +158,6 @@ function buildFallbackSocial(input: {
   const areaFull = sourceAreaLabel(input.sourceArea ?? "general");
   const cleanTitle = input.title.trim().replace(/[.!]+$/, "");
 
-  // Avoid repeating the title inside the body excerpt
   const bodyLines = input.body
     .split("\n")
     .map((l) => l.trim())
@@ -159,26 +169,29 @@ function buildFallbackSocial(input: {
   const urlSuffix = input.externalUrl ? ` ${input.externalUrl}` : "";
   const hashtags = " #ESCOM #IPN";
   const prefix = `📢 ${areaShort} | ${cleanTitle}. `;
-  const maxBodyForTweet = Math.max(40, 280 - prefix.length - urlSuffix.length - hashtags.length);
-  const tweetSummary = truncateClean(compactSummary, maxBodyForTweet);
-  const twitter = `${prefix}${tweetSummary}${urlSuffix}${hashtags}`.trim().slice(0, 280);
+  const fixedLen = prefix.length + urlSuffix.length + hashtags.length;
+  let twitter: string;
+  if (fixedLen >= 272) {
+    const shortTitle = truncateClean(cleanTitle, Math.max(30, 268 - areaShort.length - urlSuffix.length - hashtags.length - 6));
+    twitter = `📢 ${areaShort} | ${shortTitle}${urlSuffix}${hashtags}`.trim();
+  } else {
+    const maxBody = Math.max(20, 280 - fixedLen);
+    const tweetSummary = truncateClean(compactSummary, maxBody);
+    twitter = `${prefix}${tweetSummary}${urlSuffix}${hashtags}`.trim();
+  }
 
-  const fbBody = truncateClean(bodyLines.join("\n\n"), 560);
   const fbLinkLine =
-    input.externalUrl && !fbBody.includes(input.externalUrl) ? `\n\n🔗 Enlace oficial: ${input.externalUrl}` : "";
-  const facebook = truncateClean(
-    `📌 Comunicado ESCOM · ${areaFull} (${label})\n\n${cleanTitle}\n\n${fbBody}${fbLinkLine}\n\n#ESCOM #IPN #ComunidadESCOM`,
-    800,
-  );
+    input.externalUrl && !compactSummary.includes(input.externalUrl) ? `\n\n🔗 Enlace oficial: ${input.externalUrl}` : "";
+  const fbTags = "\n\n#ESCOM #IPN #ComunidadESCOM";
+  const fbHeader = `📌 Comunicado ESCOM · ${areaFull} (${label})\n\n${cleanTitle}\n\n`;
+  const fbBody = truncateClean(bodyLines.join("\n\n"), Math.max(120, 1000 - fbHeader.length - fbLinkLine.length - fbTags.length));
+  const facebook = `${fbHeader}${fbBody}${fbLinkLine}${fbTags}`.slice(0, 1000);
 
-  const igBody = truncateClean(bodyLines.join("\n\n"), 520);
-  const igLinkNote = input.externalUrl
-    ? `\n\n🔗 Enlace de consulta / registro:\n${input.externalUrl}`
-    : "";
-  const instagram = truncateClean(
-    `📣 ${cleanTitle}\n🏛️ ${areaFull} · ESCOM IPN\n\n${igBody}${igLinkNote}\n\n#ESCOM #IPN #ComunidadPolitécnica #Zacatenco #ESCOMIPN`,
-    800,
-  );
+  const igHeader = `📣 ${cleanTitle}\n🏛️ ${areaFull} · ESCOM IPN\n\n`;
+  const igLinkNote = input.externalUrl ? `\n\n🔗 Más información en:\n${input.externalUrl}` : "";
+  const igTags = "\n\n#ESCOM #IPN #ComunidadPolitécnica #Zacatenco #ESCOMIPN";
+  const igBody = truncateClean(summaryLines.slice(0, 4).join("\n"), Math.max(120, 1000 - igHeader.length - igLinkNote.length - igTags.length));
+  const instagram = `${igHeader}${igBody}${igLinkNote}${igTags}`.slice(0, 1000);
 
   return {
     twitter,
@@ -259,11 +272,20 @@ function synthesizeInstitutionalTitle(rawText: string, bodyLines: string[], sour
   const fullText = rawText.replace(/\s+/g, " ").trim();
 
   // Check for specific named programs, convocatorias, or events
-  const becaMatch = fullText.match(/\b(beca\s+institucional(?:\s+20\d{2}-[ab12])?|beca\s+de\s+[a-záéíóúñ\s]+(?:\s+20\d{2}-[ab12])?|convocatoria\s+sibec(?:\s+20\d{2}-[ab12])?)/i);
+  const becaMatch = fullText.match(/\b(beca\s+institucional(?:\s+20\d{2}-[ab12])?|beca\s+de\s+[a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,3}(?:\s+20\d{2}-[ab12])?|convocatoria\s+sibec(?:\s+20\d{2}-[ab12])?)/i);
   const deadlineMatch = fullText.match(/\b(?:cierra|fecha\s+l[ií]mite|hasta\s+el|antes\s+del)\s+(?:este\s+)?((?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)?\s*\d{1,2}\s+de\s+[a-záéíóú]+(?:\s+a\s+las\s+\d{1,2}:\d{2}\s*(?:hrs|horas|h)?)?)/i);
 
   if (becaMatch) {
-    const becaName = becaMatch[1].trim().replace(/\b\w/g, (c) => c.toUpperCase());
+    const lowerWords = new Set(["de", "del", "la", "las", "el", "los", "y", "para", "en", "a"]);
+    const becaName = becaMatch[1]
+      .trim()
+      .split(/\s+/)
+      .map((w, idx) =>
+        idx > 0 && lowerWords.has(w.toLowerCase())
+          ? w.toLowerCase()
+          : `${w.charAt(0).toUpperCase()}${w.slice(1)}`,
+      )
+      .join(" ");
     if (/expediente|subir|pdf|sibec/i.test(fullText)) {
       return `${becaName}: entrega de expediente digital y fecha límite`.slice(0, 140);
     }
@@ -409,9 +431,9 @@ function buildFallbackFromRawText(rawText: string) {
       continue;
     }
 
-    // Q5: Fecha de inicio / evento
+    // Q5: Fecha de inicio / evento (solo encabezados del formulario)
     const q5Inline = line.match(
-      /^(?:5[.)]\s*)?(?:proporcione\s+la\s+fecha\s+en\s+que\s+se\s+llevar[aá]\s+a\s+cabo|fecha\s+de\s+inicio|fecha\s+del\s+evento)\b[^:)]*[):]?\s*(.*)$/i,
+      /^(?:5[.)]\s*|fecha\s+de\s+inicio\s*:|fecha\s+del\s+evento\s*:|proporcione\s+la\s+fecha\s+en\s+que\s+se\s+llevar[aá]\s+a\s+cabo)\b[^:)]*[):]?\s*(.*)$/i,
     );
     if (q5Inline) {
       if (q5Inline[1]?.trim() && !/opcional/i.test(q5Inline[1])) {
@@ -612,6 +634,7 @@ function buildFallbackFromRawText(rawText: string) {
     sourceArea,
     externalUrl,
     featured,
+    lacksVobo: Boolean(voboWarning),
     ...social,
     metaNotes: notes.join(" · "),
   };
@@ -628,6 +651,7 @@ export async function generateSocialCopy(input: {
   twitter?: string;
   facebook?: string;
   instagram?: string;
+  aiUsed?: boolean;
   notice?: string;
   error?: string;
 }> {
@@ -654,7 +678,8 @@ export async function generateSocialCopy(input: {
   if (!apiKey) {
     return {
       ...fallback,
-      notice: "Formatos para Twitter/X, Facebook e Instagram estructurados institucionalmente.",
+      aiUsed: false,
+      notice: "La IA no está configurada en el servidor; se aplicó la plantilla institucional local. Revisa y edita antes de publicar.",
     };
   }
 
@@ -662,10 +687,10 @@ export async function generateSocialCopy(input: {
     process.env.GOOGLE_AVISO_MODEL?.trim(),
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
-    "gemini-2.0-flash",
   ].filter((m): m is string => Boolean(m));
 
   const ai = new GoogleGenAI({ apiKey });
+  let lastAiErr = "";
   for (const model of models) {
     try {
       const response = await ai.models.generateContent({
@@ -691,24 +716,27 @@ ${body}`,
         facebook?: string;
         instagram?: string;
       };
-      const twitter = truncateClean(parsed.twitter ?? fallback.twitter, 280);
-      const facebook = truncateClean(parsed.facebook ?? fallback.facebook, 800);
-      const instagram = truncateClean(parsed.instagram ?? fallback.instagram, 800);
+      const parsedUrl = externalUrl;
+      const twitter = fitTweet(parsed.twitter ?? "", fallback.twitter, parsedUrl);
+      const facebook = truncateClean(parsed.facebook ?? fallback.facebook, 1000);
+      const instagram = truncateClean(parsed.instagram ?? fallback.instagram, 1000);
       return {
         twitter,
         facebook,
         instagram,
         text: `Twitter / X:\n${twitter}\n\nFacebook:\n${facebook}\n\nInstagram:\n${instagram}`,
+        aiUsed: true,
         notice: "Formatos de redes regenerados con IA.",
       };
-    } catch {
-      // try next model in fallback chain
+    } catch (err) {
+      lastAiErr = err instanceof Error ? err.message : "Error de IA";
     }
   }
 
   return {
     ...fallback,
-    notice: "Se estructuraron los formatos institucionales para Twitter/X, Facebook e Instagram.",
+    aiUsed: false,
+    notice: `IA no disponible (${lastAiErr.slice(0, 70) || "sin respuesta"}); se usaron formatos institucionales locales.`,
   };
 }
 
@@ -719,6 +747,8 @@ export async function generateAvisoFromRawText(rawTextInput: string): Promise<{
   sourceArea?: SourceArea;
   externalUrl?: string;
   featured?: boolean;
+  lacksVobo?: boolean;
+  aiUsed?: boolean;
   twitter?: string;
   facebook?: string;
   instagram?: string;
@@ -740,7 +770,8 @@ export async function generateAvisoFromRawText(rawTextInput: string): Promise<{
   if (!apiKey) {
     return {
       ...fallback,
-      notice: `Comunicado institucional y copys para redes estructurados automáticamente${suffixNotice}.`,
+      aiUsed: false,
+      notice: `La IA no está configurada; el comunicado y formatos se estructuraron con reglas locales${suffixNotice}.`,
     };
   }
 
@@ -752,6 +783,7 @@ export async function generateAvisoFromRawText(rawTextInput: string): Promise<{
   ].filter((m): m is string => Boolean(m));
 
   const ai = new GoogleGenAI({ apiKey });
+  let lastAiErr = "";
 
   for (const model of models) {
     try {
@@ -797,6 +829,7 @@ ${rawText}`,
         sourceArea?: string;
         externalUrl?: string;
         featured?: boolean;
+        lacksVobo?: boolean;
         twitter?: string;
         facebook?: string;
         instagram?: string;
@@ -818,9 +851,13 @@ ${rawText}`,
       const externalUrl = /^https?:\/\//i.test(urlCandidate) ? urlCandidate.slice(0, 500) : fallback.externalUrl;
       const featured = typeof parsed.featured === "boolean" ? parsed.featured : fallback.featured;
 
-      const twitter = truncateClean(parsed.twitter?.trim() || fallback.twitter, 280);
-      const facebook = truncateClean(parsed.facebook?.trim() || fallback.facebook, 800);
-      const instagram = truncateClean(parsed.instagram?.trim() || fallback.instagram, 800);
+      const parsedUrl = parsed.externalUrl?.trim() || fallback.externalUrl;
+      const twitter = fitTweet(parsed.twitter ?? "", fallback.twitter, parsedUrl);
+      const facebook = truncateClean(parsed.facebook?.trim() || fallback.facebook, 1000);
+      const instagram = truncateClean(parsed.instagram?.trim() || fallback.instagram, 1000);
+      const voboNote = parsed.lacksVobo && !suffixNotice.includes("autorización")
+        ? `${suffixNotice} · Falta confirmar visto bueno (VoBo).`
+        : suffixNotice;
 
       return {
         title,
@@ -829,40 +866,29 @@ ${rawText}`,
         sourceArea,
         externalUrl,
         featured,
+        lacksVobo: Boolean(parsed.lacksVobo || fallback.lacksVobo),
+        aiUsed: true,
         twitter,
         facebook,
         instagram,
         text: `Twitter / X:\n${twitter}\n\nFacebook:\n${facebook}\n\nInstagram:\n${instagram}`,
-        notice: `IA transformó la información en comunicado institucional y formatos para X, Facebook e Instagram${suffixNotice}.`,
+        notice: `IA transformó la información en comunicado institucional y formatos para X, Facebook e Instagram${voboNote}.`,
       };
-    } catch {
-      // try next model in fallback chain
+    } catch (err) {
+      lastAiErr = err instanceof Error ? err.message : "Error de IA";
     }
   }
 
   return {
     ...fallback,
-    notice: `Comunicado institucional y formatos para X, Facebook e Instagram estructurados automáticamente${suffixNotice}.`,
+    aiUsed: false,
+    notice: `IA no disponible (${lastAiErr.slice(0, 70) || "sin respuesta"}); el comunicado y formatos se estructuraron con reglas locales${suffixNotice}.`,
   };
 }
 
 async function uploadNoticeImage(userId: string, form: FormData): Promise<{ url: string | null } | { error: string }> {
-  const file = form.get("image");
-  if (!(file instanceof File) || file.size === 0) return { url: null };
-  if (!IMAGE_TYPES.has(file.type)) return { error: "El cartel debe ser JPG, PNG o WEBP." };
-  if (file.size > 10 * 1024 * 1024) return { error: "El cartel debe pesar menos de 10 MB." };
-
-  const ext = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
-  const path = `${userId}/notices/${randomBytes(12).toString("hex")}.${ext}`;
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.storage.from("public-media").upload(path, file, {
-    contentType: file.type,
-    cacheControl: "3600",
-    upsert: false,
-  });
-  if (error) return { error: "No se pudo subir el cartel. Inténtalo de nuevo." };
-  const { data } = supabase.storage.from("public-media").getPublicUrl(path);
-  return { url: data.publicUrl };
+  const { resolveUploadedPublicImage } = await import("@/lib/resolve-upload");
+  return resolveUploadedPublicImage(form, "image", userId, "avisos");
 }
 
 function readAviso(form: FormData) {

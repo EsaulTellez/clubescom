@@ -1,137 +1,306 @@
 "use client";
 
-import { useRef } from "react";
-import type { Dispatch, SetStateAction } from "react";
-import { btnGhost, input, label } from "@/lib/ui";
+import { useState } from "react";
+import { uploadFileDirectly } from "@/lib/direct-upload";
+import { btnGhost, input } from "@/lib/ui";
 import { RouteMap } from "./route-map";
-import { validateSteps } from "./shared";
-import type { GuideChoice, GuideStep } from "./shared";
+import { validateSteps, type GuideStep } from "./shared";
 
-export function StepEditor({ steps, setSteps, version = 0 }: {
+export function StepEditor({
+  steps,
+  setSteps,
+  version = 0,
+}: {
   steps: GuideStep[];
-  setSteps: Dispatch<SetStateAction<GuideStep[]>>;
+  setSteps: (steps: GuideStep[]) => void;
   version?: number;
 }) {
-  const nextId = useRef(0);
-  function updateStep(index: number, patch: Partial<GuideStep>) {
-    setSteps((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
-  }
-
-  function addStep() {
-    if (steps.length >= 30) return;
-    nextId.current = Math.max(version * 100, nextId.current, ...steps.map(step => step.id + 1));
-    setSteps([...steps, { id: nextId.current++, title: "", body: "" }]);
-  }
-
-  function removeStep(index: number) {
-    if (steps.length <= 1) return;
-    const removed = steps[index].id;
-    setSteps(steps.filter(step => step.id !== removed).map(step =>
-      step.choices ? { ...step, choices: step.choices.filter(choice => choice.to !== removed) } : step
-    ));
-  }
-
-  function moveStep(index: number, delta: -1 | 1) {
-    const nextIndex = index + delta;
-    if (nextIndex < 0 || nextIndex >= steps.length) return;
-    setSteps((prev) => {
-      const copy = [...prev];
-      const [item] = copy.splice(index, 1);
-      copy.splice(nextIndex, 0, item);
-      return copy;
-    });
-  }
-
+  const [uploadingStepId, setUploadingStepId] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string>("");
   const valid = validateSteps(steps);
-  return <>
-    <input type="hidden" name="steps_json" value={JSON.stringify(steps)} />
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold">Pasos de la guía ({steps.length})</p>
-          <button type="button" disabled={steps.length >= 30} onClick={addStep} className={btnGhost}>
-            + Agregar paso
-          </button>
+  const nextId = Math.max(0, ...steps.map((step) => step.id)) + 1;
+  const labels = new Map(steps.map((step, idx) => [step.id, `${idx + 1}. ${step.title || "Sin título"}`]));
+
+  const update = (id: number, patch: Partial<GuideStep>) =>
+    setSteps(steps.map((step) => (step.id === id ? { ...step, ...patch } : step)));
+
+  const addStep = () => {
+    const newId = nextId;
+    const prevLast = steps[steps.length - 1];
+    const updated = prevLast && prevLast.choices !== undefined && prevLast.choices.length === 0
+      ? steps.map((s, idx) =>
+          idx === steps.length - 1 ? { ...s, choices: undefined } : s,
+        )
+      : steps;
+    setSteps([
+      ...updated,
+      { id: newId, title: `Paso ${updated.length + 1}`, body: "Describe qué debe hacer el estudiante en este paso." },
+    ]);
+  };
+
+  const removeStep = (index: number) => {
+    if (steps.length <= 1) return;
+    const removed = steps[index];
+    const fallbackTarget = removed.choices?.[0]?.to ?? steps[index + 1]?.id;
+    const remaining = steps
+      .filter((step) => step.id !== removed.id)
+      .map((step) => {
+        if (!step.choices) return step;
+        const patched = step.choices
+          .map((c) => (c.to === removed.id ? (fallbackTarget ? { ...c, to: fallbackTarget } : null) : c))
+          .filter((c): c is { label: string; to: number } => Boolean(c));
+        return { ...step, choices: patched };
+      });
+    setSteps(remaining);
+  };
+
+  const moveStep = (index: number, delta: -1 | 1) => {
+    const target = index + delta;
+    if (target < 0 || target >= steps.length) return;
+    const copy = [...steps];
+    [copy[index], copy[target]] = [copy[target], copy[index]];
+    setSteps(copy);
+  };
+
+  async function handleStepImage(stepId: number, file: File | undefined) {
+    setUploadError("");
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setUploadError("Para pasos usa imágenes JPG, PNG o WEBP.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError("La imagen del paso supera los 10 MB.");
+      return;
+    }
+    setUploadingStepId(stepId);
+    try {
+      const uploaded = await uploadFileDirectly(file, { bucket: "public-media" });
+      if (uploaded.publicUrl) {
+        update(stepId, { imageUrl: uploaded.publicUrl });
+      }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "No se pudo subir la imagen del paso.");
+    } finally {
+      setUploadingStepId(null);
+    }
+  }
+
+  return (
+    <div key={version} className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold">Pasos y rutas de decisión ({steps.length})</p>
+          <p className="text-xs text-[#667085]">
+            El primer paso es el punto de entrada. Usa decisiones cuando el trámite cambia según la situación del alumno.
+          </p>
         </div>
-        {"steps" in valid && steps.length > 1 && <RouteMap steps={valid.steps} />}
-        {steps.map((step, index) => (
-          <fieldset key={step.id} className="space-y-3 rounded-xl border border-[#d5e4ee] p-4">
-            <legend className="px-1 text-sm font-bold text-[#006699]">Paso {index + 1}</legend>
-            <div className="flex justify-end">
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => moveStep(index, -1)}
-                  disabled={index === 0}
-                  className="rounded border border-[#c6d8da] px-2 py-1 text-xs font-bold disabled:opacity-40"
-                >
-                  ↑ Subir
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveStep(index, 1)}
-                  disabled={index === steps.length - 1}
-                  className="rounded border border-[#c6d8da] px-2 py-1 text-xs font-bold disabled:opacity-40"
-                >
-                  ↓ Bajar
-                </button>
-                {steps.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeStep(index)}
-                    className="rounded border border-[#e6b8ae] px-2 py-1 text-xs font-bold text-[#8C1D18]"
-                  >
-                    Eliminar paso
-                  </button>
-                )}
-              </div>
-            </div>
-            <label className={label}>
-              Título
-              <input
-                className={input}
-                value={step.title}
-                onChange={(e) => updateStep(index, { title: e.target.value })}
-                required
-                maxLength={160}
-              />
-            </label>
-            <label className={label}>
-              Descripción
-              <textarea
-                className={`${input} min-h-24`}
-                value={step.body}
-                onChange={(e) => updateStep(index, { body: e.target.value })}
-                required
-                maxLength={2000}
-              />
-            </label>
-            <label className={label}>Al terminar este paso
-              <select className={input} value={step.choices === undefined ? "next" : step.choices.length ? "branch" : "end"}
-                onChange={event => {
-                  const mode = event.target.value;
-                  updateStep(index, { choices: mode === "next" ? undefined : mode === "end" ? [] : [{ label: "", to: steps.find(s => s.id !== step.id)!.id }] });
-                }}>
-                <option value="next">Continuar en orden</option>
-                <option value="branch" disabled={steps.length < 2}>Elegir una ruta</option>
-                <option value="end">Finalizar la ruta</option>
-              </select>
-            </label>
-            {step.choices && step.choices.length > 0 && <div className="ml-2 space-y-3 border-l-2 border-[#91bdce] pl-4">
-              {step.choices.map((choice, i) => {
-                const update = (patch: Partial<GuideChoice>) => updateStep(index, { choices: step.choices!.map((c, j) => j === i ? { ...c, ...patch } : c) });
-                return <div key={i} className="grid gap-2 sm:grid-cols-2">
-                  <label className={label}>Condición {i + 1}<input className={input} required maxLength={140} value={choice.label} placeholder="Si es tu primera solicitud" onChange={e => update({ label: e.target.value })} /></label>
-                  <label className={label}>Ir al paso<select className={input} value={choice.to} onChange={e => update({ to: Number(e.target.value) })}>
-                    {steps.map((s, j) => s.id !== step.id && <option key={s.id} value={s.id}>{j + 1}. {s.title}</option>)}
-                  </select></label>
-                  <button type="button" className="justify-self-start text-xs underline" onClick={() => updateStep(index, { choices: step.choices!.filter((_, j) => i !== j) })}>Quitar opción</button>
-                </div>;
-              })}
-              <button type="button" className={btnGhost} onClick={() => updateStep(index, { choices: [...step.choices!, { label: "", to: steps.find(s => s.id !== step.id)!.id }] })}>+ Agregar opción</button>
-            </div>}
-          </fieldset>
-        ))}
+        <button type="button" className={btnGhost} onClick={addStep}>
+          + Añadir paso
+        </button>
       </div>
 
-  </>;
+      {"error" in valid ? (
+        <div role="alert" className="rounded-lg border border-[#e3b7b2] bg-[#fdf2f0] px-3.5 py-2.5 text-xs font-semibold text-[#8C1D18]">
+          Revisa la estructura del flujo: {valid.error}
+        </div>
+      ) : (
+        <RouteMap steps={valid.steps} defaultOpen />
+      )}
+
+      {uploadError && (
+        <p role="alert" className="text-xs font-semibold text-[#8C1D18]">
+          {uploadError}
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {steps.map((step, index) => {
+          const targets = steps.filter((_, j) => j > index);
+          const fallbackNext = targets[0]?.id ?? steps.find((s) => s.id !== step.id)?.id;
+          return (
+            <div key={step.id} className="space-y-2.5 rounded-2xl border border-[#d5e4ee] bg-white p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-[#006699]">
+                  Paso #{index + 1}{index === 0 ? " (Inicio)" : ""}
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button type="button" className={btnGhost} disabled={index === 0} onClick={() => moveStep(index, -1)}>
+                    ↑ Subir
+                  </button>
+                  <button type="button" className={btnGhost} disabled={index === steps.length - 1} onClick={() => moveStep(index, 1)}>
+                    ↓ Bajar
+                  </button>
+                  {steps.length > 1 && (
+                    <button type="button" className={btnGhost} onClick={() => removeStep(index)}>
+                      Quitar
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <label className="block text-xs font-medium text-[#304958]">
+                Título del paso
+                <input
+                  className={`${input} mt-1`}
+                  required
+                  minLength={2}
+                  maxLength={160}
+                  value={step.title}
+                  placeholder="Ej. Registrar solicitud en SIBEC"
+                  onChange={(event) => update(step.id, { title: event.target.value })}
+                />
+              </label>
+
+              <label className="block text-xs font-medium text-[#304958]">
+                Instrucciones detalladas
+                <textarea
+                  className={`${input} mt-1 min-h-20`}
+                  required
+                  minLength={4}
+                  maxLength={2000}
+                  value={step.body}
+                  placeholder="Describe documentos, enlaces, ventanilla o fechas límite."
+                  onChange={(event) => update(step.id, { body: event.target.value })}
+                />
+              </label>
+
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed border-[#c7dce7] bg-[#f8fbfd] p-2.5 text-xs">
+                {step.imageUrl ? (
+                  <>
+                    <img src={step.imageUrl} alt="" className="h-12 w-16 rounded object-cover border border-[#d5e4ee]" />
+                    <span className="flex-1 truncate font-medium text-[#183b4e]">Imagen del paso adjunta</span>
+                    <button
+                      type="button"
+                      className="font-bold text-[#8c1d18] underline"
+                      onClick={() => update(step.id, { imageUrl: undefined })}
+                    >
+                      Quitar imagen
+                    </button>
+                  </>
+                ) : (
+                  <label className="flex w-full cursor-pointer items-center justify-between gap-2 text-[#274b5b]">
+                    <span>{uploadingStepId === step.id ? "Subiendo imagen…" : "Imagen ilustrativa opcional para este paso (JPG/PNG/WEBP)"}</span>
+                    <span className="rounded bg-[#eaf4f8] px-2.5 py-1 font-bold text-[#005a87]">
+                      {uploadingStepId === step.id ? "…" : "Adjuntar"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      onChange={(e) => {
+                        void handleStepImage(step.id, e.target.files?.[0]);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
+              <div className="space-y-2 border-t border-[#eef4f8] pt-2 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-[#667085]">
+                    {step.choices === undefined
+                      ? index === steps.length - 1
+                        ? "Último paso (cierre del recorrido)."
+                        : "Continúa automáticamente al paso siguiente."
+                      : step.choices.length === 0
+                        ? "Cierre de esta rama (fin del trámite en este camino)."
+                        : "Pregunta o caso con opciones hacia distintos pasos:"}
+                  </span>
+                  {step.choices === undefined ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {targets.length > 0 && (
+                        <button
+                          type="button"
+                          className={btnGhost}
+                          onClick={() =>
+                            update(step.id, {
+                              choices: [{ label: "Opción A", to: targets[0].id }],
+                            })
+                          }
+                        >
+                          Ramificar opciones
+                        </button>
+                      )}
+                      {index < steps.length - 1 && (
+                        <button type="button" className={btnGhost} onClick={() => update(step.id, { choices: [] })}>
+                          Terminar aquí esta rama
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {fallbackNext && (
+                        <button
+                          type="button"
+                          className={btnGhost}
+                          onClick={() =>
+                            update(step.id, {
+                              choices: [...(step.choices ?? []), { label: "Otra opción", to: fallbackNext }],
+                            })
+                          }
+                        >
+                          + Añadir opción
+                        </button>
+                      )}
+                      <button type="button" className={btnGhost} onClick={() => update(step.id, { choices: undefined })}>
+                        Volver a flujo lineal
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {step.choices?.map((choice, cIdx) => (
+                  <div key={cIdx} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                    <input
+                      className={input}
+                      required
+                      minLength={2}
+                      maxLength={140}
+                      value={choice.label}
+                      placeholder="Etiqueta del caso (ej. Primera vez)"
+                      onChange={(event) => {
+                        const nextChoices = step.choices!.map((item, k) =>
+                          k === cIdx ? { ...item, label: event.target.value } : item,
+                        );
+                        update(step.id, { choices: nextChoices });
+                      }}
+                    />
+                    <select
+                      className={input}
+                      value={choice.to}
+                      onChange={(event) => {
+                        const nextChoices = step.choices!.map((item, k) =>
+                          k === cIdx ? { ...item, to: Number(event.target.value) } : item,
+                        );
+                        update(step.id, { choices: nextChoices });
+                      }}
+                    >
+                      {(targets.length ? targets : steps.filter((s) => s.id !== step.id)).map((other) => (
+                        <option key={other.id} value={other.id}>
+                          {labels.get(other.id)}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className={btnGhost}
+                      onClick={() =>
+                        update(step.id, {
+                          choices: step.choices!.filter((_, k) => k !== cIdx),
+                        })
+                      }
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }

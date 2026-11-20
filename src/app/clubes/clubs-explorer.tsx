@@ -4,6 +4,7 @@ import { CatalogSearch } from "@/components/catalog-search";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { formatMxDateTime } from "@/lib/datetime";
 import { btn, btnGhost, card } from "@/lib/ui";
 import { ClaimInactiveProposalButton, DirectClubForm, ProposalForm } from "./forms";
 import { interestLabel, kindLabel, statusLabel, type ClubKind } from "./format";
@@ -41,6 +42,12 @@ export type ProposalDirectoryItem = {
   inactivity_days: number;
   inactive_for_claim: boolean;
   viewer_interested: boolean;
+  viewer_is_advisor?: boolean;
+  appointment_status?: string | null;
+  scheduled_at?: string | null;
+  meeting_mode?: string | null;
+  meeting_location?: string | null;
+  advisor_confirmed_appointment?: boolean;
   schedule_plan: string | null;
 };
 
@@ -136,14 +143,38 @@ export function ClubesExplorer({
   viewer: { id: string; name: string; role: string } | null;
   dbDown: boolean;
 }) {
-  const [activeTab, setActiveTab] = useState<MainTab>("clubes");
+  const [activeTab, setActiveTab] = useState<MainTab>(isAreaStaff ? "panel" : "clubes");
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<string>("todos");
   const [stageFilter, setStageFilter] = useState<ProposalStageFilter>("todas");
+  const [formalFilter, setFormalFilter] = useState<"activas" | "cita_pendiente" | "cita_confirmada" | "incompleta" | "historial">("activas");
   const [newClubModalOpen, setNewClubModalOpen] = useState(false);
   const [directClubModalOpen, setDirectClubModalOpen] = useState(false);
 
-  const canPropose = viewer?.role === "alumno" || viewer?.role === "profesor";
+  const canPropose = viewer?.role === "alumno";
+  const pendingFormalCount = formalRequests.filter(
+    (r) => !["registrado", "rechazada"].includes(r.status),
+  ).length;
+  const advisorProposals = useMemo(
+    () => proposals.filter((p) => p.viewer_is_advisor),
+    [proposals],
+  );
+  const visibleKindChips = useMemo(() => {
+    const base = isAreaStaff && allowedKinds.length > 0 ? allowedKinds : (["academico", "cultural", "deportivo"] as ClubKind[]);
+    if (base.length <= 1) return [];
+    return [
+      { id: "todos", label: "Todos" },
+      ...base.map((k) => ({ id: k, label: kindLabel(k) })),
+    ];
+  }, [isAreaStaff, allowedKinds]);
+
+  const filteredFormalRequests = useMemo(() => {
+    return formalRequests.filter((r) => {
+      if (formalFilter === "activas") return !["registrado", "rechazada"].includes(r.status);
+      if (formalFilter === "historial") return ["registrado", "rechazada"].includes(r.status);
+      return r.status === formalFilter;
+    });
+  }, [formalRequests, formalFilter]);
 
   useEffect(() => {
     if (!newClubModalOpen && !directClubModalOpen) return;
@@ -249,7 +280,7 @@ export function ClubesExplorer({
                 onClick={() => setActiveTab("panel")}
                 className="catalog-tab"
               >
-                Panel del área ({formalRequests.length})
+                Panel del área ({pendingFormalCount})
               </button>
             )}
           </div>
@@ -285,30 +316,27 @@ export function ClubesExplorer({
       </header>
 
       {/* Filtros secundarios por tipo y etapa */}
-      {activeTab !== "panel" && (
+      {activeTab !== "panel" && (visibleKindChips.length > 0 || activeTab === "propuestas") && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {[
-              { id: "todos", label: "Todos" },
-              { id: "academico", label: "Académico" },
-              { id: "cultural", label: "Cultural" },
-              { id: "deportivo", label: "Deportivo" },
-            ].map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                aria-pressed={kindFilter === item.id}
-                onClick={() => setKindFilter(item.id)}
-                className={`min-h-9 rounded-sm px-3 py-1 text-xs font-bold transition ${
-                  kindFilter === item.id
-                    ? "bg-[#1b4053] text-white"
-                    : "border border-[#d2dbdf] bg-white text-[#415b69] hover:bg-[#f2f7f9]"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+          {visibleKindChips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {visibleKindChips.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={kindFilter === item.id}
+                  onClick={() => setKindFilter(item.id)}
+                  className={`min-h-9 rounded-sm px-3 py-1 text-xs font-bold transition ${
+                    kindFilter === item.id
+                      ? "bg-[#1b4053] text-white"
+                      : "border border-[#d2dbdf] bg-white text-[#415b69] hover:bg-[#f2f7f9]"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {activeTab === "propuestas" && (
             <div className="flex flex-wrap items-center gap-1.5">
@@ -393,7 +421,25 @@ export function ClubesExplorer({
 
       {/* Pestaña 2: Propuestas de la comunidad */}
       {activeTab === "propuestas" && (
-        <section aria-label="Propuestas de clubes">
+        <section aria-label="Propuestas de clubes" className="space-y-4">
+          {viewer?.role === "profesor" && advisorProposals.length > 0 && (
+            <div className="rounded-xl border border-[#bcd8e7] bg-[#eef7fb] p-4">
+              <p className="text-xs font-extrabold uppercase tracking-wide text-[#005580]">
+                Propuestas con tu participación como profesor coordinador ({advisorProposals.length})
+              </p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {advisorProposals.map((p) => (
+                  <Link
+                    key={p.id}
+                    href={`/clubes/propuestas/${p.id}`}
+                    className="rounded-lg border border-[#b4d2e2] bg-white px-3 py-2 text-xs font-bold text-[#14374a] hover:bg-[#f6fafc]"
+                  >
+                    {p.name} · <span className="text-[#006699]">{statusLabel(p.status)}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
           {filteredProposals.length === 0 && !dbDown ? (
             <div className={`${card} text-center text-sm text-[#5f6e78]`}>
               <p>
@@ -504,9 +550,80 @@ export function ClubesExplorer({
         </section>
       )}
 
-      {/* Pestaña 3 (solo staff de área): KPIs, solicitudes formales y registro directo */}
+      {/* Pestaña 3 (solo staff de área): Solicitudes formales prioritarias y KPIs */}
       {isAreaStaff && activeTab === "panel" && !dbDown && (
         <div className="space-y-5">
+          <section className="space-y-4 rounded-[12px] border border-[#cde0ea] bg-[#fffdf7] p-5 shadow-xs" aria-labelledby="formal-requests-heading">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e5edf2] pb-3">
+              <div>
+                <p className="board-eyebrow">Bandeja prioritaria de registro formal</p>
+                <h2 id="formal-requests-heading" className="text-lg font-extrabold text-[#15394d]">
+                  Solicitudes formales de nuevos clubes
+                </h2>
+              </div>
+              <span className="board-label">{pendingFormalCount} activas</span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  { id: "activas", label: "Por atender" },
+                  { id: "cita_pendiente", label: "Cita pendiente" },
+                  { id: "cita_confirmada", label: "Cita confirmada" },
+                  { id: "incompleta", label: "Incompletas" },
+                  { id: "historial", label: "Historial (reg./rech.)" },
+                ] as const
+              ).map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => setFormalFilter(chip.id)}
+                  className={`rounded-sm px-3 py-1.5 text-xs font-bold transition ${
+                    formalFilter === chip.id
+                      ? "bg-[#006699] text-white"
+                      : "border border-[#cddbe2] bg-white text-[#355667] hover:bg-[#e9f2f7]"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+
+            {filteredFormalRequests.length === 0 ? (
+              <p className="text-sm text-[#5f6e78]">No hay solicitudes formales en este filtro.</p>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {filteredFormalRequests.map((req) => (
+                  <Link key={req.id} href={`/clubes/propuestas/${req.id}`} className="board-proposal-card flex flex-col justify-between gap-2">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="board-label">{kindLabel(req.kind)}</span>
+                        <span className="board-label board-label--pinned">{statusLabel(req.status)}</span>
+                      </div>
+                      <h3 className="text-base font-extrabold text-[#1b4053]">{req.name}</h3>
+                      <p className="line-clamp-2 text-xs text-[#45616e]">
+                        <strong>Cronograma:</strong> {req.schedule_plan || "Sin especificar"}
+                      </p>
+                      <p className="text-xs text-[#5c7280]">
+                        Alumno: <strong>{req.proposer_name}</strong> · Prof. coordinador:{" "}
+                        <strong>{req.advisor_name || "Confirmado"}</strong> · {req.participants_complete_docs}/{req.participants_count} expedientes · {interestLabel(req.interests)}
+                      </p>
+                      {req.scheduled_at && (
+                        <p className="rounded-lg border border-[#cbe2ee] bg-[#f4f9fc] px-2.5 py-1.5 text-xs text-[#19435b]">
+                          Junta {req.meeting_mode === "en_linea" ? "en línea" : "presencial"}: {formatMxDateTime(req.scheduled_at)}
+                          {req.advisor_confirmed_appointment ? " · Prof. confirmó ✓" : " · Pendiente conf. profesor"}
+                        </p>
+                      )}
+                    </div>
+                    <p className="pt-1 text-xs font-extrabold text-[#004d73]">
+                      Abrir expediente y coordinar junta con ambos →
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+
           <section className="space-y-4 rounded-[12px] border border-[#cde0ea] bg-[#fffdf7] p-5 shadow-xs" aria-labelledby="kpi-heading">
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e5edf2] pb-3">
               <div>
@@ -514,7 +631,7 @@ export function ClubesExplorer({
                 <h2 id="kpi-heading" className="text-xl font-extrabold text-[#15394d]">{kpiTitle}</h2>
               </div>
               <div className="flex flex-wrap gap-2 text-xs font-bold">
-                <span className="board-label">{formalRequests.length} solicitudes formales</span>
+                <span className="board-label">{pendingFormalCount} solicitudes activas</span>
                 <span className="board-label">{totalPendingRequests} ingresos pendientes</span>
                 {isSubdireccion && (
                   <Link href="/espacios" className="board-label hover:bg-[#e5f1f7]">
@@ -609,35 +726,6 @@ export function ClubesExplorer({
                     </li>
                   ))}
                 </ul>
-              </div>
-            )}
-          </section>
-
-          <section className="space-y-3 rounded-[12px] border border-[#cde0ea] bg-[#fffdf7] p-5 shadow-xs" aria-labelledby="formal-requests-heading">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 id="formal-requests-heading" className="text-lg font-extrabold text-[#15394d]">Solicitudes formales de nuevos clubes</h2>
-              <span className="board-label">{formalRequests.length} pendientes</span>
-            </div>
-            {formalRequests.length === 0 ? (
-              <p className="text-sm text-[#5f6e78]">No hay solicitudes formales enviadas pendientes en tu área.</p>
-            ) : (
-              <div className="grid gap-3 md:grid-cols-2">
-                {formalRequests.map((req) => (
-                  <Link key={req.id} href={`/clubes/propuestas/${req.id}`} className="board-proposal-card">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="board-label">{kindLabel(req.kind)}</span>
-                      <span className="board-label board-label--pinned">{statusLabel(req.status)}</span>
-                    </div>
-                    <h3 className="mt-2 text-base font-extrabold text-[#1b4053]">{req.name}</h3>
-                    <p className="mt-1 line-clamp-2 text-xs text-[#45616e]">
-                      <strong>Cronograma:</strong> {req.schedule_plan || "Sin especificar"}
-                    </p>
-                    <p className="mt-2 text-xs text-[#5c7280]">
-                      Alumno: {req.proposer_name} · Prof. coordinador: {req.advisor_name || "Confirmado"} · {interestLabel(req.interests)}
-                    </p>
-                    <p className="mt-2 text-xs font-extrabold text-[#004d73]">Revisar expediente y coordinar cita →</p>
-                  </Link>
-                ))}
               </div>
             )}
           </section>

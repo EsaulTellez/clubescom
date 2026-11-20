@@ -5,10 +5,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { audit, getSession, hashAnswer } from "@/lib/auth";
 import { pool } from "@/lib/db";
+import { resolvePreuploadedPrivatePath, resolveUploadedPublicImage } from "@/lib/resolve-upload";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isKind, type FormState } from "./labels";
 
-const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const EVIDENCE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -25,25 +25,6 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-async function savePhotoField(userId: string, form: FormData, fieldName: string): Promise<{ url: string | null } | { error: string }> {
-  const file = form.get(fieldName);
-  if (!(file instanceof File) || file.size === 0) return { url: null };
-  if (!PHOTO_TYPES.has(file.type)) return { error: "Las fotos deben ser JPG, PNG o WEBP." };
-  if (file.size > 5_000_000) return { error: "Cada foto debe pesar menos de 5 MB." };
-
-  const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
-  const path = `${userId}/lost/${randomBytes(16).toString("hex")}.${extension}`;
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.storage.from("public-media").upload(path, file, {
-    contentType: file.type,
-    cacheControl: "3600",
-    upsert: false,
-  });
-  if (error) return { error: "No se pudo subir la foto. Inténtalo de nuevo." };
-  const { data } = supabase.storage.from("public-media").getPublicUrl(path);
-  return { url: data.publicUrl };
-}
-
 export async function createItem(_prev: FormState, form: FormData): Promise<FormState> {
   const user = await getSession();
   if (!user) return { error: "Inicia sesión para reportar un objeto." };
@@ -52,20 +33,20 @@ export async function createItem(_prev: FormState, form: FormData): Promise<Form
   const title = String(form.get("title") ?? "").trim();
   const description = String(form.get("description") ?? "").trim();
   const place = String(form.get("place") ?? "").trim();
-  const question = String(form.get("security_question") ?? "").trim();
-  const answer = String(form.get("security_answer") ?? "").trim();
+  const question = kind === "encontrado" ? String(form.get("security_question") ?? "").trim() : "";
+  const answer = kind === "encontrado" ? String(form.get("security_answer") ?? "").trim() : "";
 
   if (!isKind(kind)) return { error: "Elige si lo perdiste o lo encontraste." };
   if (title.length < 3 || title.length > 120) return { error: "El título debe tener entre 3 y 120 caracteres." };
   if (description.length < 10 || description.length > 2000) return { error: "Describe el objeto con entre 10 y 2000 caracteres." };
   if (place.length < 2 || place.length > 160) return { error: "Indica un lugar de 2 a 160 caracteres." };
   if (kind === "encontrado" && (question.length < 5 || answer.length < 2)) {
-    return { error: "Para un objeto encontrado, agrega una pregunta y su respuesta privada." };
+    return { error: "Para un objeto encontrado, agrega una pregunta llave y su respuesta clave." };
   }
 
-  const photo1 = await savePhotoField(user.id, form, "photo");
+  const photo1 = await resolveUploadedPublicImage(form, "photo", user.id, "lost");
   if ("error" in photo1) return { error: photo1.error };
-  const photo2 = await savePhotoField(user.id, form, "photo_2");
+  const photo2 = await resolveUploadedPublicImage(form, "photo_2", user.id, "lost");
   if ("error" in photo2) return { error: photo2.error };
 
   const supabase = await createSupabaseServerClient();
@@ -78,6 +59,7 @@ export async function createItem(_prev: FormState, form: FormData): Promise<Form
     p_security_question: question,
     p_answer_hash: answer ? hashAnswer(answer) : "",
     p_photo_url_2: photo2.url,
+    p_security_answer_plain: answer || null,
   });
   if (error || !id) return { error: "No se pudo guardar el reporte. Revisa los datos e intenta otra vez." };
 
@@ -88,7 +70,7 @@ export async function createItem(_prev: FormState, form: FormData): Promise<Form
 
 export async function claimItem(_prev: FormState, form: FormData): Promise<FormState> {
   const user = await getSession();
-  if (!user) return { error: "Inicia sesión para reclamar este objeto." };
+  if (!user) return { error: "Inicia sesión para enviar tu solicitud." };
 
   const id = String(form.get("id") ?? "");
   const answer = String(form.get("answer") ?? "").trim();
@@ -98,8 +80,8 @@ export async function claimItem(_prev: FormState, form: FormData): Promise<FormS
   if (answer.length < 2 || answer.length > 120) return { error: "Escribe la respuesta de seguridad." };
 
   const supabase = await createSupabaseServerClient();
-  let evidencePath: string | null = null;
-  if (evidenceFile instanceof File && evidenceFile.size > 0) {
+  let evidencePath = resolvePreuploadedPrivatePath(form, "evidence", `${id}/${user.id}/`);
+  if (!evidencePath && evidenceFile instanceof File && evidenceFile.size > 0) {
     if (!EVIDENCE_TYPES.has(evidenceFile.type) || evidenceFile.size > 10 * 1024 * 1024) {
       return { error: "El comprobante opcional debe ser JPG, PNG, WEBP o PDF de menos de 10 MB." };
     }
@@ -122,20 +104,49 @@ export async function claimItem(_prev: FormState, form: FormData): Promise<FormS
 
   const { data, error } = await supabase.rpc("submit_lost_item_claim", {
     p_item_id: id,
-    p_answer_hash: hashAnswer(answer),
+    p_answer_text: answer,
     p_note: note || null,
     p_evidence_path: evidencePath,
+    p_answer_hash: hashAnswer(answer),
   });
-  if (error || !data?.[0]?.claim_id) {
+
+  const row = Array.isArray(data)
+    ? (data[0] as { claim_id: string | null; status: string; score: number } | undefined)
+    : undefined;
+
+  if (error || !row?.claim_id) {
     if (evidencePath) await supabase.storage.from("lost-evidence").remove([evidencePath]);
   }
-  if (error?.code === "23505") return { error: "Ya enviaste un reclamo para este reporte." };
-  if (error) return { error: "No se pudo enviar el reclamo. Comprueba que el reporte siga abierto." };
-  if (data?.[0]?.status === "limite") return { error: "Agotaste los tres intentos para este reporte." };
-  if (!data?.[0]?.claim_id) return { error: "La respuesta de seguridad no coincide. Tienes hasta tres intentos." };
+  if (error?.code === "23505" || (error?.message && /ya enviaste/i.test(error.message))) {
+    return { error: "Ya enviaste un reclamo o aviso para este reporte." };
+  }
+  if (error) {
+    return { error: error.message || "No se pudo enviar la solicitud. Comprueba que el reporte siga abierto." };
+  }
+  if (row?.status === "limite") {
+    return { error: "Agotaste los cinco intentos permitidos para este reporte." };
+  }
+  if (!row?.claim_id) {
+    const pct = Math.round(Number(row?.score ?? 0) * 100);
+    return {
+      error: `La respuesta tuvo baja coincidencia (${pct}%). Agrega detalles clave exactos o adjunta una foto comprobante para que quien encontró el objeto pueda evaluarlo.`,
+    };
+  }
 
+  await audit(user.id, "reclamar_objeto", "lost_item_claims", row.claim_id, `${id} (${row.status})`);
   revalidatePath(`/objetos/${id}`);
-  return { ok: "Respuesta correcta. Quien publicó el hallazgo revisará el reclamo y tu comprobante." };
+  revalidatePath("/notificaciones");
+
+  const pct = Math.round(Number(row.score ?? 1) * 100);
+  if (row.status === "en_revision" && answer === "encontrado") {
+    return { ok: "Aviso enviado. El dueño revisará tu mensaje y podrá aprobar la entrega por QR." };
+  }
+  return {
+    ok:
+      row.status === "respuesta_correcta"
+        ? `¡Coincidencia alta (${pct}%)! Quien resguarda el objeto revisará tu respuesta y comprobante para habilitar el QR.`
+        : `Tu respuesta (${pct}% de coincidencia) se envió a revisión manual. Quien publicó el hallazgo decidirá si corresponde al dueño real.`,
+  };
 }
 
 export async function reviewClaim(form: FormData) {
@@ -204,6 +215,27 @@ export async function updateMeetingNote(form: FormData) {
   revalidatePath(`/objetos/${itemId}`);
   revalidatePath("/notificaciones");
   redirect(`/objetos/${itemId}?revisado=nota`);
+}
+
+export async function renewHandoff(form: FormData) {
+  const user = await getSession();
+  if (!user) redirect("/entrar");
+  const itemId = String(form.get("item_id") ?? "");
+  if (!isUuid(itemId)) redirect("/objetos");
+
+  const code = makeHandoffCode();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("renew_lost_item_handoff", {
+    p_item_id: itemId,
+    p_token: code,
+    p_token_hash: sha256(code),
+  });
+  if (error) redirect(`/objetos/${itemId}?error=renovar`);
+
+  await audit(user.id, "renovar_qr_entrega", "lost_items", itemId);
+  revalidatePath(`/objetos/${itemId}`);
+  revalidatePath("/notificaciones");
+  redirect(`/objetos/${itemId}?revisado=renovado`);
 }
 
 export async function closeItem(form: FormData) {

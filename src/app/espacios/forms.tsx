@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useActionState, useState } from "react";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { btn, input, label } from "@/lib/ui";
@@ -13,11 +14,15 @@ function Feedback({ state }: { state: FormState }) {
   return null;
 }
 
-const VALID_ROOMS = [1, 2, 3, 4].flatMap((b) =>
-  [0, 1, 2].flatMap((lvl) =>
-    Array.from({ length: b < 3 ? 13 : 10 }, (_, i) => `${b}${lvl}${String(i + (b < 3 ? 1 : 4)).padStart(2, "0")}`),
+const VALID_ROOMS = [
+  "G000", "G001", "G002", "G003", "G004",
+  "G100", "G101", "G102", "G103", "G104",
+  ...[1, 2, 3, 4].flatMap((b) =>
+    [0, 1, 2].flatMap((lvl) =>
+      Array.from({ length: b < 3 ? 13 : 10 }, (_, i) => `${b}${lvl}${String(i + (b < 3 ? 1 : 4)).padStart(2, "0")}`),
+    ),
   ),
-);
+];
 
 export function CubicleForm({
   cubicle,
@@ -77,10 +82,25 @@ export function CubicleForm({
 
 export function SpaceEventForm({
   spaces,
+  isDirectPublisher = true,
+  onSuccess,
 }: {
   spaces: { id: string; name: string }[];
+  isDirectPublisher?: boolean;
+  onSuccess?: () => void;
 }) {
-  const [state, action, pending] = useActionState(addSpaceEvent, {});
+  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    async (prev: FormState, formData: FormData) => {
+      const res = await addSpaceEvent(prev, formData);
+      if (res.ok) {
+        router.refresh();
+        onSuccess?.();
+      }
+      return res;
+    },
+    {},
+  );
   const [selectedSpaceId, setSelectedSpaceId] = useState(spaces.length === 1 ? spaces[0].id : "");
   const selectedSpace = spaces.find((s) => s.id === selectedSpaceId);
   const requiresSpeaker = Boolean(selectedSpace && /auditorio|sala\s*14/i.test(selectedSpace.name));
@@ -146,7 +166,7 @@ export function SpaceEventForm({
       <p className="text-sm text-[#667085]">Publica solo actividades que ya fueron autorizadas fuera de la plataforma. Este registro no reserva ni autoriza el espacio.</p>
       <Feedback state={state} />
       <button className={btn} disabled={pending}>
-        Publicar evento autorizado
+        {pending ? "Guardando…" : isDirectPublisher ? "Publicar evento autorizado" : "Enviar evento a revisión"}
       </button>
     </form>
   );

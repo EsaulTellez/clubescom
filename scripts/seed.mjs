@@ -768,7 +768,7 @@ await pool.query(`
   select $1, v.kind, v.title, v.description, v.place, v.photo, v.question
   from (values
     ('perdido', 'Mochila azul', 'Mochila azul marino con cierre rojo; contiene un cargador blanco.', 'Explanada', '/ejemplos/perdido.svg', null),
-    ('encontrado', 'Calculadora científica', 'Se encontró en el laboratorio y está resguardada en Prefectura.', 'Laboratorio 3', '/ejemplos/encontrado.svg', '¿Qué marca aparece en la tapa?')
+    ('encontrado', 'Calculadora científica', 'Se encontró sobre una mesa del laboratorio 3; contesta la pregunta de verificación para coordinar la entrega directa.', 'Laboratorio 3', '/ejemplos/encontrado.svg', '¿Qué marca aparece en la tapa?')
   ) v(kind, title, description, place, photo, question)
   where not exists (select 1 from public.lost_items i where i.title = v.title)
 `, [student]);
@@ -776,8 +776,11 @@ const foundItem = await pool.query("select id from public.lost_items where title
 if (foundItem.rows[0]) {
   const answerHash = createHash("sha256").update("casio").digest("hex");
   await pool.query(
-    `insert into private.lost_item_secrets (lost_item_id, security_answer_hash)
-     values ($1, $2) on conflict (lost_item_id) do update set security_answer_hash = excluded.security_answer_hash`,
+    `insert into private.lost_item_secrets (lost_item_id, security_answer_hash, answer_text)
+     values ($1, $2, 'casio')
+     on conflict (lost_item_id) do update
+       set security_answer_hash = excluded.security_answer_hash,
+           answer_text = excluded.answer_text`,
     [foundItem.rows[0].id, answerHash],
   );
 }

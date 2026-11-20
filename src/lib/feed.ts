@@ -512,11 +512,10 @@ export async function getTrendingLeaderboards(userId: string | null): Promise<{
         c.name,
         c.kind,
         c.logo_url,
-        count(distinct m.user_id) filter (where m.status = 'aceptada')::int as members_count
+        coalesce(mc.members_count, 0)::int as members_count
       from public.clubs c
-      left join public.memberships m on m.club_id = c.id
+      left join public.get_public_club_member_counts() mc on mc.club_id = c.id
       where c.active = true
-      group by c.id
       order by members_count desc, c.name asc
       limit 5
     `),

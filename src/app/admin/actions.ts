@@ -168,7 +168,7 @@ export async function importRoster(_prev: RosterImportState, form: FormData): Pr
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!url || !secret) return { error: "Falta configurar el servicio de invitaciones para crear cuentas." };
   const admin = createClient(url, secret, { auth: { autoRefreshToken: false, persistSession: false } });
-  const redirectTo = new URL("/auth/callback", process.env.NEXT_PUBLIC_SITE_URL || "http://127.0.0.1:3001").toString();
+  const redirectTo = new URL("/auth/confirmado", process.env.NEXT_PUBLIC_SITE_URL || "http://127.0.0.1:3001").toString();
   const resultRows: NonNullable<RosterImportState["rows"]> = [];
   let created = 0;
   for (const row of rows) {
@@ -204,8 +204,10 @@ export async function updateSystemSettings(form: FormData) {
      on conflict (key) do update set value_int = excluded.value_int, updated_at = now()`,
     [threshold, cooldown],
   );
+  await pool.query("select public.promote_eligible_club_proposals()");
   await audit(actor.id, "configurar_parametros", "system_settings", undefined, `umbral=${threshold}, cooldown=${cooldown}m`);
   revalidatePath("/admin");
+  revalidatePath("/clubes");
 }
 
 export async function resolvePrivacyRequest(form: FormData) {
@@ -214,14 +216,14 @@ export async function resolvePrivacyRequest(form: FormData) {
   const id = String(form.get("request_id") ?? "");
   const status = String(form.get("status") ?? "");
   const note = String(form.get("resolution_note") ?? "").trim().slice(0, 1000);
-  if (!UUID.test(id) || !["resuelta", "rechazada"].includes(status)) return;
+  if (!UUID.test(id) || !["en_revision", "resuelta", "rechazada"].includes(status)) return;
 
   const updated = await pool.query<{ user_id: string }>(
     `update privacy_requests
         set status = $1,
             resolution_note = $2,
-            resolved_by = $3,
-            resolved_at = now()
+            resolved_by = case when $1 in ('resuelta', 'rechazada') then $3::uuid else resolved_by end,
+            resolved_at = case when $1 in ('resuelta', 'rechazada') then now() else resolved_at end
       where id = $4 returning user_id`,
     [status, note || null, actor.id, id],
   );
@@ -230,8 +232,8 @@ export async function resolvePrivacyRequest(form: FormData) {
     await supabase.rpc("notify_user_event", {
       p_user_id: updated.rows[0].user_id,
       p_category: "sistema",
-      p_title: `Solicitud ARCO ${status}`,
-      p_body: note || "Tu solicitud de privacidad fue atendida por Administración.",
+      p_title: status === "en_revision" ? "Tu solicitud ARCO está en revisión" : `Solicitud ARCO ${status}`,
+      p_body: note || "Se actualizó el seguimiento de tu solicitud de privacidad.",
       p_href: "/perfil",
     });
   }

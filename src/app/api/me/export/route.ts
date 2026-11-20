@@ -13,12 +13,25 @@ export async function GET(request: NextRequest) {
 
   const format = request.nextUrl.searchParams.get("format")?.toLowerCase() ?? "json";
 
-  const [badges, prefs, questions, answers, clubs, lostItems, claims, privacyRequests] = await Promise.all([
+  const [
+    badges,
+    prefs,
+    questions,
+    answers,
+    clubs,
+    clubProposals,
+    participantProfiles,
+    lostItems,
+    claims,
+    privacyRequests,
+  ] = await Promise.all([
     pool.query("select code, label, awarded_at from badges where user_id = $1 order by awarded_at desc", [user.id]),
     pool.query("select * from notification_prefs where user_id = $1", [user.id]),
     pool.query("select id, area, title, status, created_at from questions where author_id = $1 order by created_at desc", [user.id]),
     pool.query("select id, question_id, official, created_at from answers where author_id = $1 order by created_at desc", [user.id]),
-    pool.query("select c.name, m.status, m.created_at from memberships m join clubs c on c.id = m.club_id where m.user_id = $1", [user.id]),
+    pool.query("select c.name, m.status, m.application_answers, m.created_at from memberships m join clubs c on c.id = m.club_id where m.user_id = $1", [user.id]),
+    pool.query("select id, name, kind, status, created_at from club_proposals where proposer_id = $1 order by created_at desc", [user.id]),
+    pool.query("select cp.proposal_id, p.name as proposal_name, cp.career, cp.phone, cp.updated_at from club_participant_profiles cp join club_proposals p on p.id = cp.proposal_id where cp.user_id = $1", [user.id]),
     pool.query("select id, kind, title, place, status, created_at from lost_items where reporter_id = $1 order by created_at desc", [user.id]),
     pool.query("select id, lost_item_id, status, created_at from lost_item_claims where claimant_id = $1 order by created_at desc", [user.id]),
     pool.query("select id, kind, detail, status, resolution_note, created_at from privacy_requests where user_id = $1 order by created_at desc", [user.id]),
@@ -32,6 +45,8 @@ export async function GET(request: NextRequest) {
       ...questions.rows.map((q) => ["pregunta_foro", q.id, q.title, `${q.area} (${q.status})`, q.created_at].map(csvEscape).join(",")),
       ...answers.rows.map((a) => ["respuesta_foro", a.id, a.question_id, a.official ? "oficial" : "comunitaria", a.created_at].map(csvEscape).join(",")),
       ...clubs.rows.map((c) => ["membresia_club", "", c.name, c.status, c.created_at].map(csvEscape).join(",")),
+      ...clubProposals.rows.map((p) => ["propuesta_club", p.id, p.name, `${p.kind} (${p.status})`, p.created_at].map(csvEscape).join(",")),
+      ...participantProfiles.rows.map((pp) => ["perfil_club", pp.proposal_id, pp.proposal_name, `${pp.career} · ${pp.phone}`, pp.updated_at].map(csvEscape).join(",")),
       ...lostItems.rows.map((i) => ["objeto_reportado", i.id, i.title, `${i.kind} (${i.status})`, i.created_at].map(csvEscape).join(",")),
       ...claims.rows.map((c) => ["reclamo_objeto", c.id, c.lost_item_id, c.status, c.created_at].map(csvEscape).join(",")),
       ...privacyRequests.rows.map((r) => ["solicitud_arco", r.id, r.kind, `${r.status}: ${r.detail}`, r.created_at].map(csvEscape).join(",")),
@@ -52,6 +67,8 @@ export async function GET(request: NextRequest) {
       questions: questions.rows,
       answers: answers.rows,
       memberships: clubs.rows,
+      club_proposals: clubProposals.rows,
+      club_participant_profiles: participantProfiles.rows,
       lost_items: lostItems.rows,
       lost_item_claims: claims.rows,
       privacy_requests: privacyRequests.rows,

@@ -8,6 +8,7 @@ import {
   areaLabel,
   asFaqs,
   asSteps,
+  canEditGuideArea,
   formatDate,
   isUuid,
   statusLabel,
@@ -51,7 +52,7 @@ export default async function GuidePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ days?: string; paso?: string; panel?: string; revision?: string }>;
+  searchParams: Promise<{ days?: string; paso?: string; panel?: string; revision?: string; sugerida?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -128,7 +129,14 @@ export default async function GuidePage({
 
   const steps = asSteps(guide.steps);
   const faqs = asFaqs(guide.faqs);
-  const staff = user ? (user.role === "admin" || (user.role === "moderador" && user.area === guide.area)) : false;
+  const staff = canEditGuideArea(user, guide.area);
+  const pendingByStep = Object.fromEntries(
+    steps.map((s) => [
+      s.id,
+      suggestions.rows.filter((item) => item.step_index === s.id && item.status === "pendiente").length,
+    ]),
+  );
+  const pendingStepLinks = steps.filter((s) => (pendingByStep[s.id] ?? 0) > 0);
 
   const filterDays = query.days === "7" ? 7 : query.days === "30" ? 30 : 0;
   let totalViews = 0;
@@ -232,9 +240,29 @@ export default async function GuidePage({
         </div>
         <div id="ruta">
         {query.revision === "version" && <p role="alert">La guía cambió. Revisa el texto actualizado antes de aceptar la sugerencia.</p>}
+        {query.sugerida === "1" && (
+          <p role="status" className="rounded-xl border border-[#b7d9c2] bg-[#edf8f1] px-4 py-2.5 text-sm font-medium text-[#1b5e36]">
+            Tu sugerencia quedó registrada para revisión del área encargada.
+          </p>
+        )}
+        {staff && pendingStepLinks.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[#e6d39a] bg-[#fdf7e2] px-3.5 py-2.5 text-xs text-[#6e5008]">
+            <span className="font-bold">Sugerencias pendientes por revisar:</span>
+            {pendingStepLinks.map((s) => (
+              <Link
+                key={s.id}
+                href={`/guias/${guide.id}?paso=${s.id}#ruta`}
+                className="rounded-full border border-[#d6b764] bg-white px-2.5 py-0.5 font-bold hover:bg-[#fff9eb]"
+              >
+                Paso {s.id} ({pendingByStep[s.id]})
+              </Link>
+            ))}
+          </div>
+        )}
         {query.revision === "texto" && <p role="alert">El texto que se publicará debe tener entre 1 y 2000 caracteres.</p>}
         <GuideSteps key={`${guide.id}-${query.paso}-${query.panel}`} steps={steps} guideId={guide.id} area={guide.area} initialDone={initialDone} signedIn={Boolean(user)}
           initialStep={query.paso === undefined ? undefined : Number(query.paso)} initialPanel={query.panel === "editar" ? "editar" : undefined}
+          pendingByStep={pendingByStep}
           threads={threads.rows} stepExtras={Object.fromEntries(steps.map(step => {
             const related = suggestions.rows.filter(item => item.step_index === step.id);
             const historic = questions.filter(q => q.step_index === step.id);
@@ -253,7 +281,7 @@ export default async function GuidePage({
                       Nota de revisión{suggestion.reviewer_name ? ` (${suggestion.reviewer_name})` : ""}: {suggestion.review_note}
                     </p>
                   )}
-                  {staff && <form action={deleteSuggestion} className="mt-2"><input type="hidden" name="id" value={suggestion.id} /><input type="hidden" name="guideId" value={guide.id} /><button className="text-xs font-bold text-[#8C1D18]">Eliminar sugerencia {suggestion.status === "aceptada" ? "(conserva la nota aplicada)" : ""}</button></form>}
+                  {staff && <form action={deleteSuggestion} className="mt-2"><input type="hidden" name="id" value={suggestion.id} /><input type="hidden" name="guideId" value={guide.id} /><input type="hidden" name="stepIndex" value={step.id} /><button className="text-xs font-bold text-[#8C1D18]">Eliminar sugerencia {suggestion.status === "aceptada" ? "(conserva la nota aplicada)" : ""}</button></form>}
                   {staff && suggestion.status === "pendiente" && <form action={reviewSuggestion} className="mt-3 space-y-2 border-t border-[#d5e4ee] pt-2">
                     <input type="hidden" name="id" value={suggestion.id} />
                     <input type="hidden" name="version" value={guide.version} />

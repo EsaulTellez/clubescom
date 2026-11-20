@@ -8,13 +8,13 @@ import { logout } from "@/lib/auth-actions";
 import type { SessionUser } from "@/lib/auth";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-const links = [
+const links: { href: string; label: string; mobileLabel?: string; icon: string }[] = [
   { href: "/", label: "Inicio", icon: "home" },
   { href: "/avisos", label: "Avisos", icon: "notices" },
   { href: "/clubes", label: "Clubes", icon: "people" },
   { href: "/eventos", label: "Eventos", icon: "calendar" },
   { href: "/mapa", label: "Mapa", icon: "map" },
-  { href: "/foro", label: "Foro y Guías", icon: "book" },
+  { href: "/foro", label: "Foro y Guías", mobileLabel: "Foro", icon: "book" },
   { href: "/objetos", label: "Objetos", icon: "bag" },
 ];
 
@@ -35,7 +35,7 @@ function Icon({ name }: { name: string }) {
 
 function NavItems({ pathname, modules, mobile = false }: { pathname: string; modules: readonly string[] | null; mobile?: boolean }) {
   return (
-    <nav aria-label={mobile ? "Navegación principal móvil" : "Navegación principal"} className={mobile ? "flex w-full items-stretch gap-1 overflow-x-auto" : "mx-auto flex w-full max-w-[1780px] items-center gap-1 overflow-x-auto px-4 sm:px-6 lg:px-10"}>
+    <nav aria-label={mobile ? "Navegación principal móvil" : "Navegación principal"} className={mobile ? "flex w-full items-stretch gap-0.5" : "mx-auto flex w-full max-w-[1780px] items-center gap-1 overflow-x-auto px-4 sm:px-6 lg:px-10"}>
       {links.filter((link) => !modules || modules.includes(link.href)).map((link) => {
         const active =
           link.href === "/"
@@ -49,10 +49,12 @@ function NavItems({ pathname, modules, mobile = false }: { pathname: string; mod
             href={link.href}
             aria-current={active ? "page" : undefined}
             title={link.label}
-            className={`${mobile ? "min-h-12 min-w-[3.5rem] flex-1 flex-col gap-1 px-1 py-1.5" : "min-h-11 shrink-0 gap-2 px-3 py-2"} flex items-center justify-center border-b-2 text-[#50636d] transition-colors hover:bg-[#e9efef] hover:text-[#004d73] ${active ? "border-[#155775] font-bold text-[#004d73]" : "border-transparent font-semibold"}`}
+            className={`${mobile ? "min-h-12 min-w-0 flex-1 flex-col gap-0.5 px-0.5 py-1.5" : "min-h-11 shrink-0 gap-2 px-3 py-2"} flex items-center justify-center border-b-2 text-[#50636d] transition-colors hover:bg-[#e9efef] hover:text-[#004d73] ${active ? "border-[#155775] font-bold text-[#004d73]" : "border-transparent font-semibold"}`}
           >
             <Icon name={link.icon}/>
-            <span className={mobile ? "text-center text-[10px] font-bold leading-tight whitespace-nowrap" : "text-sm"}>{link.label}</span>
+            <span className={mobile ? "max-w-full truncate text-center text-[10px] font-bold leading-tight" : "text-sm"}>
+              {mobile && link.mobileLabel ? link.mobileLabel : link.label}
+            </span>
           </Link>
         );
       })}

@@ -6,7 +6,7 @@ import { asSteps } from "../guias/shared";
 import { procedureOffice } from "@/lib/areas";
 import { audit, getSession } from "@/lib/auth";
 import { pool, type SecureClient } from "@/lib/db";
-import { uploadPublicImage } from "@/lib/storage";
+import { resolveUploadedPublicImage } from "@/lib/resolve-upload";
 import { isArea, isRequestKind, isUuid, canModerateForumQuestion } from "./shared";
 
 export type QuestionState = {
@@ -38,11 +38,12 @@ export async function suggestSimilarQuestions(titleRaw: string, areaRaw: string)
   const title = titleRaw.trim().slice(0, 180);
   if (title.length < 8 || !isArea(areaRaw)) return [];
   const result = await pool.query<{ id: string; title: string; area: string; status: string; similarity: number }>(
-    `select id, title, area, status, similarity(title, $1) as similarity
+    `select id, title, area, status, extensions.similarity(title, $1)::float8 as similarity
      from questions
-     where area = $2 and similarity(title, $1) >= 0.32
-     order by (status = 'respondida') desc, similarity(title, $1) desc, created_at desc
-     limit 3`,
+     where (area = $2 and extensions.similarity(title, $1) >= 0.32)
+        or extensions.similarity(title, $1) >= 0.55
+     order by (status = 'respondida') desc, (area = $2) desc, similarity desc, created_at desc
+     limit 4`,
     [title, areaRaw],
   );
   return result.rows;
@@ -97,14 +98,23 @@ export async function publishQuestion(
     return { error: "Explica la duda o solicitud con un poco más de detalle." };
   }
 
-  const uploaded = await uploadPublicImage(user.id, "forum", form.get("image"));
+  const uploaded = await resolveUploadedPublicImage(form, "image", user.id, "forum");
   if ("error" in uploaded) return { error: uploaded.error };
 
   const outcome = await withTx(async (client) => {
     await client.query("select pg_advisory_xact_lock(hashtextextended($1::text, 0))", [user.id]);
+    let effectiveArea = area;
     if (targetGuideId) {
       const guide = await client.query<{ area: string; steps: unknown }>("select area, steps from guides where id = $1", [targetGuideId]);
-      if (guide.rows[0]?.area !== area || (stepId !== null && !asSteps(guide.rows[0].steps).some(s => s.id === stepId))) return { error: "La guía o el paso cambiaron. Vuelve a abrir la guía." };
+      const foundGuide = guide.rows[0];
+      if (!foundGuide || (stepId !== null && !asSteps(foundGuide.steps).some((s) => s.id === stepId))) {
+        return { error: "La guía o el paso cambiaron. Vuelve a abrir la guía." };
+      }
+      if (requestKind === "actualizar_guia" && isArea(foundGuide.area)) {
+        effectiveArea = foundGuide.area;
+      } else if (foundGuide.area !== area) {
+        return { error: "La guía pertenece a un área distinta." };
+      }
     }
     const settingRes = await client.query<{ value_int: number }>(
       "select value_int from system_settings where key = 'forum_cooldown_minutes'",
@@ -124,9 +134,9 @@ export async function publishQuestion(
     const similar = await client.query<{ id: string; title: string }>(
       `select id, title
        from questions
-       where title % $1 and similarity(title, $1) > 0.6
+       where title % $1 and extensions.similarity(title, $1) > 0.6
          and ($2::integer is null or (target_guide_id = $3 and target_step_index = $2))
-       order by similarity(title, $1) desc
+       order by extensions.similarity(title, $1) desc
        limit 1`,
       [title, stepId, targetGuideId],
     );
@@ -137,7 +147,7 @@ export async function publishQuestion(
       `insert into questions (author_id, area, title, body, image_url, request_kind, target_guide_id, target_step_index)
        values ($1, $2, $3, $4, $5, $6, $7, $8)
        returning id`,
-      [user.id, area, title, body, uploaded.url, requestKind, targetGuideId, stepId],
+      [user.id, effectiveArea, title, body, uploaded.url, requestKind, targetGuideId, stepId],
     );
     return { id: inserted.rows[0].id };
   });
@@ -175,9 +185,11 @@ export async function publishAnswerInline(
       title: string;
       area: string;
       request_kind: string;
-    }>("select id, author_id, title, area, request_kind from questions where id = $1", [questionId]);
+      status: string;
+    }>("select id, author_id, title, area, request_kind, status from questions where id = $1", [questionId]);
     const row = question.rows[0];
     if (!row) return null;
+    if (row.status === "cerrada") return { closed: true as const };
     const official = canModerateForumQuestion(user, row.area, row.request_kind);
 
     const inserted = await client.query<{ id: string; created_at: Date }>(
@@ -196,6 +208,7 @@ export async function publishAnswerInline(
   });
 
   if (!saved) return { error: "No encontramos esa pregunta." };
+  if ("closed" in saved) return { error: "Esta publicación está cerrada y ya no admite más respuestas." };
 
   await audit(user.id, "answer.create", "answers", questionId, saved.title);
   revalidatePath("/foro");

@@ -47,11 +47,12 @@ export default async function ClubesPage() {
   const allowedKinds = allowedClubKinds(user);
   const canCreateDirect = allowedKinds.length > 0;
   const isAreaStaff = canManageAnyClubs(user);
-  const isSubdireccion =
+  const isAcademicOnly =
     user?.role === "moderador" && (user.area === "subdireccion_academica" || user.area === "clubes_academicos");
-  const isCulturales = user?.role === "moderador" && user.area === "clubes_culturales";
+  const isCulturalOnly = user?.role === "moderador" && user.area === "clubes_culturales";
+  const isSubdireccion = isAcademicOnly;
+  const isCulturales = isCulturalOnly;
 
-  const academicOffice = user?.role === "moderador" && user.area === "subdireccion_academica";
   let clubs: ClubDirectoryItem[] = [];
   let proposals: ProposalDirectoryItem[] = [];
   let formalRequests: ProposalDirectoryItem[] = [];
@@ -64,17 +65,28 @@ export default async function ClubesPage() {
   let inactivityDays = 5;
   let dbDown = false;
 
+  const staffKinds = allowedKinds.length > 0 ? allowedKinds : ["academico", "cultural", "deportivo"];
+
   try {
     const [clubResult, proposalResult, progressResult, settingsResult] = await Promise.all([
       pool.query<RawClubRow>(
         `select id, name, kind, description, schedule, logo_url, active
          from clubs
          where (active = true or ($1 and kind = any($2::text[])))
-           and (not $3 or kind = 'academico')
+           and (not $1 or kind = any($2::text[]))
          order by active desc, name asc`,
-        [isAreaStaff, allowedKinds.length > 0 ? allowedKinds : ["academico"], academicOffice],
+        [isAreaStaff, staffKinds],
       ),
-      pool.query<RawProposalRow>(
+      pool.query<
+        RawProposalRow & {
+          viewer_is_advisor: boolean;
+          appointment_status: string | null;
+          scheduled_at: Date | null;
+          meeting_mode: string | null;
+          meeting_location: string | null;
+          advisor_confirmed_at_appt: Date | null;
+        }
+      >(
         `select p.id, p.name, p.kind, p.description, p.objectives, p.status,
                 p.proposer_id, u.name as proposer_name,
                 p.interested_count as interests,
@@ -87,13 +99,26 @@ export default async function ClubesPage() {
                 exists (
                   select 1 from club_interests ci
                   where ci.proposal_id = p.id and $1::uuid is not null and ci.user_id = $1::uuid
-                ) as viewer_interested
+                ) as viewer_interested,
+                ($1::uuid is not null and (p.advisor_id = $1::uuid or p.pending_advisor_id = $1::uuid)) as viewer_is_advisor,
+                appt.status as appointment_status,
+                appt.scheduled_at,
+                appt.meeting_mode,
+                appt.meeting_location,
+                appt.advisor_confirmed_at as advisor_confirmed_at_appt
          from club_proposals p
          join users u on u.id = p.proposer_id
          left join users adv on adv.id = p.advisor_id
-         where p.status <> 'registrado' and p.status <> 'rechazada' and (not $2 or p.kind = 'academico')
-         order by p.created_at desc`,
-        [user?.id ?? null, academicOffice],
+         left join lateral (
+           select a.status, a.scheduled_at, a.meeting_mode, a.meeting_location, a.advisor_confirmed_at
+             from club_appointments a
+            where a.proposal_id = p.id and a.status <> 'cancelada'
+            order by a.created_at desc
+            limit 1
+         ) appt on true
+         where (not $2 or p.kind = any($3::text[]))
+         order by p.formal_submitted_at desc nulls last, p.created_at desc`,
+        [user?.id ?? null, isAreaStaff, staffKinds],
       ),
       pool.query<{ proposal_id: string; participants_count: number; participants_complete_docs: number }>(
         "select proposal_id, participants_count, participants_complete_docs from public.get_club_proposal_progress_summary()",
@@ -126,7 +151,7 @@ export default async function ClubesPage() {
       art_url: c.logo_url ?? demoClubArt(c.name),
     }));
 
-    proposals = proposalResult.rows.map((p) => {
+    const allMappedProposals = proposalResult.rows.map((p) => {
       const counts = progressMap.get(p.id) ?? { participants_count: 1, participants_complete_docs: 0 };
       const hasExec =
         Boolean(p.schedule_plan && p.schedule_plan.trim().length >= 10) &&
@@ -157,9 +182,17 @@ export default async function ClubesPage() {
         inactivity_days: inactivityDays,
         inactive_for_claim: inactiveForClaim,
         viewer_interested: p.viewer_interested,
+        viewer_is_advisor: p.viewer_is_advisor,
+        appointment_status: p.appointment_status,
+        scheduled_at: p.scheduled_at ? new Date(p.scheduled_at).toISOString() : null,
+        meeting_mode: p.meeting_mode,
+        meeting_location: p.meeting_location,
+        advisor_confirmed_appointment: Boolean(p.advisor_confirmed_at_appt),
         schedule_plan: p.schedule_plan,
       };
     });
+
+    proposals = allMappedProposals.filter((p) => p.status !== "registrado" && p.status !== "rechazada");
 
     if (canCreateDirect) {
       const [peopleResult, kpiResult, stageResult, pendingReqResult] = await Promise.all([
@@ -209,8 +242,10 @@ export default async function ClubesPage() {
       people = peopleResult.rows;
       clubKpis = kpiResult.rows;
       pendingMemberships = pendingReqResult.rows;
-      formalRequests = proposals.filter(
-        (p) => p.formal_submitted_at !== null && allowedKinds.includes(p.kind as never),
+      formalRequests = allMappedProposals.filter(
+        (p) =>
+          (p.formal_submitted_at !== null || ["cita_pendiente", "cita_confirmada", "incompleta"].includes(p.status)) &&
+          allowedKinds.includes(p.kind as never),
       );
       for (const row of stageResult.rows) {
         if (row.status in proposalStageCounts) {

@@ -1,13 +1,28 @@
 "use server";
 
+import type { EmailOtpType } from "@supabase/supabase-js";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { officeModules } from "./areas";
 import { audit, getSession, roleFromEmail } from "./auth";
+import { pool } from "./db";
 import { createSupabaseAdminClient } from "./supabase/admin";
 import { createSupabaseServerClient } from "./supabase/server";
 
-export type AuthState = { error?: string; ok?: string; email?: string };
+export type AuthState = { error?: string; ok?: string; email?: string; alreadyExists?: boolean };
+
+const ALLOWED_OTP_TYPES = new Set<EmailOtpType>([
+  "signup",
+  "invite",
+  "magiclink",
+  "recovery",
+  "email_change",
+  "email",
+]);
+
+function isEmailOtpType(value: string): value is EmailOtpType {
+  return ALLOWED_OTP_TYPES.has(value as EmailOtpType);
+}
 
 function emailFrom(form: FormData) {
   return String(form.get("email") ?? "").trim().toLowerCase();
@@ -42,10 +57,29 @@ export async function register(
 
   if (!consent) return { error: "Acepta el aviso de privacidad para continuar." };
   if (!roleFromEmail(email)) return { error: "Usa un correo @alumno.ipn.mx o @ipn.mx." };
-  if (name.length < 3) return { error: "Escribe tu nombre completo." };
-  if (password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres." };
+  if (name.length < 3 || name.length > 120) return { error: "Escribe tu nombre completo (entre 3 y 120 caracteres)." };
+  if (boleta && (boleta.length < 4 || boleta.length > 32 || !/^[A-Za-z0-9-]+$/.test(boleta))) {
+    return { error: "La boleta o número de empleado debe tener entre 4 y 32 caracteres alfanuméricos." };
+  }
+  if (password.length < 8 || password.length > 72) {
+    return { error: "La contraseña debe tener entre 8 y 72 caracteres." };
+  }
 
   const supabase = await createSupabaseServerClient();
+
+  if (boleta) {
+    const { data: boletaFree, error: availErr } = await supabase.rpc(
+      "check_registration_availability",
+      { p_boleta: boleta },
+    );
+    if (!availErr && boletaFree === false) {
+      return {
+        error: "Esa boleta o número de empleado ya está registrada en otra cuenta. Si ya te registraste, inicia sesión o recupera tu acceso.",
+        email,
+      };
+    }
+  }
+
   const siteUrl = await getSiteUrl();
   const emailRedirectTo = new URL("/auth/callback?next=/auth/confirmado", siteUrl).toString();
   const { data, error } = await supabase.auth.signUp({
@@ -59,12 +93,32 @@ export async function register(
 
   if (error) {
     if (/already registered|already exists/i.test(error.message)) {
-      return { error: "No pudimos crear la cuenta. Revisa el correo o intenta iniciar sesión." };
+      return {
+        error: "Ese correo institucional ya tiene una cuenta registrada. Puedes iniciar sesión o reenviar el enlace de activación.",
+        email,
+        alreadyExists: true,
+      };
     }
-    return { error: "No se pudo iniciar el registro. Revisa los datos e inténtalo de nuevo." };
+    if (/rate limit|security purposes|too many|429/i.test(error.message)) {
+      return {
+        error: "Se enviaron varios intentos seguidos. Espera un minuto antes de volver a intentarlo.",
+        email,
+      };
+    }
+    if (/database error/i.test(error.message)) {
+      return {
+        error: "La boleta o el correo ya están vinculados a otra cuenta existente.",
+        email,
+      };
+    }
+    return { error: "No se pudo iniciar el registro. Revisa los datos e inténtalo de nuevo.", email };
   }
   if (!data.user || data.user.identities?.length === 0) {
-    return { error: "No pudimos crear la cuenta. Revisa el correo o intenta iniciar sesión." };
+    return {
+      error: "Ese correo ya está registrado o pendiente de activación. Si aún no confirmas tu correo, puedes reenviar el enlace abajo.",
+      email,
+      alreadyExists: true,
+    };
   }
 
   if (data.session) {
@@ -76,6 +130,33 @@ export async function register(
     ok: "Te enviamos un enlace de confirmación a tu correo institucional. Ábrelo para activar tu cuenta e ingresar al sistema.",
     email,
   };
+}
+
+export async function confirmEmailTokenAction(form: FormData) {
+  const tokenHash = String(form.get("token_hash") ?? "").trim();
+  const type = String(form.get("type") ?? "").trim();
+  if (!tokenHash || !isEmailOtpType(type)) {
+    redirect("/auth/confirmado?error=enlace_invalido");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+  if (error) {
+    if (type === "recovery") redirect("/recuperar?error=enlace_invalido");
+    redirect("/auth/confirmado?error=enlace_invalido");
+  }
+
+  if (data.user && (type === "signup" || type === "email" || type === "invite")) {
+    try {
+      await audit(data.user.id, "verificar", "users", data.user.id);
+    } catch {
+      // Do not fail confirmation if audit write hits a transient issue
+    }
+  }
+
+  if (type === "recovery") redirect("/recuperar?cambiar=1");
+  if (type === "invite") redirect("/recuperar?cambiar=1&invitacion=1");
+  redirect("/auth/confirmado");
 }
 
 export async function resendConfirmation(
@@ -96,13 +177,19 @@ export async function resendConfirmation(
     options: { emailRedirectTo },
   });
   if (error) {
+    if (/rate limit|security purposes|too many|429/i.test(error.message)) {
+      return {
+        error: "Por seguridad debes esperar ~60 segundos antes de reenviar otro enlace.",
+        email,
+      };
+    }
     return {
-      error: "No pudimos reenviar el enlace. Espera un minuto y vuelve a intentarlo.",
+      error: "No pudimos reenviar el enlace. Verifica el correo o intenta entrar si ya confirmaste.",
       email,
     };
   }
   return {
-    ok: "Reenviamos el enlace de confirmación a tu correo.",
+    ok: "Reenviamos el enlace de confirmación a tu correo institucional.",
     email,
   };
 }
@@ -151,6 +238,25 @@ export async function submitPrivacyRequest(
     .from("privacy_requests")
     .insert({ user_id: user.id, kind, detail });
   if (error) return { error: "No se pudo registrar la solicitud." };
+
+  try {
+    const admins = await pool.query<{ id: string }>(
+      "select id from public.users where role = 'admin' and is_active and not banned",
+    );
+    await Promise.all(
+      admins.rows.map((adm) =>
+        supabase.rpc("notify_user_event", {
+          p_user_id: adm.id,
+          p_category: "sistema",
+          p_title: `Nueva solicitud ARCO (${kind})`,
+          p_body: `${user.name} registró una solicitud de ${kind}. Revísala en el Panel de Administración.`,
+          p_href: "/admin#arco",
+        }),
+      ),
+    );
+  } catch {
+    // Non-blocking notification
+  }
 
   await audit(user.id, "solicitud_arco", "privacy_requests", user.id, kind);
   return { ok: "Solicitud registrada. El Oficial de Privacidad y Administración la revisarán." };
@@ -243,6 +349,7 @@ export async function deleteAccount() {
       if (storageError) throw new Error("No se pudieron eliminar todos tus archivos. Inténtalo de nuevo.");
     }
   }
+  await audit(data.user.id, "eliminar_cuenta", "users", data.user.id, data.user.email ?? undefined);
   const { error: deleteError } = await admin.auth.admin.deleteUser(data.user.id);
   if (deleteError) {
     throw new Error("No se pudo eliminar la cuenta. Inténtalo de nuevo.");

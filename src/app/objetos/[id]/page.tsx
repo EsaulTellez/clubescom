@@ -3,10 +3,11 @@ import { QRCodeSVG } from "qrcode.react";
 import { ReportNotice } from "../report-notice";
 import { FlowRail } from "@/components/flow-rail";
 import { getSession } from "@/lib/auth";
+import { formatMxDateTime } from "@/lib/datetime";
 import { pool } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { btn, btnGhost, card, input, label } from "@/lib/ui";
-import { closeItem, confirmDelivery, reviewClaim, updateMeetingNote } from "../actions";
+import { closeItem, confirmDelivery, renewHandoff, reviewClaim, updateMeetingNote } from "../actions";
 import { kindLabel, type ItemKind, type ItemStatus } from "../labels";
 import { ClaimForm } from "./claim-form";
 import { QrDeliveryVerifyForm } from "./qr-scanner";
@@ -27,15 +28,32 @@ type Item = {
   matched_id: string | null;
   created_at: string;
 };
-type Claim = {
+type ClaimReviewRow = {
   id: string;
-  handoff_id: string | null;
   claimant_id: string;
   claimant_name: string;
   status: string;
   claimant_note: string | null;
   evidence_path: string | null;
   created_at: string;
+  answer_text: string | null;
+  answer_score: number | null;
+};
+type MyClaimRow = {
+  id: string;
+  status: string;
+  claimant_note: string | null;
+  review_note: string | null;
+  answer_score: number | null;
+  created_at: string;
+};
+type HandoffRow = {
+  handoff_id: string;
+  token: string;
+  expires_at: string;
+  is_expired: boolean;
+  finder_id: string;
+  recipient_id: string;
 };
 type HandoffContact = {
   handoff_id: string;
@@ -55,7 +73,7 @@ export default async function ObjetoPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; revisado?: string }>;
+  searchParams: Promise<{ error?: string; revisado?: string; code?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -82,31 +100,52 @@ export default async function ObjetoPage({
 
   const owner = user?.id === item.reporter_id;
   const isAdmin = user?.role === "admin";
-  const [match, claims, handoffs, contactRows] = await Promise.all([
-    item.matched_id
-      ? pool.query<{ id: string; title: string; kind: ItemKind }>("select id, title, kind from lost_items where id = $1", [item.matched_id]).then((result) => result.rows[0])
-      : Promise.resolve(undefined),
-    owner || isAdmin
-      ? pool.query<Claim>(
-          `select c.id, h.id as handoff_id, c.claimant_id, u.name as claimant_name, c.status, c.claimant_note, c.evidence_path, c.created_at
-           from lost_item_claims c join users u on u.id = c.claimant_id
-           left join lost_item_handoffs h on h.claim_id = c.id
-           where c.lost_item_id = $1 order by c.created_at desc`,
-          [id],
-        ).then((result) => result.rows)
-      : Promise.resolve([] as Claim[]),
-    user && !owner && item.kind === "encontrado"
-      ? createSupabaseServerClient().then((client) => client.rpc("get_my_lost_item_handoff", { p_item_id: id }))
-          .then(({ data, error }) => error ? [] : (data ?? []))
-      : Promise.resolve([] as { handoff_id: string; token: string; expires_at: string }[]),
-    user && item.kind === "encontrado"
-      ? createSupabaseServerClient().then((client) => client.rpc("get_lost_item_handoff_contact", { p_item_id: id }))
-          .then(({ data, error }) => error ? [] : ((data ?? []) as HandoffContact[]))
-      : Promise.resolve([] as HandoffContact[]),
-  ]);
-  const contact = contactRows[0] ?? null;
+  const supabase = user ? await createSupabaseServerClient() : null;
 
-  const supabase = (owner || isAdmin) && claims.some((c) => c.evidence_path) ? await createSupabaseServerClient() : null;
+  const [matchesRes, claimsRpcRes, myClaimRpcRes, handoffRpcRes, contactRpcRes] = await Promise.all([
+    pool.query<{ id: string; title: string; kind: ItemKind; place: string }>(
+      `select distinct li.id, li.title, li.kind, li.place
+         from lost_items li
+        where li.status = 'abierto'
+          and (
+            li.id = $1::uuid
+            or exists (
+              select 1 from lost_item_matches m
+               where (m.item_a_id = $2::uuid and m.item_b_id = li.id)
+                  or (m.item_b_id = $2::uuid and m.item_a_id = li.id)
+            )
+          )
+        limit 6`,
+      [item.matched_id, id],
+    ),
+    supabase && (owner || isAdmin)
+      ? supabase.rpc("get_lost_item_claims_for_review", { p_item_id: id })
+      : Promise.resolve({ data: null, error: null }),
+    supabase && !owner
+      ? supabase.rpc("get_my_lost_item_claim", { p_item_id: id })
+      : Promise.resolve({ data: null, error: null }),
+    supabase
+      ? supabase.rpc("get_my_lost_item_handoff", { p_item_id: id })
+      : Promise.resolve({ data: null, error: null }),
+    supabase
+      ? supabase.rpc("get_lost_item_handoff_contact", { p_item_id: id })
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  const matches = matchesRes.rows;
+  const claims = (!claimsRpcRes.error && Array.isArray(claimsRpcRes.data)
+    ? (claimsRpcRes.data as ClaimReviewRow[])
+    : []);
+  const myClaim = (!myClaimRpcRes.error && Array.isArray(myClaimRpcRes.data)
+    ? (myClaimRpcRes.data[0] as MyClaimRow | undefined)
+    : undefined);
+  const handoff = (!handoffRpcRes.error && Array.isArray(handoffRpcRes.data)
+    ? (handoffRpcRes.data[0] as HandoffRow | undefined)
+    : undefined);
+  const contact = (!contactRpcRes.error && Array.isArray(contactRpcRes.data)
+    ? (contactRpcRes.data[0] as HandoffContact | undefined)
+    : undefined) ?? null;
+
   const claimsWithEvidence = await Promise.all(
     claims.map(async (claim) => {
       if (!supabase || !claim.evidence_path) return { ...claim, evidenceUrl: null };
@@ -115,31 +154,65 @@ export default async function ObjetoPage({
     }),
   );
 
-  const stage = item.status === "entregado" ? 3 : claims.some((claim) => claim.status === "respuesta_correcta" || claim.status === "aprobada") ? 2 : match ? 1 : 0;
+  const stage =
+    item.status === "entregado"
+      ? 3
+      : claims.some((c) => ["respuesta_correcta", "en_revision", "aprobada"].includes(c.status)) || Boolean(myClaim)
+        ? 2
+        : matches.length > 0
+          ? 1
+          : 0;
+
+  const isFinder = Boolean(user && handoff?.finder_id === user.id);
+  const isRecipient = Boolean(user && handoff?.recipient_id === user.id);
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://clubescom.vercel.app";
+  const qrValue = handoff ? `${baseUrl}/objetos/${id}?code=${handoff.token}` : "";
 
   return (
     <article className="board-page mx-auto max-w-6xl">
       <Link href="/objetos" className="inline-flex items-center gap-2 font-bold text-[#004d73] hover:underline">← Perdidos y encontrados</Link>
 
       {query.revisado && <p role="status" className="rounded-xl border border-[#bed8c1] bg-[#edf6ee] p-3 text-sm font-semibold text-[#28452d]">
-        {query.revisado === "aprobado" ? "Reclamo aprobado. El código privado y los datos de contacto ya están disponibles." : query.revisado === "rechazado" ? "Se notificó la decisión a quien reclamó." : query.revisado === "nota" ? "Punto de entrega actualizado y notificado." : "La entrega quedó confirmada."}
+        {query.revisado === "aprobado"
+          ? "Solicitud aprobada. El código QR y los datos de contacto ya están disponibles."
+          : query.revisado === "rechazado"
+            ? "Se notificó la decisión al solicitante."
+            : query.revisado === "renovado"
+              ? "Código QR renovado por 24 horas adicionales."
+              : query.revisado === "nota"
+                ? "Punto de entrega actualizado y notificado."
+                : "La entrega quedó confirmada."}
       </p>}
-      {query.error === "codigo" && <p role="alert" className="rounded-xl bg-[#fff0ec] p-3 text-sm text-[#8C1D18]">El código no coincide o ya venció.</p>}
+      {query.error === "codigo" && <p role="alert" className="rounded-xl bg-[#fff0ec] p-3 text-sm text-[#8C1D18]">El código no coincide o ya expiró.</p>}
       {query.error === "revision" && <p role="alert" className="rounded-xl bg-[#fff0ec] p-3 text-sm text-[#8C1D18]">No pudimos guardar la revisión. Puede que el reclamo ya se haya revisado.</p>}
+      {query.error === "renovar" && <p role="alert" className="rounded-xl bg-[#fff0ec] p-3 text-sm text-[#8C1D18]">No se pudo renovar el código QR en este momento.</p>}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(330px,0.8fr)]">
         <section className="space-y-4">
           <ReportNotice item={item} detail owner={owner} />
-          {match && <div className="rounded-xl border border-[#b7d4e4] bg-[#eaf5fa] p-4">
-            <p className="text-xs font-extrabold uppercase tracking-wide text-[#006699]">Posible coincidencia · {kindLabel[match.kind]}</p>
-            <Link href={`/objetos/${match.id}`} className="mt-1 inline-block font-bold text-[#004d73] underline">{match.title}</Link>
-          </div>}
+          {matches.length > 0 && (
+            <div className="space-y-2 rounded-xl border border-[#b7d4e4] bg-[#eaf5fa] p-4">
+              <p className="text-xs font-extrabold uppercase tracking-wide text-[#006699]">
+                Posibles coincidencias en reportes contrarios ({matches.length})
+              </p>
+              <ul className="space-y-1.5 text-sm">
+                {matches.map((m) => (
+                  <li key={m.id}>
+                    <Link href={`/objetos/${m.id}`} className="font-bold text-[#004d73] underline">
+                      {kindLabel[m.kind]}: {m.title}
+                    </Link>{" "}
+                    <span className="text-xs text-[#4b6775]">· {m.place}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <section aria-label="Estado del reporte" className={`${card} p-4 sm:p-5`}>
             <FlowRail current={item.status === "cerrado" ? 0 : stage} steps={[
               { title: "Reporte", detail: "Hallazgo o pérdida publicada." },
-              { title: "Coincidencia", detail: "Se comparan reportes contrarios al 80 %." },
-              { title: "Reclamo", detail: "La persona responde la pregunta de seguridad." },
-              { title: "Entrega", detail: "Quien encontró confirma el código o QR del reclamante." },
+              { title: "Coincidencia", detail: "Se vinculan reportes contrarios." },
+              { title: "Validación", detail: "Pregunta llave o aviso de hallazgo." },
+              { title: "Entrega QR", detail: "Quien resguarda confirma el QR del dueño." },
             ]} />
           </section>
         </section>
@@ -148,86 +221,229 @@ export default async function ObjetoPage({
           {item.status === "entregado" && <div className="rounded-xl border border-[#b7d4e4] bg-[#eaf5fa] p-5 font-semibold text-[#004d73]">Este objeto ya se marcó como entregado.</div>}
           {item.status === "cerrado" && <div className={`${card} p-5 text-sm text-[#667085]`}>Este reporte fue cerrado.</div>}
 
-          {owner && item.kind === "encontrado" && item.status === "abierto" && <section className={`${card} space-y-4 p-5 sm:p-6`}>
-            <div><p className="board-eyebrow">Revisión del hallazgo</p><h2 className="text-xl font-extrabold">Reclamos</h2></div>
-            {claimsWithEvidence.length === 0 ? <p className="text-sm leading-6 text-[#667085]">Todavía no hay reclamos. La respuesta de seguridad se mantiene privada.</p> : <ul className="space-y-3">
-              {claimsWithEvidence.map((claim) => <li key={claim.id} className="border-t border-dashed border-[#dcd9ce] pt-3">
-                <p className="font-bold">{claim.claimant_name}</p>
-                <p className="text-xs text-[#667085]">{claim.status === "respuesta_correcta" ? "Respuesta validada · pendiente de tu revisión" : claim.status === "aprobada" ? "Aprobado · esperando entrega" : claim.status === "rechazada" ? "Rechazado" : claim.status}</p>
-                {claim.claimant_note && <p className="mt-2 text-sm">{claim.claimant_note}</p>}
-                {claim.evidenceUrl && (
-                  <p className="mt-2 text-xs">
-                    <a href={claim.evidenceUrl} target="_blank" rel="noreferrer" className="font-bold text-[#006699] underline">
-                      Ver foto o comprobante adjunto por el reclamante →
-                    </a>
+          {owner && item.status === "abierto" && (
+            <section className={`${card} space-y-4 p-5 sm:p-6`}>
+              <div>
+                <p className="board-eyebrow">{item.kind === "encontrado" ? "Revisión del hallazgo" : "Avisos recibidos"}</p>
+                <h2 className="text-xl font-extrabold">
+                  {item.kind === "encontrado" ? "Reclamos recibidos" : "Personas que reportaron encontrarlo"}
+                </h2>
+              </div>
+              {claimsWithEvidence.length === 0 ? (
+                <p className="text-sm leading-6 text-[#667085]">
+                  {item.kind === "encontrado"
+                    ? "Todavía no hay reclamos para evaluar."
+                    : "Aún nadie ha reportado haber encontrado este objeto."}
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {claimsWithEvidence.map((claim) => {
+                    const pct = claim.answer_score !== null ? Math.round(Number(claim.answer_score) * 100) : null;
+                    const canReview = ["respuesta_correcta", "en_revision", "pendiente"].includes(claim.status);
+                    return (
+                      <li key={claim.id} className="space-y-2 border-t border-dashed border-[#dcd9ce] pt-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-bold text-[#14374a]">{claim.claimant_name}</p>
+                          {pct !== null && item.kind === "encontrado" && (
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${
+                                pct >= 72
+                                  ? "bg-[#eaf7f0] text-[#17634a]"
+                                  : "bg-[#fff6e0] text-[#7a5410]"
+                              }`}
+                            >
+                              {pct}% coincidencia
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[#667085]">
+                          {claim.status === "respuesta_correcta"
+                            ? "Coincidencia alta · pendiente de tu decisión"
+                            : claim.status === "en_revision"
+                              ? item.kind === "perdido"
+                                ? "Aviso recibido · pendiente de aprobar para generar QR"
+                                : "Coincidencia parcial · decide si corresponde al dueño real"
+                              : claim.status === "aprobada"
+                                ? "Aprobado · esperando entrega por QR"
+                                : claim.status === "rechazada"
+                                  ? "Rechazado"
+                                  : claim.status}
+                        </p>
+                        {claim.answer_text && item.kind === "encontrado" && (
+                          <p className="rounded-lg border border-[#dce8ef] bg-[#f8fbfd] px-3 py-2 text-xs text-[#19435b]">
+                            <strong>Respuesta dada:</strong> {claim.answer_text}
+                          </p>
+                        )}
+                        {claim.claimant_note && (
+                          <p className="text-sm text-[#2d4856]">
+                            <strong>Detalle:</strong> {claim.claimant_note}
+                          </p>
+                        )}
+                        {claim.evidenceUrl && (
+                          <p className="text-xs">
+                            <a href={claim.evidenceUrl} target="_blank" rel="noreferrer" className="font-bold text-[#006699] underline">
+                              Ver foto o comprobante adjunto →
+                            </a>
+                          </p>
+                        )}
+                        {canReview && (
+                          <form action={reviewClaim} className="mt-2 space-y-2">
+                            <input type="hidden" name="claim_id" value={claim.id} />
+                            <input type="hidden" name="item_id" value={item.id} />
+                            <label className={label}>
+                              Nota para la persona (opcional)
+                              <textarea className={`${input} mt-1 min-h-16`} name="review_note" maxLength={500} />
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                              <button className={btn} name="approve" value="true">
+                                {item.kind === "perdido" ? "Es mi objeto · generar QR" : "Aceptar como dueño"}
+                              </button>
+                              <button className={btnGhost} name="approve" value="false">Rechazar</button>
+                            </div>
+                          </form>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <form action={closeItem} className="border-t border-dashed border-[#dcd9ce] pt-3">
+                <input type="hidden" name="id" value={item.id} />
+                <button className={`${btnGhost} w-full`}>Cerrar reporte</button>
+              </form>
+            </section>
+          )}
+
+          {!owner && item.status === "abierto" && !isRecipient && !isFinder && (
+            <section className={`${card} space-y-3 p-5 sm:p-6`}>
+              <h2 className="text-xl font-extrabold">
+                {item.kind === "encontrado" ? "Reclamar este objeto" : "¿Lo encontraste?"}
+              </h2>
+              {!user ? (
+                <p className="text-sm leading-6 text-[#667085]">
+                  <Link href="/entrar" className="font-bold text-[#006699] underline">Inicia sesión</Link>{" "}
+                  {item.kind === "encontrado" ? "para responder la pregunta llave." : "para avisar que encontraste este objeto."}
+                </p>
+              ) : myClaim ? (
+                <div className="space-y-2 rounded-xl border border-[#cfe2ec] bg-[#f4f9fc] p-4 text-sm">
+                  <p className="font-bold text-[#14374a]">
+                    {myClaim.status === "aprobada"
+                      ? "Solicitud aprobada"
+                      : myClaim.status === "rechazada"
+                        ? "Solicitud rechazada"
+                        : "Tu solicitud está en revisión"}
                   </p>
-                )}
-                {claim.status === "respuesta_correcta" && <form action={reviewClaim} className="mt-3 space-y-2">
-                  <input type="hidden" name="claim_id" value={claim.id} />
+                  {myClaim.answer_score !== null && item.kind === "encontrado" && (
+                    <p className="text-xs text-[#4b6775]">
+                      Coincidencia registrada: {Math.round(Number(myClaim.answer_score) * 100)}%
+                    </p>
+                  )}
+                  {myClaim.review_note && (
+                    <p className="text-xs text-[#355260]">Nota de revisión: {myClaim.review_note}</p>
+                  )}
+                </div>
+              ) : item.kind === "encontrado" ? (
+                item.security_question ? (
+                  <ClaimForm id={item.id} question={item.security_question} mode="encontrado" />
+                ) : (
+                  <p className="text-sm text-[#667085]">Este reporte no tiene pregunta de seguridad.</p>
+                )
+              ) : (
+                <ClaimForm
+                  id={item.id}
+                  question="Si encontraste este objeto en ESCOM, describe dónde lo tienes para coordinar la entrega con su dueño."
+                  mode="perdido"
+                />
+              )}
+            </section>
+          )}
+
+          {isRecipient && handoff && item.status === "abierto" && (
+            <section className={`${card} space-y-3 p-5 sm:p-6`}>
+              <div className="rounded-xl border border-[#b7d4e4] bg-[#eaf5fa] p-4 text-center">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-[#004d73]">
+                  Tu código QR temporal para recibir el objeto
+                </p>
+                <p className="mt-2 font-mono text-3xl font-extrabold tracking-[.2em] text-[#006699]">{handoff.token}</p>
+                <div className="mx-auto mt-4 grid w-fit place-items-center rounded-lg bg-white p-3">
+                  <QRCodeSVG value={qrValue} size={176} title="Código QR temporal de entrega" />
+                </div>
+                <p className="mt-2 text-xs leading-5 text-[#526170]">
+                  {handoff.is_expired ? (
+                    <span className="font-bold text-[#8C1D18]">Este código expiró. Renuévalo antes de la entrega.</span>
+                  ) : (
+                    <>Válido hasta: {formatMxDateTime(handoff.expires_at)} (CDMX). Muéstralo solo al recibir tu objeto.</>
+                  )}
+                </p>
+              </div>
+              <form action={renewHandoff}>
+                <input type="hidden" name="item_id" value={item.id} />
+                <button className={`${btnGhost} w-full`}>Renovar código QR (+24h)</button>
+              </form>
+            </section>
+          )}
+
+          {contact && (
+            <section className={`${card} space-y-3 p-5 sm:p-6`}>
+              <p className="board-eyebrow">Contacto para acordar la entrega</p>
+              <h2 className="text-lg font-extrabold text-[#173142]">Coordina lugar y horario en ESCOM</h2>
+              <dl className="space-y-2 rounded-xl border border-[#b7d4e4] bg-[#eaf5fa] p-3 text-sm">
+                <div>
+                  <dt className="text-xs font-bold uppercase text-[#526170]">Quien entrega / resguarda</dt>
+                  <dd className="font-semibold text-[#173142]">{contact.finder_name} · <a href={`mailto:${contact.finder_email}`} className="text-[#006699] underline">{contact.finder_email}</a></dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-bold uppercase text-[#526170]">Dueño / receptor</dt>
+                  <dd className="font-semibold text-[#173142]">{contact.recipient_name} · <a href={`mailto:${contact.recipient_email}`} className="text-[#006699] underline">{contact.recipient_email}</a></dd>
+                </div>
+              </dl>
+              {contact.meeting_note && <p className="rounded-lg border border-[#dcd9ce] bg-[#fffdf7] p-3 text-sm"><strong>Acuerdo actual:</strong> {contact.meeting_note}</p>}
+              {item.status === "abierto" && (
+                <form action={updateMeetingNote} className="space-y-2 border-t border-dashed border-[#dcd9ce] pt-3">
                   <input type="hidden" name="item_id" value={item.id} />
-                  <label className={label}>Nota para la persona (opcional)<textarea className={`${input} mt-1 min-h-16`} name="review_note" maxLength={500} /></label>
-                  <div className="flex flex-wrap gap-2">
-                    <button className={btn} name="approve" value="true">Aprobar reclamo</button>
-                    <button className={btnGhost} name="approve" value="false">Rechazar</button>
-                  </div>
-                </form>}
-              </li>)}
-            </ul>}
-            <form action={closeItem} className="border-t border-dashed border-[#dcd9ce] pt-3">
-              <input type="hidden" name="id" value={item.id} />
-              <button className={`${btnGhost} w-full`}>Cerrar reporte</button>
-            </form>
-          </section>}
+                  <input type="hidden" name="handoff_id" value={contact.handoff_id} />
+                  <label className={label}>
+                    Proponer o actualizar lugar y hora en la escuela
+                    <textarea
+                      className={`${input} mt-1 min-h-16`}
+                      name="meeting_note"
+                      maxLength={500}
+                      defaultValue={contact.meeting_note ?? ""}
+                      placeholder="Ej. Hoy a las 14:30 en las mesas frente a Biblioteca (Edificio de Gobierno)"
+                    />
+                  </label>
+                  <button className={`${btnGhost} w-full`}>Guardar nota de encuentro</button>
+                </form>
+              )}
+            </section>
+          )}
 
-          {!owner && item.status === "abierto" && item.kind === "encontrado" && <section className={`${card} space-y-3 p-5 sm:p-6`}>
-            <h2 className="text-xl font-extrabold">Reclamar este objeto</h2>
-            {user && handoffs[0] ? <div className="rounded-xl border border-[#b7d4e4] bg-[#eaf5fa] p-4 text-center">
-              <p className="text-xs font-extrabold uppercase tracking-wide text-[#004d73]">Código de entrega para presentar</p>
-              <p className="mt-2 font-mono text-3xl font-extrabold tracking-[.2em] text-[#006699]">{handoffs[0].token}</p>
-              <div className="mx-auto mt-4 grid w-fit place-items-center rounded-lg bg-white p-3">
-                <QRCodeSVG value={handoffs[0].token} size={176} title="Código QR temporal de entrega" />
-              </div>
-              <p className="mt-2 text-xs leading-5 text-[#526170]">Muestra el código o el QR a quien resguarda el objeto. Vence en 24 horas.</p>
-            </div> : user && item.security_question ? <ClaimForm id={item.id} question={item.security_question} /> : !user ? <p className="text-sm leading-6 text-[#667085]"><Link href="/entrar" className="font-bold text-[#006699] underline">Inicia sesión</Link> para responder la pregunta y reclamar.</p> : <p className="text-sm text-[#667085]">Este reporte no tiene pregunta de seguridad.</p>}
-          </section>}
-
-          {owner && item.kind === "perdido" && item.status === "abierto" && <section className={`${card} p-5`}>
-            <p className="board-eyebrow">Tu reporte</p><h2 className="text-lg font-extrabold">Cuando alguien encuentre el objeto</h2>
-            <p className="mt-2 text-sm leading-6 text-[#667085]">La plataforma te avisará si aparece un reporte de hallazgo parecido.</p>
-            <form action={closeItem} className="mt-4 border-t border-dashed border-[#dcd9ce] pt-3">
-              <input type="hidden" name="id" value={item.id} /><button className={`${btnGhost} w-full`}>Cerrar reporte</button>
-            </form>
-          </section>}
-
-          {contact && <section className={`${card} space-y-3 p-5 sm:p-6`}>
-            <p className="board-eyebrow">Contacto para acordar la entrega</p>
-            <h2 className="text-lg font-extrabold text-[#173142]">Coordina lugar y horario en ESCOM</h2>
-            <dl className="space-y-2 rounded-xl border border-[#b7d4e4] bg-[#eaf5fa] p-3 text-sm">
-              <div>
-                <dt className="text-xs font-bold uppercase text-[#526170]">Quien resguarda el objeto</dt>
-                <dd className="font-semibold text-[#173142]">{contact.finder_name} · <a href={`mailto:${contact.finder_email}`} className="text-[#006699] underline">{contact.finder_email}</a></dd>
-              </div>
-              <div>
-                <dt className="text-xs font-bold uppercase text-[#526170]">Quien reclama</dt>
-                <dd className="font-semibold text-[#173142]">{contact.recipient_name} · <a href={`mailto:${contact.recipient_email}`} className="text-[#006699] underline">{contact.recipient_email}</a></dd>
-              </div>
-            </dl>
-            {contact.meeting_note && <p className="rounded-lg border border-[#dcd9ce] bg-[#fffdf7] p-3 text-sm"><strong>Acuerdo actual:</strong> {contact.meeting_note}</p>}
-            {item.status === "abierto" && <form action={updateMeetingNote} className="space-y-2 border-t border-dashed border-[#dcd9ce] pt-3">
-              <input type="hidden" name="item_id" value={item.id} />
-              <input type="hidden" name="handoff_id" value={contact.handoff_id} />
-              <label className={label}>Proponer o actualizar lugar y hora en la escuela<textarea className={`${input} mt-1 min-h-16`} name="meeting_note" maxLength={500} defaultValue={contact.meeting_note ?? ""} placeholder="Ej. Hoy a las 14:30 frente a Prefectura (Edificio de Gobierno)" /></label>
-              <button className={`${btnGhost} w-full`}>Guardar nota de encuentro</button>
-            </form>}
-          </section>}
-
-          {owner && item.kind === "encontrado" && claims.some((claim) => claim.status === "aprobada") && <section className={`${card} p-5`}>
-            <p className="board-eyebrow">Entrega</p><h2 className="text-lg font-extrabold">Verifica a quien recibe</h2>
-            <p className="mt-2 text-sm leading-6 text-[#667085]">Escanea el código QR con la cámara o pide a la persona que reclama el código temporal de 12 caracteres.</p>
-            {claims.filter((claim) => claim.status === "aprobada").map((claim) => (
-              <QrDeliveryVerifyForm key={claim.id} itemId={item.id} handoffId={claim.handoff_id ?? ""} action={confirmDelivery} />
-            ))}
-          </section>}
+          {isFinder && handoff && item.status === "abierto" && (
+            <section className={`${card} p-5`}>
+              <p className="board-eyebrow">Confirmar entrega presencial</p>
+              <h2 className="text-lg font-extrabold">Escanea o ingresa el código del dueño</h2>
+              <p className="mt-2 text-sm leading-6 text-[#667085]">
+                Escanea el código QR del receptor con tu cámara, sube una captura o escribe los 12 caracteres al entregar el objeto.
+              </p>
+              {handoff.is_expired && (
+                <p className="mt-2 text-xs font-bold text-[#8C1D18]">
+                  El código temporal expiró. Pide al receptor renovarlo o presiona renovar abajo.
+                </p>
+              )}
+              <QrDeliveryVerifyForm
+                itemId={item.id}
+                handoffId={handoff.handoff_id}
+                initialCode={query.code ?? ""}
+                action={confirmDelivery}
+              />
+              {handoff.is_expired && (
+                <form action={renewHandoff} className="mt-2">
+                  <input type="hidden" name="item_id" value={item.id} />
+                  <button className={`${btnGhost} w-full`}>Renovar código QR (+24h)</button>
+                </form>
+              )}
+            </section>
+          )}
 
           {isAdmin && item.status === "abierto" && (
             <section className={`${card} space-y-2 p-5`}>

@@ -28,7 +28,7 @@ export function QuestionForm({
   const [targetGuideId, setTargetGuideId] = useState("");
   const area = office ?? selectedArea ?? (defaultArea && isArea(defaultArea) ? defaultArea : "general");
   const [title, setTitle] = useState("");
-  const [similar, setSimilar] = useState<{ id: string; title: string; area: string; similarity: number }[]>([]);
+  const [similar, setSimilar] = useState<{ id: string; title: string; area: string; status: string; similarity: number }[]>([]);
   const [searching, startSearching] = useTransition();
 
   useEffect(() => {
@@ -172,22 +172,36 @@ export function QuestionForm({
       <p className="text-xs text-[#667085]">
         Si ya existe una publicación muy parecida, te la mostramos y no publicamos un duplicado.
       </p>
-      {similar.length > 0 && (
+      {(searching || similar.length > 0) && (
         <div className="rounded-lg border border-[#d5e4ee] bg-[#e6f3fa] p-3 text-sm" aria-live="polite">
-          <p className="font-semibold">{searching ? "Buscando publicaciones parecidas…" : "Publicaciones parecidas en esta área:"}</p>
-          <ul className="mt-2 space-y-1">
-            {similar.map((question) => (
-              <li key={question.id}>
-                <Link
-                  className="text-[#006699] underline"
-                  href={`/foro?duda=${question.id}#duda-${question.id}`}
-                  onClick={() => onSelectQuestion?.(question.id)}
-                >
-                  {question.title}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <p className="font-semibold">
+            {searching ? "Buscando publicaciones parecidas…" : "Publicaciones parecidas existentes:"}
+          </p>
+          {similar.length > 0 && (
+            <ul className="mt-2 space-y-1.5">
+              {similar.map((question) => (
+                <li key={question.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <Link
+                    className="text-[#006699] underline"
+                    href={`/foro?duda=${question.id}#duda-${question.id}`}
+                    onClick={(e) => {
+                      if (onSelectQuestion) {
+                        e.preventDefault();
+                        onSelectQuestion(question.id);
+                      }
+                    }}
+                  >
+                    {question.title}
+                  </Link>
+                  {question.status === "respondida" && (
+                    <span className="rounded bg-[#dff1e5] px-1.5 py-0.5 text-[11px] font-bold text-[#195335]">
+                      ✓ Respondida
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
       <label className={label}>

@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { ImageUploadField } from "@/components/image-upload-field";
+import { formatMxDateTime, toMxLocalInputValue } from "@/lib/datetime";
+import { uploadFileDirectly } from "@/lib/direct-upload";
 import { btn, btnGhost, input, label } from "@/lib/ui";
 import {
+  advisorRespondAppointment,
   approveProposal,
   claimInactiveProposal,
   completeClubAppointment,
+  confirmAdvisorByTeacher,
   createClubDirectly,
   createClubEvent,
   createClubPost,
@@ -31,8 +35,15 @@ import {
   updateProposalDetails,
   uploadProposalDocument,
   verifyAdvisorCode,
+  withdrawInterest,
 } from "./actions";
 import { kindLabel, type ClubKind, type ClubState } from "./format";
+import {
+  MAX_CLUB_JOIN_QUESTIONS,
+  parseJoinQuestions,
+  type ClubJoinQuestion,
+  type ClubJoinQuestionType,
+} from "./questions";
 import { findSimilarClubsOrProposals, type CatalogEntry } from "./similarity";
 
 function FieldError({ state }: { state: ClubState }) {
@@ -49,6 +60,147 @@ function FieldError({ state }: { state: ClubState }) {
         </p>
       )}
     </>
+  );
+}
+
+function JoinQuestionnaireBuilder({ initial = [] }: { initial?: ClubJoinQuestion[] }) {
+  const [questions, setQuestions] = useState<ClubJoinQuestion[]>(initial);
+
+  function addQuestion() {
+    if (questions.length >= MAX_CLUB_JOIN_QUESTIONS) return;
+    setQuestions((prev) => [
+      ...prev,
+      {
+        id: `q_${Date.now().toString(36)}_${prev.length + 1}`,
+        prompt: "",
+        type: "text",
+        required: true,
+        options: ["Sí tengo experiencia", "Estoy empezando"],
+      },
+    ]);
+  }
+
+  function updateAt(index: number, patch: Partial<ClubJoinQuestion>) {
+    setQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, ...patch } : q)));
+  }
+
+  function removeAt(index: number) {
+    setQuestions((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  const serialized = useMemo(
+    () =>
+      JSON.stringify(
+        questions
+          .filter((q) => q.prompt.trim().length > 0)
+          .map((q) => ({
+            id: q.id,
+            prompt: q.prompt.trim(),
+            type: q.type,
+            required: q.required,
+            options:
+              q.type === "choice"
+                ? (q.options ?? []).map((o) => o.trim()).filter(Boolean)
+                : undefined,
+          })),
+      ),
+    [questions],
+  );
+
+  return (
+    <div className="space-y-3 rounded-xl border border-[#d6e4ed] bg-[#f8fbfd] p-3.5">
+      <input type="hidden" name="join_questions_json" value={serialized} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-wide text-[#005580]">
+            Primer filtro de ingreso (cuestionario estructurado)
+          </p>
+          <p className="text-xs text-[#516875]">
+            Quien solicite unirse deberá responder estas preguntas antes de que revises su solicitud.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={addQuestion}
+          disabled={questions.length >= MAX_CLUB_JOIN_QUESTIONS}
+          className="rounded-lg border border-[#006699] bg-white px-3 py-1.5 text-xs font-extrabold text-[#005580] hover:bg-[#eaf4f8] disabled:opacity-50"
+        >
+          + Agregar pregunta ({questions.length}/{MAX_CLUB_JOIN_QUESTIONS})
+        </button>
+      </div>
+
+      {questions.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-[#c7dbe6] bg-white px-3 py-2 text-xs text-[#647b87]">
+          Sin preguntas estructuradas. Puedes agregar preguntas de respuesta abierta, opción múltiple o Sí/No.
+        </p>
+      ) : (
+        <div className="space-y-2.5">
+          {questions.map((q, idx) => (
+            <div key={q.id} className="space-y-2 rounded-lg border border-[#d5e3eb] bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold text-[#19435b]">Pregunta {idx + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => removeAt(idx)}
+                  className="text-xs font-bold text-[#8C1D18] hover:underline"
+                >
+                  Quitar
+                </button>
+              </div>
+              <input
+                className={input}
+                value={q.prompt}
+                onChange={(e) => updateAt(idx, { prompt: e.target.value })}
+                maxLength={200}
+                placeholder="Ej. ¿En qué semestre cursas y qué horario tienes libre?"
+              />
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                <select
+                  className={input}
+                  value={q.type}
+                  onChange={(e) =>
+                    updateAt(idx, {
+                      type: e.target.value as ClubJoinQuestionType,
+                      options:
+                        e.target.value === "choice" && (!q.options || q.options.length < 2)
+                          ? ["Opción 1", "Opción 2"]
+                          : q.options,
+                    })
+                  }
+                >
+                  <option value="text">Respuesta abierta</option>
+                  <option value="choice">Opción múltiple</option>
+                  <option value="boolean">Sí / No</option>
+                </select>
+                <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#294859]">
+                  <input
+                    type="checkbox"
+                    checked={q.required}
+                    onChange={(e) => updateAt(idx, { required: e.target.checked })}
+                  />
+                  Obligatoria
+                </label>
+              </div>
+              {q.type === "choice" && (
+                <label className="block text-[11px] font-semibold text-[#47606e]">
+                  Opciones separadas por coma (mínimo 2, máx. 6)
+                  <input
+                    className={`${input} mt-1`}
+                    value={(q.options ?? []).join(", ")}
+                    onChange={(e) =>
+                      updateAt(idx, {
+                        options: e.target.value.split(",").map((s) => s.trim()),
+                      })
+                    }
+                    placeholder="Básico, Intermedio, Avanzado"
+                  />
+                </label>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -123,6 +275,12 @@ export function DirectClubForm({
           ))}
         </select>
       </label>
+      <ImageUploadField name="logo" label="Logo del club (opcional · JPG, PNG o WEBP)" compact />
+      <label className={label}>
+        Indicaciones o enlace de filtro externo (opcional)
+        <input className={input} name="join_requirements" maxLength={500} placeholder="Ej. Traer laptop o llenar formulario complementario" />
+      </label>
+      <JoinQuestionnaireBuilder initial={[]} />
       <FieldError state={state} />
       <button className={btn} disabled={pending || !students.length || !professors.length}>
         {pending ? "Registrando…" : "Registrar club"}
@@ -444,6 +602,17 @@ export function InterestButton({ proposalId }: { proposalId: string }) {
   return <ActionForm action={markInterest} fields={{ proposal_id: proposalId }} label="Me interesa" />;
 }
 
+export function WithdrawInterestButton({ proposalId }: { proposalId: string }) {
+  return (
+    <ActionForm
+      action={withdrawInterest}
+      fields={{ proposal_id: proposalId }}
+      label="Retirar mi respaldo"
+      variant="ghost"
+    />
+  );
+}
+
 export function ClaimInactiveProposalButton({
   proposalId,
   proposalName = "esta propuesta",
@@ -629,6 +798,55 @@ export function VerifyAdvisorCodeForm({ proposalId }: { proposalId: string }) {
   );
 }
 
+export function AdvisorConfirmForm({ proposalId }: { proposalId: string }) {
+  const [state, action, pending] = useActionState(confirmAdvisorByTeacher, {});
+  return (
+    <form action={action} className="space-y-3">
+      <input type="hidden" name="proposal_id" value={proposalId} />
+      <FieldError state={state} />
+      <button className={btn} disabled={pending}>
+        {pending ? "Confirmando…" : "Confirmar que coordinaré este club"}
+      </button>
+    </form>
+  );
+}
+
+export function AdvisorMeetingResponseForm({
+  proposalId,
+  existingNote,
+}: {
+  proposalId: string;
+  existingNote?: string | null;
+}) {
+  const [state, action, pending] = useActionState(advisorRespondAppointment, {});
+  const [note, setNote] = useState(existingNote ?? "");
+  return (
+    <form action={action} className="space-y-3 rounded-xl border border-[#cfe2ec] bg-white p-3.5">
+      <input type="hidden" name="proposal_id" value={proposalId} />
+      <label className={label}>
+        Disponibilidad o comentario del profesor coordinador (opcional al confirmar; obligatorio si solicitas ajuste)
+        <input
+          className={input}
+          name="advisor_note"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          maxLength={400}
+          placeholder="Ej. Confirmo asistencia, o propongo miércoles 13:00 h"
+        />
+      </label>
+      <FieldError state={state} />
+      <div className="flex flex-wrap gap-2">
+        <button className={btn} name="confirm" value="1" disabled={pending}>
+          {pending ? "Guardando…" : "Confirmar asistencia a la reunión"}
+        </button>
+        <button className={btnGhost} name="confirm" value="0" disabled={pending || note.trim().length < 4}>
+          Sugerir otro horario
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function FormalClubRequestForm({
   proposalId,
   objectives,
@@ -636,6 +854,8 @@ export function FormalClubRequestForm({
   activitiesDetail,
   requestedSpaces,
   communityImpact,
+  planUrl,
+  hasPlanFile,
   targetOfficeLabel,
 }: {
   proposalId: string;
@@ -644,20 +864,70 @@ export function FormalClubRequestForm({
   activitiesDetail: string;
   requestedSpaces: string;
   communityImpact: string;
+  planUrl?: string | null;
+  hasPlanFile?: boolean;
   targetOfficeLabel: string;
 }) {
   const [state, action, pending] = useActionState(submitFormalClubRequest, {});
+  const [spaces, setSpaces] = useState(requestedSpaces);
+  const [uploadedPlanPath, setUploadedPlanPath] = useState("");
+  const [planUploading, setPlanUploading] = useState(false);
+  const [planUploadError, setPlanUploadError] = useState("");
+  const [planFileName, setPlanFileName] = useState("");
+
+  function appendPreset(preset: string) {
+    setSpaces((prev) => {
+      const clean = prev.trim();
+      if (!clean) return preset;
+      if (clean.toLowerCase().includes(preset.toLowerCase())) return clean;
+      return `${clean}, ${preset}`;
+    });
+  }
+
+  async function onPlanFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    setPlanUploadError("");
+    setUploadedPlanPath("");
+    setPlanFileName("");
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      setPlanUploadError("El plan de trabajo debe ser un archivo PDF.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setPlanUploadError("El PDF excede 10 MB.");
+      e.target.value = "";
+      return;
+    }
+    setPlanUploading(true);
+    try {
+      const res = await uploadFileDirectly(file, {
+        bucket: "club-documents",
+        contextId: proposalId,
+      });
+      setUploadedPlanPath(res.path);
+      setPlanFileName(file.name);
+      e.target.value = "";
+    } catch (err) {
+      setPlanUploadError(err instanceof Error ? err.message : "No se pudo preparar el PDF.");
+    } finally {
+      setPlanUploading(false);
+    }
+  }
+
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} className="space-y-3.5">
       <input type="hidden" name="proposal_id" value={proposalId} />
+      {uploadedPlanPath && <input type="hidden" name="plan_file_uploaded_path" value={uploadedPlanPath} />}
       <label className={label}>
-        Objetivos del club
+        Objetivos del club (mín. 10 caracteres)
         <textarea
           className={`${input} min-h-20`}
           name="objectives"
           defaultValue={objectives}
           required
-          minLength={5}
+          minLength={10}
           maxLength={2000}
         />
       </label>
@@ -670,41 +940,87 @@ export function FormalClubRequestForm({
           required
           minLength={10}
           maxLength={2000}
+          placeholder="Ej. Febrero–marzo: inducción y talleres semanales; abril–mayo: proyecto integrador y muestra en ESCOM..."
         />
       </label>
       <label className={label}>
-        Detalle de actividades por ejecutar
+        Detalle de actividades por ejecutar (talleres, asesorías, eventos)
         <textarea
           className={`${input} min-h-20`}
           name="activities_detail"
           defaultValue={activitiesDetail}
-          maxLength={2000}
-        />
-      </label>
-      <label className={label}>
-        Espacios y tiempos solicitados en ESCOM
-        <input
-          className={input}
-          name="requested_spaces"
-          defaultValue={requestedSpaces}
           required
-          minLength={3}
-          maxLength={600}
-          placeholder="Ej. Salón 2104 · Martes y jueves de 15:00 a 17:00 hrs"
+          minLength={10}
+          maxLength={2000}
+          placeholder="Describe las dinámicas, sesiones y metas concretas de cada actividad"
         />
       </label>
+      <div className="space-y-1.5">
+        <label className={label}>
+          Espacios y tiempos solicitados en ESCOM
+          <input
+            className={input}
+            name="requested_spaces"
+            value={spaces}
+            onChange={(e) => setSpaces(e.target.value)}
+            required
+            minLength={3}
+            maxLength={600}
+            placeholder="Ej. Salón 2104 · Martes y jueves de 15:00 a 17:00 hrs"
+          />
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {SPACE_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => appendPreset(preset)}
+              className="rounded-full border border-[#c7dbe6] bg-[#f4f9fc] px-2.5 py-1 text-[11px] font-bold text-[#005580] hover:bg-[#e5f2f9]"
+            >
+              + {preset}
+            </button>
+          ))}
+        </div>
+      </div>
       <label className={label}>
-        Impacto comunitario
+        Contribución y beneficios a la comunidad ESCOM
         <textarea
-          className={`${input} min-h-16`}
+          className={`${input} min-h-20`}
           name="community_impact"
           defaultValue={communityImpact}
+          required
+          minLength={10}
           maxLength={2000}
+          placeholder="Explica cómo aporta el club a estudiantes y a la comunidad politécnica"
         />
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={label}>
-          Opción 1 de fecha y hora para cita
+          Plan de trabajo o reglamento en PDF {hasPlanFile ? "(ya hay uno cargado; sube otro para reemplazar)" : "(opcional, máx. 10 MB)"}
+          <input
+            className={input}
+            name={uploadedPlanPath ? undefined : "plan_file"}
+            type="file"
+            accept="application/pdf"
+            onChange={onPlanFileChange}
+            disabled={planUploading}
+          />
+          {planUploading && <span className="mt-1 block text-xs text-[#006699]">Subiendo PDF…</span>}
+          {planFileName && (
+            <span className="mt-1 block text-xs font-semibold text-[#17634a]">
+              PDF listo: {planFileName}
+            </span>
+          )}
+          {planUploadError && <span className="mt-1 block text-xs text-[#8C1D18]">{planUploadError}</span>}
+        </label>
+        <label className={label}>
+          Enlace externo del proyecto (opcional)
+          <input className={input} name="plan_url" type="url" defaultValue={planUrl ?? ""} placeholder="https://" />
+        </label>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={label}>
+          Opción 1 de fecha y hora para junta conjunta (CDMX)
           <input className={input} type="datetime-local" name="slot1" required />
         </label>
         <label className={label}>
@@ -713,7 +1029,7 @@ export function FormalClubRequestForm({
         </label>
       </div>
       <FieldError state={state} />
-      <button className={btn} disabled={pending}>
+      <button className={btn} disabled={pending || planUploading}>
         {pending ? "Enviando registro formal…" : `Enviar registro formal a ${targetOfficeLabel}`}
       </button>
     </form>
@@ -756,26 +1072,97 @@ export function ApproveButton({ proposalId }: { proposalId: string }) {
   return <ActionForm action={approveProposal} fields={{ proposal_id: proposalId }} label="Aprobar y registrar club" />;
 }
 
-export function JoinButton({ clubId, joinRequirements }: { clubId: string; joinRequirements?: string | null }) {
+export function JoinButton({
+  clubId,
+  joinRequirements,
+  joinQuestions = [],
+}: {
+  clubId: string;
+  joinRequirements?: string | null;
+  joinQuestions?: ClubJoinQuestion[];
+}) {
   const [state, action, pending] = useActionState(requestMembership, {});
-  if (!joinRequirements?.trim()) {
+  const questions = parseJoinQuestions(joinQuestions);
+  const hasNotesReq = Boolean(joinRequirements?.trim());
+
+  if (questions.length === 0 && !hasNotesReq) {
     return <ActionForm action={requestMembership} fields={{ club_id: clubId }} label="Solicitar unirme" />;
   }
+
   return (
-    <form action={action} className="space-y-2">
+    <form action={action} className="space-y-3">
       <input type="hidden" name="club_id" value={clubId} />
-      <p className="text-xs font-semibold text-[#264a60]">Requisitos de ingreso: {joinRequirements}</p>
-      <textarea
-        className={`${input} min-h-16 text-xs`}
-        name="application_note"
-        required
-        minLength={3}
-        maxLength={600}
-        placeholder="Escribe tu respuesta a los requisitos de ingreso"
-      />
+      {hasNotesReq && (
+        <div className="rounded-xl border border-[#cfe2ec] bg-[#f4f9fc] p-3 text-xs leading-relaxed text-[#21465c]">
+          <p className="font-extrabold uppercase tracking-wide text-[#005580]">Indicaciones del club</p>
+          <p className="mt-1 whitespace-pre-line">{joinRequirements}</p>
+        </div>
+      )}
+
+      {questions.map((q, idx) => (
+        <div key={q.id} className="space-y-1.5 rounded-xl border border-[#e0e8ed] bg-white p-3">
+          <p className="text-xs font-bold text-[#173a4c]">
+            {idx + 1}. {q.prompt}{" "}
+            {q.required && <span className="text-[#8C1D18]" aria-hidden="true">*</span>}
+          </p>
+          {q.type === "text" && (
+            <textarea
+              className={`${input} min-h-16 text-xs`}
+              name={`answer_${q.id}`}
+              required={q.required}
+              maxLength={600}
+              placeholder="Escribe tu respuesta…"
+            />
+          )}
+          {q.type === "choice" && q.options && (
+            <div className="space-y-1.5 pt-1">
+              {q.options.map((opt) => (
+                <label
+                  key={opt}
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#e3ecee] px-2.5 py-1.5 text-xs text-[#234254] hover:bg-[#f4f9fc]"
+                >
+                  <input type="radio" name={`answer_${q.id}`} value={opt} required={q.required} />
+                  <span>{opt}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          {q.type === "boolean" && (
+            <div className="flex flex-wrap gap-3 pt-1">
+              {(["Sí", "No"] as const).map((opt) => (
+                <label
+                  key={opt}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#e3ecee] px-3 py-1.5 text-xs font-semibold text-[#234254] hover:bg-[#f4f9fc]"
+                >
+                  <input type="radio" name={`answer_${q.id}`} value={opt} required={q.required} />
+                  <span>{opt}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {(hasNotesReq || questions.length > 0) && (
+        <label className={label}>
+          {questions.length === 0 ? "Respuesta a los requisitos de ingreso" : "Comentarios adicionales (opcional)"}
+          <textarea
+            className={`${input} min-h-16 text-xs`}
+            name="application_note"
+            required={questions.length === 0 && hasNotesReq}
+            minLength={questions.length === 0 && hasNotesReq ? 3 : undefined}
+            maxLength={600}
+            placeholder={
+              questions.length === 0
+                ? "Escribe tu respuesta a los requisitos de ingreso"
+                : "Algo más que quieras comentar al responsable del club"
+            }
+          />
+        </label>
+      )}
       <FieldError state={state} />
       <button className={btn} disabled={pending}>
-        {pending ? "Enviando…" : "Solicitar unirme"}
+        {pending ? "Enviando solicitud…" : "Enviar solicitud al club"}
       </button>
     </form>
   );
@@ -810,27 +1197,142 @@ export function RemoveMemberButton({ clubId, userId }: { clubId: string; userId:
   );
 }
 
-export function ProposalDocumentForm({ proposalId }: { proposalId: string }) {
+const DOC_TYPE_OPTIONS = [
+  { value: "credencial_ipn", label: "Credencial IPN" },
+  { value: "boleta", label: "Boleta / Tira de materias" },
+  { value: "firma", label: "Firma" },
+  { value: "vigencia_ims", label: "Vigencia de derechos IMSS" },
+] as const;
+
+export function ProposalDocumentForm({
+  proposalId,
+  existingDocs = [],
+}: {
+  proposalId: string;
+  existingDocs?: { id: string; document_type: string; status: string; review_note?: string | null }[];
+}) {
   const [state, action, pending] = useActionState(uploadProposalDocument, {});
+  const docMap = new Map(existingDocs.map((d) => [d.document_type, d]));
+  const firstMissing =
+    DOC_TYPE_OPTIONS.find((opt) => {
+      const d = docMap.get(opt.value);
+      return !d || d.status === "requiere_correccion";
+    })?.value ?? "credencial_ipn";
+
+  const [docType, setDocType] = useState<string>(firstMissing);
+  const [uploadedPath, setUploadedPath] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState("");
+
+  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    setUploadErr("");
+    setUploadedPath("");
+    setFileName("");
+    if (!file) return;
+    if (!["application/pdf", "image/jpeg", "image/png"].includes(file.type)) {
+      setUploadErr("Usa PDF, JPG o PNG.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadErr("El archivo supera los 10 MB.");
+      e.target.value = "";
+      return;
+    }
+    setUploading(true);
+    try {
+      const res = await uploadFileDirectly(file, {
+        bucket: "club-documents",
+        contextId: proposalId,
+      });
+      setUploadedPath(res.path);
+      setFileName(file.name);
+      e.target.value = "";
+    } catch (err) {
+      setUploadErr(err instanceof Error ? err.message : "No se pudo subir el archivo.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="proposal_id" value={proposalId} />
+      {uploadedPath && <input type="hidden" name="document_uploaded_path" value={uploadedPath} />}
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        {DOC_TYPE_OPTIONS.map((opt) => {
+          const cur = docMap.get(opt.value);
+          const selected = docType === opt.value;
+          const badge = !cur
+            ? "Pendiente"
+            : cur.status === "requiere_correccion"
+              ? "Corregir"
+              : "Recibido";
+          const badgeClass = !cur
+            ? "bg-[#f3f4ef] text-[#596b75]"
+            : cur.status === "requiere_correccion"
+              ? "bg-[#fff1ef] text-[#8C1D18]"
+              : "bg-[#eaf7f0] text-[#17634a]";
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                setDocType(opt.value);
+                setUploadedPath("");
+                setFileName("");
+                setUploadErr("");
+              }}
+              className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs transition ${
+                selected
+                  ? "border-[#006699] bg-[#eef7fb] ring-1 ring-[#006699]"
+                  : "border-[#d8e3ea] bg-white hover:bg-[#f6fafc]"
+              }`}
+            >
+              <span className="font-bold text-[#14374a]">{opt.label}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${badgeClass}`}>
+                {badge}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <input type="hidden" name="document_type" value={docType} />
+      {docMap.get(docType)?.review_note && (
+        <p className="rounded-lg border border-[#ebc2be] bg-[#fff5f4] px-3 py-2 text-xs text-[#8C1D18]">
+          Observación sobre este documento: {docMap.get(docType)?.review_note}
+        </p>
+      )}
       <label className={label}>
-        Documento
-        <select className={input} name="document_type" required defaultValue="credencial_ipn">
-          <option value="credencial_ipn">Credencial IPN</option>
-          <option value="boleta">Boleta</option>
-          <option value="firma">Firma</option>
-          <option value="vigencia_ims">Vigencia de derechos IMSS</option>
-        </select>
+        Archivo PDF, JPG o PNG para{" "}
+        <strong className="text-[#005580]">
+          {DOC_TYPE_OPTIONS.find((d) => d.value === docType)?.label}
+        </strong>{" "}
+        (máximo 10 MB)
+        <input
+          className={input}
+          name={uploadedPath ? undefined : "document"}
+          type="file"
+          accept="application/pdf,image/jpeg,image/png"
+          required={!uploadedPath}
+          onChange={onFileChange}
+          disabled={uploading}
+        />
       </label>
-      <label className={label}>
-        Archivo PDF, JPG o PNG (máximo 10 MB)
-        <input className={input} name="document" type="file" accept="application/pdf,image/jpeg,image/png" required />
-      </label>
+      {uploading && <p className="text-xs font-semibold text-[#006699]">Cargando documento al almacenamiento privado…</p>}
+      {fileName && <p className="text-xs font-semibold text-[#17634a]">Archivo listo: {fileName}</p>}
+      {uploadErr && <p className="text-xs text-[#8C1D18]">{uploadErr}</p>}
       <FieldError state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Subiendo…" : "Subir documento privado"}
+      <button className={btn} disabled={pending || uploading}>
+        {pending
+          ? "Registrando…"
+          : docMap.has(docType)
+            ? "Reemplazar documento"
+            : "Subir documento privado"}
       </button>
     </form>
   );
@@ -884,32 +1386,133 @@ export function AppointmentReviewForm({
   proposalId,
   appointmentId,
   defaultPlace,
+  proposedSlots = [],
+  currentScheduledAt,
+  currentMode,
+  currentLocation,
 }: {
   proposalId: string;
   appointmentId: string;
   defaultPlace?: string;
+  proposedSlots?: string[];
+  currentScheduledAt?: string | null;
+  currentMode?: string | null;
+  currentLocation?: string | null;
 }) {
   const [state, action, pending] = useActionState(decideClubAppointment, {});
+  const [mode, setMode] = useState<"presencial" | "en_linea">(
+    currentMode === "en_linea" ? "en_linea" : "presencial",
+  );
+  const [location, setLocation] = useState(
+    currentLocation || defaultPlace || "Subdirección Académica / Sala 14 · Edificio 1",
+  );
+  const [scheduledLocal, setScheduledLocal] = useState(
+    currentScheduledAt
+      ? toMxLocalInputValue(currentScheduledAt)
+      : proposedSlots[0]
+        ? toMxLocalInputValue(proposedSlots[0])
+        : "",
+  );
+
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="proposal_id" value={proposalId} />
       <input type="hidden" name="appointment_id" value={appointmentId} />
+
+      {proposedSlots.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-bold text-[#2b4d61]">
+            Horarios propuestos por el estudiante (clic para elegir):
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {proposedSlots.map((slot, idx) => {
+              const localVal = toMxLocalInputValue(slot);
+              const isSelected = scheduledLocal === localVal;
+              return (
+                <button
+                  key={slot}
+                  type="button"
+                  onClick={() => setScheduledLocal(localVal)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                    isSelected
+                      ? "border-[#006699] bg-[#006699] text-white"
+                      : "border-[#c4d8e2] bg-white text-[#14374a] hover:bg-[#edf6fa]"
+                  }`}
+                >
+                  Opción {idx + 1}: {formatMxDateTime(slot)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={label}>
+          Fecha y hora de la junta conjunta (CDMX)
+          <input
+            className={input}
+            type="datetime-local"
+            name="scheduled_at"
+            required
+            value={scheduledLocal}
+            onChange={(e) => setScheduledLocal(e.target.value)}
+          />
+        </label>
+        <label className={label}>
+          Modalidad de la reunión
+          <select
+            className={input}
+            name="meeting_mode"
+            value={mode}
+            onChange={(e) => {
+              const next = e.target.value === "en_linea" ? "en_linea" : "presencial";
+              setMode(next);
+              if (next === "en_linea" && !/^https?:\/\//i.test(location)) {
+                setLocation("");
+              } else if (next === "presencial" && !location) {
+                setLocation(defaultPlace || "Subdirección Académica / Sala 14 · Edificio 1");
+              }
+            }}
+          >
+            <option value="presencial">Presencial en ESCOM</option>
+            <option value="en_linea">En línea (videollamada)</option>
+          </select>
+        </label>
+      </div>
+
       <label className={label}>
-        Fecha y hora confirmada (para proponente y profesor coordinador)
-        <input className={input} type="datetime-local" name="scheduled_at" required />
+        {mode === "en_linea" ? "Enlace de la videollamada (Meet / Zoom / Teams)" : "Lugar exacto en ESCOM"}
+        <input
+          className={input}
+          name="meeting_location"
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          maxLength={300}
+          placeholder={
+            mode === "en_linea"
+              ? "https://meet.google.com/..."
+              : defaultPlace ?? "Subdirección Académica / Sala 14 · Edificio 1"
+          }
+        />
       </label>
+
       <label className={label}>
-        Lugar o indicaciones de la cita
+        Indicaciones adicionales para alumno y profesor (opcional)
         <input
           className={input}
           name="subdireccion_notes"
-          defaultValue={defaultPlace ?? "Sala 14 · Edificio 1"}
           maxLength={400}
+          placeholder="Ej. Presentar plan de trabajo e identificaciones IPN vigentes"
         />
       </label>
       <FieldError state={state} />
       <button className={btn} disabled={pending}>
-        {pending ? "Guardando…" : "Confirmar cita"}
+        {pending
+          ? "Guardando y notificando…"
+          : currentScheduledAt
+            ? "Reprogramar y notificar a alumno y profesor"
+            : "Confirmar junta y notificar a ambos"}
       </button>
     </form>
   );
@@ -978,8 +1581,10 @@ export function ClubEditForm({
     schedule: string | null;
     external_links: string | null;
     join_requirements: string | null;
+    join_questions?: unknown;
     contact_email: string | null;
     contact_info: string | null;
+    logo_url?: string | null;
     leader_id: string | null;
     advisor_id: string | null;
     active: boolean;
@@ -1015,19 +1620,22 @@ export function ClubEditForm({
         <input className={input} name="external_links" defaultValue={club.external_links ?? ""} maxLength={300} placeholder="https://..." />
       </label>
       <label className={label}>
-        Requisitos personalizados de ingreso (opcional)
+        Indicaciones o enlace de filtro externo (opcional)
         <textarea
           className={`${input} min-h-16`}
           name="join_requirements"
           defaultValue={club.join_requirements ?? ""}
           maxLength={500}
-          placeholder="Ej. Indica tu semestre, por qué te interesa unirte y tu disponibilidad de horario."
+          placeholder="Ej. Indica semestre o disponibilidad, o enlace a formulario complementario."
         />
       </label>
-      <label className={label}>
-        Logo del club (opcional · JPG, PNG o WEBP)
-        <input className={input} name="logo" type="file" accept="image/jpeg,image/png,image/webp" />
-      </label>
+      <JoinQuestionnaireBuilder initial={parseJoinQuestions(club.join_questions)} />
+      <ImageUploadField
+        name="logo"
+        label="Logo del club (opcional · JPG, PNG o WEBP)"
+        initialImageUrl={club.logo_url ?? null}
+        compact
+      />
       {isStaff && (
         <>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -1071,6 +1679,7 @@ export function ClubEditForm({
 
 export function ClubEventForm({ clubId }: { clubId: string }) {
   const [state, action, pending] = useActionState(createClubEvent, {});
+  const [venuePreset, setVenuePreset] = useState("Auditorio");
   return (
     <form action={action} className="space-y-3 border-t border-[#edf2f5] pt-4">
       <input type="hidden" name="club_id" value={clubId} />
@@ -1079,15 +1688,48 @@ export function ClubEventForm({ clubId }: { clubId: string }) {
         Título
         <input className={input} name="title" required minLength={3} maxLength={140} />
       </label>
-      <label className={label}>
-        Fecha y hora
-        <input className={input} name="starts_at" type="datetime-local" required />
-      </label>
-      <label className={label}>
-        Lugar
-        <input className={input} name="location" list="club-event-venues" required minLength={2} maxLength={140} placeholder="Salón, explanada o laboratorio" />
-        <datalist id="club-event-venues"><option value="Auditorio" /><option value="Sala 14" /></datalist>
-      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={label}>
+          Inicio (CDMX)
+          <input className={input} name="starts_at" type="datetime-local" required />
+        </label>
+        <label className={label}>
+          Fin (opcional)
+          <input className={input} name="ends_at" type="datetime-local" />
+        </label>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={label}>
+          Sede
+          <select
+            className={input}
+            value={venuePreset}
+            onChange={(e) => setVenuePreset(e.target.value)}
+          >
+            <option value="Auditorio">Auditorio</option>
+            <option value="Sala 14">Sala 14</option>
+            <option value="El domo">El domo</option>
+            <option value="Canchas">Canchas</option>
+            <option value="Explanada">Explanada</option>
+            <option value="Otro">Otro espacio autorizado</option>
+          </select>
+        </label>
+        {venuePreset === "Otro" ? (
+          <label className={label}>
+            Especifica el espacio
+            <input
+              className={input}
+              name="location"
+              required
+              minLength={2}
+              maxLength={140}
+              placeholder="Ej. Laboratorio 2103"
+            />
+          </label>
+        ) : (
+          <input type="hidden" name="location" value={venuePreset} />
+        )}
+      </div>
       <label className={label}>
         Descripción
         <textarea className={`${input} min-h-16`} name="description" maxLength={500} />

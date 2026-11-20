@@ -162,7 +162,7 @@ export default async function HomePage() {
           />
         </div>
 
-        <aside className="board-sidebar grid gap-5 xl:sticky xl:top-24">
+        <aside className="board-sidebar grid gap-5 xl:sticky xl:top-32">
           {/* Clubes populares */}
           <section className="board-sidecard board-leaderboard" aria-labelledby="popular-clubs-heading">
             <div className="mb-3 flex items-center justify-between gap-2">
@@ -215,48 +215,54 @@ export default async function HomePage() {
               </Link>
             </div>
 
-            <ol className="grid gap-2.5">
-              {trendingEvents.map((ev) => (
-                <li key={`${ev.eventKind}-${ev.id}`} className="board-leaderboard__item space-y-2">
-                  <div className="flex items-start gap-2.5">
-                    <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center text-lg font-semibold tabular-nums text-[#81633a]">
-                      {ev.rank}
-                    </span>
+            {trendingEvents.length > 0 ? (
+              <ol className="grid gap-2.5">
+                {trendingEvents.map((ev) => (
+                  <li key={`${ev.eventKind}-${ev.id}`} className="board-leaderboard__item space-y-2">
+                    <div className="flex items-start gap-2.5">
+                      <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center text-lg font-semibold tabular-nums text-[#81633a]">
+                        {ev.rank}
+                      </span>
 
-                    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#e3d9b8] bg-[#faf5e4] text-[#8c6812]">
-                      {ev.imageUrl ? (
-                        <img src={ev.imageUrl} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                          <rect x="3" y="4" width="14" height="13" rx="2" />
-                          <path d="M7 2.5v3M13 2.5v3M3 8h14" strokeLinecap="round" />
-                        </svg>
-                      )}
-                    </span>
+                      <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#e3d9b8] bg-[#faf5e4] text-[#8c6812]">
+                        {ev.imageUrl ? (
+                          <img src={ev.imageUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                            <rect x="3" y="4" width="14" height="13" rx="2" />
+                            <path d="M7 2.5v3M13 2.5v3M3 8h14" strokeLinecap="round" />
+                          </svg>
+                        )}
+                      </span>
 
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-sm font-extrabold leading-snug text-[#173a4c]">
-                        {ev.title}
-                      </p>
-                      <p className="mt-0.5 break-words text-xs text-[#586d77]">
-                        {ev.location} · {ev.dateFormatted}, {ev.timeFormatted}
-                      </p>
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-sm font-extrabold leading-snug text-[#173a4c]">
+                          {ev.title}
+                        </p>
+                        <p className="mt-0.5 break-words text-xs text-[#586d77]">
+                          {ev.location} · {ev.dateFormatted}, {ev.timeFormatted}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 pl-[4.75rem]">
-                    {ev.eventKind === "club" && <span className="truncate text-xs font-semibold text-[#5e717a]">{ev.organizer}</span>}
-                    <AttendButton
-                      eventKind={ev.eventKind}
-                      eventId={ev.id}
-                      initialAttending={ev.viewerAttending}
-                      initialCount={ev.attendeesCount}
-                      isAuthenticated={Boolean(user)}
-                      compact
-                    />
-                  </div>
-                </li>
-              ))}
-            </ol>
+                    <div className="flex items-center justify-between gap-2 pl-[4.75rem]">
+                      {ev.eventKind === "club" && <span className="truncate text-xs font-semibold text-[#5e717a]">{ev.organizer}</span>}
+                      <AttendButton
+                        eventKind={ev.eventKind}
+                        eventId={ev.id}
+                        initialAttending={ev.viewerAttending}
+                        initialCount={ev.attendeesCount}
+                        isAuthenticated={Boolean(user)}
+                        compact
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-xs leading-relaxed text-[#5e717a]">
+                No hay eventos próximos programados en este momento.
+              </p>
+            )}
           </section>
         </aside>
       </div>

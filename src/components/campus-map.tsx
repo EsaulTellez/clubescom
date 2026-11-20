@@ -832,10 +832,12 @@ function ProfessorSelfAssignBox({
   code,
   isAssignedHere,
   defaultLabel,
+  existingOccupantsCount = 0,
 }: {
   code: string;
   isAssignedHere: boolean;
   defaultLabel: string;
+  existingOccupantsCount?: number;
 }) {
   const [state, action, pending] = useActionState(assignSelfToRoom, {});
   return (
@@ -844,7 +846,7 @@ function ProfessorSelfAssignBox({
       <input type="hidden" name="mode" value={isAssignedHere ? "remove" : "assign"} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-extrabold uppercase tracking-wider text-[#0b5c46]">
-          {isAssignedHere ? "Estás confirmado en este espacio" : "Asignación directa de profesor (Verdad oficial)"}
+          {isAssignedHere ? "Estás confirmado en este espacio" : "Confirmar tu cubículo o espacio"}
         </span>
         {isAssignedHere ? (
           <button
@@ -856,6 +858,11 @@ function ProfessorSelfAssignBox({
           </button>
         ) : null}
       </div>
+      {!isAssignedHere && existingOccupantsCount > 0 && (
+        <p className="mt-1.5 text-[11px] font-medium text-[#1b5a49]">
+          Ya hay {existingOccupantsCount} {existingOccupantsCount === 1 ? "profesor confirmado" : "profesores confirmados"} aquí; si confirmas, compartirán este espacio en el directorio.
+        </p>
+      )}
       {!isAssignedHere && (
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <input
@@ -1030,6 +1037,9 @@ export function CampusMap({
       setPanX(0);
       setPanY(155);
       setZoom((z) => Math.max(z, 1.22));
+    } else {
+      setPanX(0);
+      setPanY(0);
     }
   }, []);
 
@@ -1052,15 +1062,51 @@ export function CampusMap({
     setPanY(0);
   };
 
+  const allSearchableRooms = useMemo<RoomInfo[]>(() => {
+    const byCode = new Map<string, RoomInfo>(roomInfo.map((r) => [r.code, r]));
+    for (const g of GOBIERNO_SPACES) {
+      if (!byCode.has(g.code)) {
+        byCode.set(g.code, {
+          code: g.code,
+          kind: "oficina",
+          name: g.shortLabel,
+          description: g.coordLabel,
+          professors: [],
+          suggestions: [],
+        });
+      }
+    }
+    for (const b of blocks) {
+      for (let lvl = 0; lvl <= 2; lvl += 1) {
+        for (let num = b.start; num <= b.end; num += 1) {
+          const code = `${b.id}${lvl}${String(num).padStart(2, "0")}`;
+          if (!byCode.has(code)) {
+            byCode.set(code, {
+              code,
+              kind: "salon",
+              name: `Espacio ${code}`,
+              description: `Edificio ${b.id} · ${levels[lvl]}`,
+              professors: [],
+              suggestions: [],
+            });
+          }
+        }
+      }
+    }
+    return Array.from(byCode.values()).sort((a, b) => a.code.localeCompare(b.code));
+  }, [roomInfo]);
+
   const govMeta = GOBIERNO_SPACES.find((g) => g.code === selected);
   const selectedRoom = roomInfo.find((room) => room.code === selected);
   const normalized = query.trim().toLocaleLowerCase("es-MX");
   const matches = normalized
-    ? roomInfo.filter((room) =>
-        `${room.code} ${room.name} ${room.description} ${room.professors.map((p) => p.name).join(" ")} ${room.suggestions.map((s) => s.professor_name).join(" ")}`
-          .toLocaleLowerCase("es-MX")
-          .includes(normalized),
-      )
+    ? allSearchableRooms
+        .filter((room) =>
+          `${room.code} ${room.name} ${room.description} ${room.professors.map((p) => p.name).join(" ")} ${room.suggestions.map((s) => s.professor_name).join(" ")}`
+            .toLocaleLowerCase("es-MX")
+            .includes(normalized),
+        )
+        .slice(0, 24)
     : [];
   const professorMatches = normalized
     ? professorDirectories.filter((prof) => `${prof.name} ${prof.location ?? ""}`.toLocaleLowerCase("es-MX").includes(normalized))
@@ -1440,7 +1486,7 @@ export function CampusMap({
       </div>
 
       {/* COLUMNA DERECHA PARALELA: BUSCADOR + FICHA DEL CUBÍCULO / ESPACIO + ASIGNACIÓN Y VOTACIÓN */}
-      <div className="space-y-4 lg:col-span-5 lg:sticky lg:top-20">
+      <div className="space-y-4 lg:col-span-5 lg:sticky lg:top-32">
         {/* Buscador rápido */}
         <section className="board-sidecard p-4">
           <CatalogSearch value={query} onChange={setQuery} label="Buscar espacio o profesor" />
@@ -1519,7 +1565,7 @@ export function CampusMap({
               <div className="mt-4 border-t border-[#e2ece9] pt-4">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#0b5c46]">
-                    Profesores confirmados (Verdad oficial)
+                    Profesores confirmados
                   </h3>
                   <span className="rounded-full bg-[#e1f3ee] px-2 py-0.5 text-[11px] font-bold text-[#0b5c46]">
                     {selectedRoom?.professors.length ?? 0}
@@ -1550,6 +1596,7 @@ export function CampusMap({
                     code={selected}
                     isAssignedHere={isViewerAssignedHere}
                     defaultLabel={selectedRoom?.name ?? ""}
+                    existingOccupantsCount={selectedRoom?.professors.length ?? 0}
                   />
                 )}
               </div>

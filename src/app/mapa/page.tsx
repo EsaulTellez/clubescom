@@ -117,7 +117,9 @@ export default async function MapaPage() {
   const professorDirectories = allProfessors.rows.map((prof) => {
     const cub = cubicles.rows.find((c) => c.professor_id === prof.id);
     const assignedRoom = assignments.rows.find((a) => a.id === prof.id);
-    const topSuggestion = suggestionsRaw.rows.find((s) => s.professor_id === prof.id);
+    const topSuggestion = suggestionsRaw.rows.find(
+      (s) => s.professor_id === prof.id && s.upvotes - s.downvotes > 0,
+    );
     return {
       id: prof.id,
       name: prof.name,
@@ -132,6 +134,9 @@ export default async function MapaPage() {
     };
   });
 
+  const canManageRooms =
+    user?.role === "admin" || (user?.role === "moderador" && user.area === "prefectura");
+
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b-2 border-[#49695c] pb-3">
@@ -142,7 +147,7 @@ export default async function MapaPage() {
         roomInfo={roomInfo}
         professors={allProfessors.rows}
         professorDirectories={professorDirectories}
-        canEdit={user?.role === "admin"}
+        canEdit={canManageRooms}
         viewer={user ? { id: user.id, name: user.name, role: user.role } : null}
       />
 
