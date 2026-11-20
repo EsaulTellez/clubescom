@@ -4,13 +4,22 @@ import { useActionState, useState, useTransition } from "react";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { btn, btnGhost, input, label } from "@/lib/ui";
 import { generateAvisoFromRawText, generateSocialCopy } from "./actions";
-import { CATEGORIES, categoryLabel, type Category, type FormState } from "./shared";
+import {
+  CATEGORIES,
+  categoryLabel,
+  SOURCE_AREAS,
+  sourceAreaLabel,
+  type Category,
+  type FormState,
+  type SourceArea,
+} from "./shared";
 
 type Initial = {
   id?: string;
   title: string;
   body: string;
   category: Category;
+  sourceArea?: SourceArea;
   featured: boolean;
   isPublic: boolean;
   publishAt: string;
@@ -18,6 +27,7 @@ type Initial = {
   socialCopy: string;
   socialTwitter?: string;
   socialFacebook?: string;
+  socialInstagram?: string;
   imageUrl?: string | null;
 };
 
@@ -50,14 +60,16 @@ export function AvisoForm({
   const [title, setTitle] = useState(initial.title);
   const [body, setBody] = useState(initial.body);
   const [category, setCategory] = useState<Category>(initial.category);
+  const [sourceArea, setSourceArea] = useState<SourceArea>(initial.sourceArea ?? "general");
   const [featured, setFeatured] = useState(initial.featured);
   const [externalUrl, setExternalUrl] = useState(initial.externalUrl ?? "");
   const [socialTwitter, setSocialTwitter] = useState(initial.socialTwitter ?? "");
   const [socialFacebook, setSocialFacebook] = useState(initial.socialFacebook ?? "");
+  const [socialInstagram, setSocialInstagram] = useState(initial.socialInstagram ?? "");
   const [socialCopy, setSocialCopy] = useState(initial.socialCopy);
   const [aiError, setAiError] = useState("");
   const [aiNotice, setAiNotice] = useState("");
-  const [copiedKey, setCopiedKey] = useState<"twitter" | "facebook" | null>(null);
+  const [copiedKey, setCopiedKey] = useState<"twitter" | "facebook" | "instagram" | null>(null);
   const [generating, startGenerating] = useTransition();
 
   function generateAllFromRaw() {
@@ -72,10 +84,12 @@ export function AvisoForm({
       if (result.title) setTitle(result.title);
       if (result.body) setBody(result.body);
       if (result.category) setCategory(result.category);
+      if (result.sourceArea) setSourceArea(result.sourceArea);
       if (result.externalUrl !== undefined) setExternalUrl(result.externalUrl);
       if (typeof result.featured === "boolean") setFeatured(result.featured);
       if (result.twitter) setSocialTwitter(result.twitter);
       if (result.facebook) setSocialFacebook(result.facebook);
+      if (result.instagram) setSocialInstagram(result.instagram);
       if (result.text) setSocialCopy(result.text);
       if (result.notice) setAiNotice(result.notice);
     });
@@ -85,16 +99,23 @@ export function AvisoForm({
     setAiError("");
     setAiNotice("");
     startGenerating(async () => {
-      const result = await generateSocialCopy({ title, body, category });
+      const result = await generateSocialCopy({
+        title,
+        body,
+        category,
+        sourceArea,
+        externalUrl,
+      });
       if (result.error) setAiError(result.error);
       if (result.notice) setAiNotice(result.notice);
       if (result.twitter) setSocialTwitter(result.twitter);
       if (result.facebook) setSocialFacebook(result.facebook);
+      if (result.instagram) setSocialInstagram(result.instagram);
       if (result.text) setSocialCopy(result.text);
     });
   }
 
-  async function copySocial(kind: "twitter" | "facebook", value: string) {
+  async function copySocial(kind: "twitter" | "facebook" | "instagram", value: string) {
     if (!value.trim()) return;
     try {
       await navigator.clipboard.writeText(value);
@@ -115,11 +136,11 @@ export function AvisoForm({
         </p>
       )}
 
-      {/* Herramienta de pegado directo para generar formato plataforma + redes con IA */}
+      {/* Herramienta de pegado directo (respuestas del Microsoft Forms, WhatsApp, correo u oficio) */}
       <div className="space-y-2.5 rounded-xl border border-[#b9d4e2] bg-[#f1f8fb] p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label className={label} htmlFor={`raw-source-${initial.id ?? "new"}`}>
-            Pegar información recibida (WhatsApp, correo, oficio)
+            Pegar información recibida (formulario de solicitud, WhatsApp, correo u oficio)
           </label>
           <button
             type="button"
@@ -127,16 +148,16 @@ export function AvisoForm({
             disabled={generating}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#006699] px-3 py-1.5 text-xs font-extrabold text-white transition hover:bg-[#004d73] disabled:opacity-60"
           >
-            {generating ? "Procesando con IA…" : "Generar para plataforma y redes"}
+            {generating ? "Procesando…" : "Generar para plataforma y redes"}
           </button>
         </div>
         <textarea
           id={`raw-source-${initial.id ?? "new"}`}
           value={rawSource}
           onChange={(e) => setRawSource(e.target.value)}
-          rows={3}
-          placeholder="Pega aquí el texto sin formato tal como te lo enviaron…"
-          className={`${input} min-h-20 bg-white text-sm`}
+          rows={4}
+          placeholder="Pega aquí las respuestas del formulario de solicitud o el mensaje sin formato tal como te lo enviaron…"
+          className={`${input} min-h-24 bg-white text-sm`}
         />
         {aiError && <p className="text-xs font-semibold text-[#8C1D18]" role="alert">{aiError}</p>}
         {aiNotice && <p className="text-xs font-semibold text-[#004d73]" role="status">{aiNotice}</p>}
@@ -172,7 +193,7 @@ export function AvisoForm({
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <div>
           <label className={label} htmlFor={`category-${initial.id ?? "new"}`}>
             Categoría
@@ -187,6 +208,24 @@ export function AvisoForm({
             {CATEGORIES.map((item) => (
               <option key={item} value={item}>
                 {categoryLabel(item)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={label} htmlFor={`source_area-${initial.id ?? "new"}`}>
+            Área o Subdirección emisora
+          </label>
+          <select
+            id={`source_area-${initial.id ?? "new"}`}
+            name="source_area"
+            className={input}
+            value={sourceArea}
+            onChange={(event) => setSourceArea(event.target.value as SourceArea)}
+          >
+            {SOURCE_AREAS.map((area) => (
+              <option key={area} value={area}>
+                {sourceAreaLabel(area)}
               </option>
             ))}
           </select>
@@ -247,7 +286,7 @@ export function AvisoForm({
 
       <div className="space-y-3 rounded-xl border border-[#d5e4ee] bg-[#f8fbfd] p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className={label}>Formatos listos para redes sociales</p>
+          <p className={label}>Formatos listos para redes sociales (X, Facebook e Instagram)</p>
           <button
             type="button"
             className={btnGhost}
@@ -287,7 +326,7 @@ export function AvisoForm({
         <div>
           <div className="flex items-center justify-between gap-2">
             <label className={label} htmlFor={`social_facebook-${initial.id ?? "new"}`}>
-              Facebook / Comunidad
+              Facebook
             </label>
             {socialFacebook.trim() && (
               <button
@@ -307,6 +346,32 @@ export function AvisoForm({
             onChange={(event) => setSocialFacebook(event.target.value)}
             maxLength={800}
             placeholder="Versión completa con contexto institucional para Facebook"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <label className={label} htmlFor={`social_instagram-${initial.id ?? "new"}`}>
+              Instagram
+            </label>
+            {socialInstagram.trim() && (
+              <button
+                type="button"
+                onClick={() => void copySocial("instagram", socialInstagram)}
+                className="text-xs font-extrabold text-[#006699] hover:underline"
+              >
+                {copiedKey === "instagram" ? "Copiado ✓" : "Copiar"}
+              </button>
+            )}
+          </div>
+          <textarea
+            id={`social_instagram-${initial.id ?? "new"}`}
+            name="social_instagram"
+            className={`${input} mt-1 min-h-24`}
+            value={socialInstagram}
+            onChange={(event) => setSocialInstagram(event.target.value)}
+            maxLength={800}
+            placeholder="Pie de publicación para Instagram con hashtags institucionales"
           />
         </div>
 

@@ -8,7 +8,14 @@ import {
   type ComunicadoItem,
   type KpiRecentActivity,
 } from "./comunicados-explorer";
-import { canManageAvisos, isCategory, toDatetimeLocal, type Category } from "./shared";
+import {
+  canManageAvisos,
+  isCategory,
+  isSourceArea,
+  toDatetimeLocal,
+  type Category,
+  type SourceArea,
+} from "./shared";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +26,7 @@ type AvisoRow = {
   title: string;
   body: string;
   category: string;
+  source_area: string | null;
   featured: boolean;
   is_public: boolean;
   image_url: string | null;
@@ -28,6 +36,7 @@ type AvisoRow = {
   publish_at: Date;
   social_twitter: string | null;
   social_facebook: string | null;
+  social_instagram: string | null;
   social_copy: string | null;
 };
 
@@ -97,6 +106,7 @@ export default async function AvisosPage({
                 a.title,
                 a.body,
                 a.category,
+                a.source_area,
                 a.featured,
                 a.is_public,
                 a.image_url,
@@ -106,6 +116,7 @@ export default async function AvisosPage({
                 a.publish_at,
                 a.social_twitter,
                 a.social_facebook,
+                a.social_instagram,
                 a.social_copy
          from public.avisos a
          join public.users u on u.id = a.author_id
@@ -134,6 +145,9 @@ export default async function AvisosPage({
       const safeCat: Category = isCategory(row.category)
         ? row.category
         : "academico";
+      const safeArea: SourceArea = isSourceArea(String(row.source_area ?? ""))
+        ? (row.source_area as SourceArea)
+        : "general";
       const canEditOrDelete = Boolean(
         canCreate && (user?.role === "admin" || user?.id === row.author_id),
       );
@@ -145,6 +159,7 @@ export default async function AvisosPage({
         title: row.title,
         body: row.body,
         category: safeCat,
+        sourceArea: safeArea,
         featured: row.featured,
         isPublic: row.is_public,
         isScheduled: pubDate.getTime() > nowMs,
@@ -158,6 +173,7 @@ export default async function AvisosPage({
         publishTimeFormatted: `${formatShortTime(pubDate)} hrs`,
         socialTwitter: row.social_twitter,
         socialFacebook: row.social_facebook,
+        socialInstagram: row.social_instagram,
         socialCopy: row.social_copy,
         canEditOrDelete,
       };

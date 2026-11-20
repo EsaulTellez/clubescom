@@ -6,7 +6,7 @@ import { card } from "@/lib/ui";
 import { actualizarAviso } from "../../actions";
 import { AvisoForm } from "../../aviso-form";
 import { DeleteAviso } from "../../delete-aviso";
-import { canManageAvisos, isCategory, toDatetimeLocal, UUID_RE } from "../../shared";
+import { canManageAvisos, isCategory, isSourceArea, toDatetimeLocal, UUID_RE } from "../../shared";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,7 @@ type Aviso = {
   title: string;
   body: string;
   category: string;
+  source_area: string | null;
   featured: boolean;
   is_public: boolean;
   publish_at: Date;
@@ -23,6 +24,7 @@ type Aviso = {
   social_copy: string | null;
   social_twitter: string | null;
   social_facebook: string | null;
+  social_instagram: string | null;
   image_url: string | null;
 };
 
@@ -43,7 +45,7 @@ export default async function EditarAvisoPage({ params }: { params: Promise<{ id
   }
 
   const { rows } = await pool.query<Aviso>(
-    `select id, author_id, title, body, category, featured, is_public, publish_at, external_url, social_copy, social_twitter, social_facebook, image_url
+    `select id, author_id, title, body, category, source_area, featured, is_public, publish_at, external_url, social_copy, social_twitter, social_facebook, social_instagram, image_url
      from avisos where id = $1`,
     [id],
   );
@@ -75,6 +77,7 @@ export default async function EditarAvisoPage({ params }: { params: Promise<{ id
             title: aviso.title,
             body: aviso.body,
             category: aviso.category,
+            sourceArea: aviso.source_area && isSourceArea(aviso.source_area) ? aviso.source_area : "general",
             featured: aviso.featured,
             isPublic: aviso.is_public,
             publishAt: toDatetimeLocal(aviso.publish_at),
@@ -82,6 +85,7 @@ export default async function EditarAvisoPage({ params }: { params: Promise<{ id
             socialCopy: aviso.social_copy ?? "",
             socialTwitter: aviso.social_twitter ?? "",
             socialFacebook: aviso.social_facebook ?? "",
+            socialInstagram: aviso.social_instagram ?? "",
             imageUrl: aviso.image_url,
           }}
         />

@@ -52,6 +52,8 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 ## Cambios
 
+- 2026-11-19. CU-06, CU-07 y CU-COM-04-01 siguen parciales. Se incorporó `source_area` (Dirección, Subdirección Académica, SSEIS, Subdirección Administrativa, SEPI, CELEX, CTCE) y `social_instagram` en `public.avisos` (`supabase/migrations/20261119000100_avisos_source_area_instagram.sql`, aplicada también en `clebescom`), filtro por área emisora en `/avisos`, y un procesador híbrido (Gemini con cadena de modelos + transformador institucional local) que interpreta tanto las 10 preguntas del formulario de Microsoft Forms de Comunicación Social (filtrando VoBo e indicaciones internas, formateando fechas/periodos y enlaces) como mensajes coloquiales de WhatsApp sin copiar jerga ni duplicar títulos.
+
 - 2026-11-18. CU-09 (parcial frente al Word, falta adjuntar imágenes a pasos individuales). CATT, Becas y Gestión Escolar pueden generar y revisar guías ramificadas desde fotos, PDF, DOCX o texto. Se probaron en navegador fotos JPG, PNG y WebP, un PDF escaneado, un PDF con texto y un DOCX sin clave de Google.
 - 2026-11-18. CU-05, CU-11, CU-12, CU-13 y CU-GUA-02-01 (parciales). Foro y Guías comparte el recorrido por decisiones y las acciones por paso. En Supabase local se verificó que una alumna pregunta desde el paso de renovación, Becas responde en el foro y la alumna regresa desde el hilo para proponer una edición. Becas revisa el texto y publica el cambio. El hilo y la propuesta siguen en la misma rama después de reordenar los pasos. Progreso y analíticas usan el mismo identificador estable.
 

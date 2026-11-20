@@ -6,7 +6,7 @@ import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { btnGhost, card } from "@/lib/ui";
 import { DeleteAviso } from "../delete-aviso";
-import { canManageAvisos, categoryLabel, formatWhen, UUID_RE } from "../shared";
+import { canManageAvisos, categoryLabel, formatWhen, sourceAreaLabel, UUID_RE } from "../shared";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,7 @@ type Aviso = {
   title: string;
   body: string;
   category: string;
+  source_area: string | null;
   featured: boolean;
   is_public: boolean;
   publish_at: Date;
@@ -25,6 +26,7 @@ type Aviso = {
   social_copy: string | null;
   social_twitter: string | null;
   social_facebook: string | null;
+  social_instagram: string | null;
   image_url: string | null;
   created_at: Date;
 };
@@ -36,7 +38,7 @@ export default async function AvisoPage({ params }: { params: Promise<{ id: stri
   const [user, result] = await Promise.all([
     getSession(),
     pool.query<Aviso>(
-      `select id, author_id, title, body, category, featured, is_public, publish_at, external_url, social_copy, social_twitter, social_facebook, image_url, created_at,
+      `select id, author_id, title, body, category, source_area, featured, is_public, publish_at, external_url, social_copy, social_twitter, social_facebook, social_instagram, image_url, created_at,
               (publish_at <= now()) as is_published,
               (publish_at > now()) as is_scheduled
        from avisos where id = $1`,
@@ -64,6 +66,9 @@ export default async function AvisoPage({ params }: { params: Promise<{ id: stri
       <div className="board-sidecard space-y-3 border-t-4 border-t-[#006699] p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-[#006699]">
           <span>{categoryLabel(aviso.category)}</span>
+          {aviso.source_area && aviso.source_area !== "general" && (
+            <span>· {sourceAreaLabel(aviso.source_area)}</span>
+          )}
           {aviso.featured && <span>· Destacado</span>}
           {!aviso.is_public && <span>· Solo comunidad (con sesión)</span>}
           {aviso.is_scheduled && <span>· Programado</span>}
@@ -90,7 +95,7 @@ export default async function AvisoPage({ params }: { params: Promise<{ id: stri
           </div>
         )}
       </div>
-      {(aviso.social_twitter || aviso.social_facebook || aviso.social_copy) && (
+      {(aviso.social_twitter || aviso.social_facebook || aviso.social_instagram || aviso.social_copy) && (
         <section className={`${card} space-y-3`}>
           <h2 className="text-sm font-semibold">Formatos para redes sociales</h2>
           {aviso.social_twitter && (
@@ -105,7 +110,13 @@ export default async function AvisoPage({ params }: { params: Promise<{ id: stri
               <p className="mt-1 whitespace-pre-wrap text-sm text-[#667085]">{aviso.social_facebook}</p>
             </div>
           )}
-          {!aviso.social_twitter && !aviso.social_facebook && aviso.social_copy && (
+          {aviso.social_instagram && (
+            <div>
+              <p className="text-xs font-bold uppercase text-[#006699]">Instagram</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-[#667085]">{aviso.social_instagram}</p>
+            </div>
+          )}
+          {!aviso.social_twitter && !aviso.social_facebook && !aviso.social_instagram && aviso.social_copy && (
             <p className="whitespace-pre-wrap text-sm text-[#667085]">{aviso.social_copy}</p>
           )}
         </section>

@@ -9,7 +9,15 @@ import { btn } from "@/lib/ui";
 import { actualizarAviso, crearAviso } from "./actions";
 import { AvisoForm } from "./aviso-form";
 import { DeleteAviso } from "./delete-aviso";
-import { categoryLabel, linkDomain, type Category } from "./shared";
+import {
+  categoryLabel,
+  linkDomain,
+  SOURCE_AREAS,
+  sourceAreaLabel,
+  sourceAreaShortLabel,
+  type Category,
+  type SourceArea,
+} from "./shared";
 
 export type ComunicadoItem = {
   id: string;
@@ -18,6 +26,7 @@ export type ComunicadoItem = {
   title: string;
   body: string;
   category: Category;
+  sourceArea?: SourceArea;
   featured: boolean;
   isPublic: boolean;
   isScheduled: boolean;
@@ -31,6 +40,7 @@ export type ComunicadoItem = {
   publishTimeFormatted: string;
   socialTwitter: string | null;
   socialFacebook: string | null;
+  socialInstagram?: string | null;
   socialCopy: string | null;
   canEditOrDelete: boolean;
 };
@@ -150,6 +160,7 @@ export function ComunicadosExplorer({
       ? initialCategory
       : "all",
   );
+  const [areaFilter, setAreaFilter] = useState<SourceArea | "all">("all");
   const [onlyWithPoster, setOnlyWithPoster] = useState(false);
   const [onlyWithLink, setOnlyWithLink] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(() => {
@@ -230,6 +241,7 @@ export function ComunicadosExplorer({
     const cleanQ = query.trim().toLowerCase();
     return items.filter((item) => {
       if (categoryFilter !== "all" && item.category !== categoryFilter) return false;
+      if (areaFilter !== "all" && (item.sourceArea ?? "general") !== areaFilter) return false;
       if (onlyWithPoster && !item.imageUrl) return false;
       if (onlyWithLink && !item.externalUrl) return false;
       if (!cleanQ) return true;
@@ -238,10 +250,12 @@ export function ComunicadosExplorer({
         item.body.toLowerCase().includes(cleanQ) ||
         item.authorName.toLowerCase().includes(cleanQ) ||
         categoryLabel(item.category).toLowerCase().includes(cleanQ) ||
+        sourceAreaLabel(item.sourceArea).toLowerCase().includes(cleanQ) ||
+        sourceAreaShortLabel(item.sourceArea).toLowerCase().includes(cleanQ) ||
         (item.externalUrl?.toLowerCase().includes(cleanQ) ?? false)
       );
     });
-  }, [items, categoryFilter, onlyWithPoster, onlyWithLink, query]);
+  }, [items, categoryFilter, areaFilter, onlyWithPoster, onlyWithLink, query]);
 
   const featuredItems = useMemo(
     () => items.filter((item) => item.featured && !item.isScheduled),
@@ -322,7 +336,7 @@ export function ComunicadosExplorer({
   }, [items, selectedItem]);
 
   const isFiltering = Boolean(
-    query.trim() || categoryFilter !== "all" || onlyWithPoster || onlyWithLink,
+    query.trim() || categoryFilter !== "all" || areaFilter !== "all" || onlyWithPoster || onlyWithLink,
   );
 
   function updateCarouselState() {
@@ -367,6 +381,7 @@ export function ComunicadosExplorer({
   function clearFilters() {
     setQuery("");
     setCategoryFilter("all");
+    setAreaFilter("all");
     setOnlyWithPoster(false);
     setOnlyWithLink(false);
   }
@@ -428,6 +443,24 @@ export function ComunicadosExplorer({
                 </button>
               );
             })}
+
+            <select
+              aria-label="Filtrar por área o subdirección emisora"
+              value={areaFilter}
+              onChange={(e) => setAreaFilter(e.target.value as SourceArea | "all")}
+              className={`min-h-10 rounded-sm border px-3 py-2 text-xs font-extrabold transition duration-150 ${
+                areaFilter !== "all"
+                  ? "border-[#004d73] bg-[#e6f3fa] text-[#004d73]"
+                  : "border-[#d4d7ce] bg-white text-[#4b6470] hover:border-[#9eb9c6] hover:bg-[#f2f7f9]"
+              }`}
+            >
+              <option value="all">Todas las áreas</option>
+              {SOURCE_AREAS.filter((a) => a !== "general").map((area) => (
+                <option key={area} value={area}>
+                  {sourceAreaShortLabel(area)}
+                </option>
+              ))}
+            </select>
 
             <button
               type="button"
@@ -860,6 +893,11 @@ export function ComunicadosExplorer({
                               {st.icon}
                               {categoryLabel(item.category)}
                             </span>
+                            {item.sourceArea && item.sourceArea !== "general" && (
+                              <span className="rounded-md border border-[#c7d8e2] bg-[#f1f7fa] px-2.5 py-0.5 text-xs font-extrabold text-[#164860]">
+                                {sourceAreaShortLabel(item.sourceArea)}
+                              </span>
+                            )}
                             {!item.isPublic && (
                               <span className="rounded-md border border-[#e6d39a] bg-[#fdf6df] px-2.5 py-0.5 text-xs font-extrabold text-[#6e5008]">
                                 Comunidad ESCOM
@@ -1038,6 +1076,11 @@ export function ComunicadosExplorer({
                     {CATEGORY_STYLES[selectedItem.category].icon}
                     {categoryLabel(selectedItem.category)}
                   </span>
+                  {selectedItem.sourceArea && selectedItem.sourceArea !== "general" && (
+                    <span className="rounded-md border border-[#c7d8e2] bg-[#f1f7fa] px-2.5 py-1 text-xs font-extrabold text-[#164860]">
+                      {sourceAreaLabel(selectedItem.sourceArea)}
+                    </span>
+                  )}
                   {!selectedItem.isPublic && (
                     <span className="rounded-md border border-[#e6d39a] bg-[#fdf6df] px-2.5 py-1 text-xs font-extrabold text-[#6e5008]">
                       Solo comunidad autenticada
@@ -1075,7 +1118,7 @@ export function ComunicadosExplorer({
               </div>
 
               {/* Formatos de difusión en redes (si existen en el registro) */}
-              {(selectedItem.socialTwitter || selectedItem.socialFacebook || selectedItem.socialCopy) && (
+              {(selectedItem.socialTwitter || selectedItem.socialFacebook || selectedItem.socialInstagram || selectedItem.socialCopy) && (
                 <div className="space-y-3 rounded-sm border border-[#d6e2e8] bg-[#f4f9fb] p-4">
                   <p className="text-xs font-extrabold uppercase tracking-wider text-[#004d73]">
                     Síntesis para difusión
@@ -1097,8 +1140,16 @@ export function ComunicadosExplorer({
                         </p>
                       </div>
                     )}
+                    {selectedItem.socialInstagram && (
+                      <div className="rounded-lg border border-[#dce7ec] bg-white p-3 sm:col-span-2">
+                        <p className="text-[11px] font-extrabold uppercase text-[#006699]">Instagram</p>
+                        <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-[#425660]">
+                          {selectedItem.socialInstagram}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  {!selectedItem.socialTwitter && !selectedItem.socialFacebook && selectedItem.socialCopy && (
+                  {!selectedItem.socialTwitter && !selectedItem.socialFacebook && !selectedItem.socialInstagram && selectedItem.socialCopy && (
                     <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#425660]">
                       {selectedItem.socialCopy}
                     </p>
@@ -1224,6 +1275,7 @@ export function ComunicadosExplorer({
                     title: formModal.item.title,
                     body: formModal.item.body,
                     category: formModal.item.category,
+                    sourceArea: formModal.item.sourceArea ?? "general",
                     featured: formModal.item.featured,
                     isPublic: formModal.item.isPublic,
                     publishAt: formModal.item.publishAtLocal,
@@ -1231,6 +1283,7 @@ export function ComunicadosExplorer({
                     socialCopy: formModal.item.socialCopy ?? "",
                     socialTwitter: formModal.item.socialTwitter ?? "",
                     socialFacebook: formModal.item.socialFacebook ?? "",
+                    socialInstagram: formModal.item.socialInstagram ?? "",
                     imageUrl: formModal.item.imageUrl,
                   }}
                 />

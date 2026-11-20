@@ -4,6 +4,19 @@ export const CATEGORIES = ["academico", "social", "tramites"] as const;
 
 export type Category = (typeof CATEGORIES)[number];
 
+export const SOURCE_AREAS = [
+  "general",
+  "direccion",
+  "subdireccion_academica",
+  "sseis",
+  "subdireccion_administrativa",
+  "sepi",
+  "celex",
+  "ctce",
+] as const;
+
+export type SourceArea = (typeof SOURCE_AREAS)[number];
+
 export type FormState = { error?: string; ok?: boolean; id?: string };
 
 const LABELS: Record<Category, string> = {
@@ -12,12 +25,48 @@ const LABELS: Record<Category, string> = {
   tramites: "Trámites",
 };
 
+const SOURCE_AREA_LABELS: Record<SourceArea, string> = {
+  general: "Comunidad ESCOM",
+  direccion: "Dirección",
+  subdireccion_academica: "Subdirección Académica",
+  sseis: "Subdirección de Servicios Educativos e Integración Social",
+  subdireccion_administrativa: "Subdirección Administrativa",
+  sepi: "Sección de Estudios de Posgrado e Investigación",
+  celex: "CELEX",
+  ctce: "CTCE",
+};
+
+const SOURCE_AREA_SHORT_LABELS: Record<SourceArea, string> = {
+  general: "Comunidad ESCOM",
+  direccion: "Dirección",
+  subdireccion_academica: "Subdirección Académica",
+  sseis: "SSEIS · Servicios Educativos",
+  subdireccion_administrativa: "Subdirección Administrativa",
+  sepi: "SEPI · Posgrado",
+  celex: "CELEX",
+  ctce: "CTCE",
+};
+
 export function isCategory(value: string): value is Category {
   return (CATEGORIES as readonly string[]).includes(value);
 }
 
 export function categoryLabel(value: string) {
   return isCategory(value) ? LABELS[value] : value;
+}
+
+export function isSourceArea(value: string): value is SourceArea {
+  return (SOURCE_AREAS as readonly string[]).includes(value);
+}
+
+export function sourceAreaLabel(value?: string | null) {
+  if (!value) return SOURCE_AREA_LABELS.general;
+  return isSourceArea(value) ? SOURCE_AREA_LABELS[value] : value;
+}
+
+export function sourceAreaShortLabel(value?: string | null) {
+  if (!value) return SOURCE_AREA_SHORT_LABELS.general;
+  return isSourceArea(value) ? SOURCE_AREA_SHORT_LABELS[value] : value;
 }
 
 export function canManageAvisos(user: Pick<SessionUser, "role" | "area"> | null) {
