@@ -1057,3 +1057,60 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .aviso-modal-panel {
   animation: avisoModalPanel .26s cubic-bezier(.16, 1, .3, 1) both;
 }
+
+@keyframes escomTopProgress {
+  0% {
+    transform: translateX(-110%);
+  }
+  50% {
+    transform: translateX(120%);
+  }
+  100% {
+    transform: translateX(270%);
+  }
+}
+
+@keyframes escomDelayedFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.escom-top-progress {
+  animation: escomTopProgress 1.15s cubic-bezier(.4, 0, .2, 1) infinite;
+}
+
+.escom-nav-pending {
+  opacity: 0;
+  animation: escomDelayedFade .16s ease .12s forwards;
+}
+
+.escom-dialog[open] {
+  animation: avisoModalPanel .2s cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.escom-dialog::backdrop {
+  animation: avisoModalBackdrop .18s ease-out both;
+}
+
+.blueprint-grid {
+  background-color: #f8fafb;
+  background-image:
+    radial-gradient(circle, rgba(21, 87, 117, 0.16) 1px, transparent 1px),
+    linear-gradient(to right, rgba(21, 87, 117, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(21, 87, 117, 0.04) 1px, transparent 1px);
+  background-size: 20px 20px, 100px 100px, 100px 100px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .escom-dialog[open],
+  .escom-dialog::backdrop,
+  .aviso-animate-in,
+  .aviso-modal-backdrop,
+  .aviso-modal-panel {
+    animation: none !important;
+  }
+}

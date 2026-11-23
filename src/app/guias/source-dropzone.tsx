@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { Spinner } from "@/components/loading-ui";
 import { uploadFileDirectly } from "@/lib/direct-upload";
 import { btnGhost } from "@/lib/ui";
 import { parseGuideDocumentDraft } from "./actions";
@@ -148,8 +149,9 @@ export function GuideSourceDropzone({
             Elegir archivo
           </label>
           {selectedFile && (
-            <button type="button" className={btnGhost} onClick={() => runExtract(selectedFile)} disabled={parsing}>
-              {parsing ? "Analizando…" : "Re-analizar archivo"}
+            <button type="button" className={btnGhost} onClick={() => runExtract(selectedFile)} disabled={parsing} aria-busy={parsing || undefined}>
+              {parsing && <Spinner className="h-3.5 w-3.5" />}
+              <span>{parsing ? "Analizando…" : "Re-analizar archivo"}</span>
             </button>
           )}
         </div>

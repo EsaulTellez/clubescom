@@ -13,12 +13,12 @@ export default async function NuevaGuiaPage() {
   const allowed = user ? isStaff(user.role) && areas.length > 0 : false;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <Link href="/foro" className="text-sm text-[#006699] hover:underline">
+    <div className="mx-auto max-w-[1640px] space-y-4">
+      <Link href="/foro" className="inline-flex items-center gap-1.5 text-sm font-bold text-[#006699] hover:underline">
         ← Volver a Foro y Guías
       </Link>
-      <section className={`${card} space-y-3`}>
-        <h1 className="text-2xl font-semibold tracking-tight">Nueva guía</h1>
+      <section className={`${card} space-y-4`}>
+        <h1 className="text-2xl font-extrabold tracking-tight text-[#142c3c]">Nueva guía interactiva</h1>
         {allowed ? (
           <GuideForm action={publishGuide} areas={areas} />
         ) : (

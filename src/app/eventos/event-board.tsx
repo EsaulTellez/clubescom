@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import { createClubEvent } from "../clubes/actions";
 import { ClubEventReviewButtons, DeleteClubEventButton } from "../clubes/forms";
 import { AttendButton } from "@/components/attend-button";
 import { FormDialog } from "@/components/form-dialog";
-import { btn, btnGhost, card } from "@/lib/ui";
+import { ImageUploadField } from "@/components/image-upload-field";
+import { SubmitButton } from "@/components/loading-ui";
+import { btn, btnGhost, card, input, label } from "@/lib/ui";
 import { deleteSpaceEvent, reviewSpaceEvent } from "../espacios/actions";
 import { SpaceEventForm } from "../espacios/forms";
 
@@ -77,6 +81,18 @@ const programDate = new Intl.DateTimeFormat("es-MX", {
   weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: TZ,
 });
 
+function dateStubParts(iso: string) {
+  const date = new Date(iso);
+  const parts = new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "short",
+    weekday: "short",
+    timeZone: TZ,
+  }).formatToParts(date);
+  const get = (t: string) => (parts.find((p) => p.type === t)?.value ?? "").replace(".", "").toUpperCase();
+  return { day: get("day"), month: get("month"), weekday: get("weekday") };
+}
+
 function EventCard({ event, featured = false, isAuthenticated, canDelete, openPoster }: {
   event: EventItem;
   featured?: boolean;
@@ -87,50 +103,223 @@ function EventCard({ event, featured = false, isAuthenticated, canDelete, openPo
   const { imageUrl, startsAt, endsAt } = event;
   const Heading = featured ? "h2" : "h3";
   const otherDay = endsAt && keyDate(new Date(startsAt)) !== keyDate(new Date(endsAt));
+  const stub = dateStubParts(startsAt);
 
   return (
-    <article className={`flex min-w-0 flex-col overflow-hidden rounded-sm border border-[#c9c5b8] bg-[#fffdf7] ${featured && imageUrl ? "lg:grid lg:grid-cols-2" : ""}`}>
+    <article
+      className={`group flex min-w-0 flex-col overflow-hidden rounded-md border-2 border-[#1b3647] bg-[#fffdf7] shadow-[4px_4px_0_rgba(23,49,66,0.1)] transition hover:shadow-[6px_6px_0_rgba(23,49,66,0.14)] ${
+        featured && imageUrl ? "lg:grid lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)]" : ""
+      }`}
+    >
       {imageUrl && (
         <button
           type="button"
           aria-label={`Ampliar cartel de ${event.title}`}
           onClick={() => openPoster({ src: imageUrl, title: event.title })}
-          className="relative grid w-full cursor-zoom-in place-items-center bg-[#172733] focus-visible:z-10 focus-visible:outline-offset-[-4px]"
+          className="relative grid w-full cursor-zoom-in place-items-center overflow-hidden bg-[#12222d] focus-visible:z-10 focus-visible:outline-offset-[-4px]"
         >
-          <img src={imageUrl} alt="" loading={featured ? "eager" : "lazy"}
-            className="aspect-[1.9] max-h-[26rem] w-full object-contain" />
+          <img
+            src={imageUrl}
+            alt=""
+            loading={featured ? "eager" : "lazy"}
+            className="aspect-[1.85] max-h-[26rem] w-full object-contain transition duration-300 group-hover:scale-[1.01]"
+          />
+          <span className="pointer-events-none absolute left-3 top-3 flex flex-col items-center rounded border border-[#e3b341]/70 bg-[#142c3c]/95 px-2.5 py-1.5 text-center leading-none text-[#fffdf7] shadow-md">
+            <span className="text-[9px] font-extrabold tracking-[0.14em] text-[#e3b341]">{stub.month}</span>
+            <span className="mt-0.5 font-mono text-xl font-black tabular-nums">{stub.day}</span>
+          </span>
         </button>
       )}
-      <div className={`flex min-w-0 flex-1 flex-col ${featured ? "p-5 sm:p-7" : "p-5"}`}>
-        <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-[#d9d5c8] pb-3 text-xs font-semibold">
-          <time dateTime={startsAt} className="font-mono uppercase tracking-wide text-[#7d3c2b]">{programDate.format(new Date(startsAt))}</time>
-          <span className="tabular-nums">{time(startsAt)}{endsAt && <> – {otherDay && programDate.format(new Date(endsAt)) + ", "}{time(endsAt)}</>} h</span>
-        </p>
-        <Heading className={`mt-4 text-balance font-serif leading-[1.08] font-bold tracking-tight text-[#182f3a] [overflow-wrap:anywhere] ${featured ? "text-[1.85rem] xl:text-[2rem]" : "text-[1.65rem]"}`}>{event.title}</Heading>
-        <p className="mt-2 text-sm font-bold text-[#294955]">{event.spaceName}{event.building && <span className="font-normal"> · {event.building}</span>}</p>
-        {event.description && <p className="mt-3 max-w-prose text-sm leading-relaxed text-[#4d5b60]">{event.description}</p>}
-        {(event.speaker || event.clubName) && (
-          <div className="mt-3 space-y-1 text-sm text-[#43545c]">
-            {event.speaker && <p>Con {event.speaker}</p>}
-            {event.clubName && <p>Organiza {event.clubId
-              ? <Link href={`/clubes/${event.clubId}`} className="text-[#005980] underline decoration-[#96b6c4] underline-offset-2">{event.clubName}</Link>
-              : event.clubName}</p>}
-          </div>
-        )}
-        <div className="mt-auto pt-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-[#bdb7a8] pt-3">
-            <AttendButton eventKind={event.eventKind} eventId={event.id} initialAttending={event.viewerAttending} initialCount={event.attendeesCount} isAuthenticated={isAuthenticated} />
-            {canDelete && event.clubId && <DeleteClubEventButton clubId={event.clubId} eventId={event.id} />}
-            {canDelete && event.eventKind === "space" && (
-              <form action={deleteSpaceEvent}>
-                <input type="hidden" name="id" value={event.id} />
-                <button className="text-xs font-bold text-[#8c2925] hover:underline">Eliminar evento</button>
-              </form>
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Tira marquesina de sede y horario */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1b3647] bg-[#142c3c] px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#f5f1e4]">
+          <span className="flex items-center gap-2 truncate">
+            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[#e3b341]" aria-hidden="true" />
+            <span className="truncate">{event.spaceName}</span>
+            {event.building && <span className="font-semibold text-[#a7c2d1]">· {event.building}</span>}
+          </span>
+          <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[#e3b341]">
+            {time(startsAt)}
+            {endsAt && <> – {otherDay && programDate.format(new Date(endsAt)) + ", "}{time(endsAt)}</>} h
+          </span>
+        </div>
+
+        <div className={`flex min-w-0 flex-1 flex-col ${featured ? "p-5 sm:p-6" : "p-5"}`}>
+          <div className="flex items-start gap-3.5">
+            {!imageUrl && (
+              <div className="flex w-14 shrink-0 flex-col items-center justify-center rounded border-2 border-[#142c3c] bg-[#f7f2e3] py-2 text-center leading-none">
+                <span className="text-[9px] font-extrabold tracking-[0.14em] text-[#8c5e0f]">{stub.month}</span>
+                <span className="mt-1 font-mono text-2xl font-black tabular-nums text-[#142c3c]">{stub.day}</span>
+                <span className="mt-0.5 text-[9px] font-bold text-[#526773]">{stub.weekday}</span>
+              </div>
             )}
+            <div className="min-w-0 flex-1">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-wider text-[#8a4526]">
+                <time dateTime={startsAt}>{programDate.format(new Date(startsAt))}</time>
+              </p>
+              <Heading
+                className={`mt-1 text-balance font-serif font-bold leading-[1.1] tracking-tight text-[#142c3c] [overflow-wrap:anywhere] ${
+                  featured ? "text-[1.75rem] xl:text-[1.95rem]" : "text-[1.45rem]"
+                }`}
+              >
+                {event.title}
+              </Heading>
+            </div>
+          </div>
+
+          {event.description && (
+            <p className="mt-3 max-w-prose text-sm leading-relaxed text-[#465963]">{event.description}</p>
+          )}
+
+          {(event.speaker || event.clubName) && (
+            <div className="mt-3.5 flex flex-wrap gap-x-4 gap-y-1 border-l-2 border-[#e3b341] pl-3 text-xs font-semibold text-[#35505e]">
+              {event.speaker && <span>Ponente: <strong className="text-[#142c3c]">{event.speaker}</strong></span>}
+              {event.clubName && (
+                <span>
+                  Organiza:{" "}
+                  {event.clubId ? (
+                    <Link href={`/clubes/${event.clubId}`} className="font-extrabold text-[#005980] underline decoration-[#96b6c4] underline-offset-2">
+                      {event.clubName}
+                    </Link>
+                  ) : (
+                    <strong className="text-[#142c3c]">{event.clubName}</strong>
+                  )}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Talón perforado inferior de boleto */}
+          <div className="relative mt-auto pt-5">
+            <div className="relative flex flex-wrap items-center justify-between gap-3 border-t-2 border-dashed border-[#c7bfa9] pt-3.5">
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute -left-7 -top-2.5 h-4 w-4 rounded-full border border-[#1b3647] bg-[#f4f3ed]"
+              />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute -right-7 -top-2.5 h-4 w-4 rounded-full border border-[#1b3647] bg-[#f4f3ed]"
+              />
+              <AttendButton
+                eventKind={event.eventKind}
+                eventId={event.id}
+                initialAttending={event.viewerAttending}
+                initialCount={event.attendeesCount}
+                isAuthenticated={isAuthenticated}
+              />
+              {canDelete && event.clubId && <DeleteClubEventButton clubId={event.clubId} eventId={event.id} />}
+              {canDelete && event.eventKind === "space" && (
+                <form action={deleteSpaceEvent}>
+                  <input type="hidden" name="id" value={event.id} />
+                  <SubmitButton
+                    pendingText="Eliminando…"
+                    spinnerClassName="h-3 w-3"
+                    className="text-xs font-bold text-[#8c2925] hover:underline"
+                  >
+                    Eliminar evento
+                  </SubmitButton>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       </div>
     </article>
+  );
+}
+
+function ClubEventBoardForm({
+  clubs,
+  onSuccess,
+  onCancel,
+}: {
+  clubs: { id: string; name: string }[];
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
+  const router = useRouter();
+  const [venuePreset, setVenuePreset] = useState("Auditorio");
+  const [state, action, pending] = useActionState(
+    async (prev: Awaited<ReturnType<typeof createClubEvent>>, formData: FormData) => {
+      const res = await createClubEvent(prev, formData);
+      if (res.success) {
+        router.refresh();
+        onSuccess();
+      }
+      return res;
+    },
+    {},
+  );
+
+  return (
+    <form action={action} className="space-y-4">
+      {clubs.length === 1 ? (
+        <>
+          <input type="hidden" name="club_id" value={clubs[0].id} />
+          <div className="rounded-md border border-[#cde1d9] bg-[#f2f9f6] px-3.5 py-2 text-xs font-bold text-[#145542]">
+            Club organizador: {clubs[0].name}
+          </div>
+        </>
+      ) : (
+        <label className={label}>
+          Club organizador
+          <select className={input} name="club_id" required defaultValue={clubs[0]?.id ?? ""}>
+            {clubs.map((club) => (
+              <option key={club.id} value={club.id}>
+                {club.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className={label}>
+        Título del evento
+        <input className={input} name="title" required minLength={3} maxLength={140} />
+      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={label}>
+          Inicio (CDMX)
+          <input className={input} name="starts_at" type="datetime-local" required />
+        </label>
+        <label className={label}>
+          Fin (opcional)
+          <input className={input} name="ends_at" type="datetime-local" />
+        </label>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={label}>
+          Sede
+          <select className={input} value={venuePreset} onChange={(e) => setVenuePreset(e.target.value)}>
+            <option value="Auditorio">Auditorio</option>
+            <option value="Sala 14">Sala 14</option>
+            <option value="El domo">El domo</option>
+            <option value="Canchas">Canchas</option>
+            <option value="Explanada">Explanada</option>
+            <option value="Otro">Otro espacio autorizado</option>
+          </select>
+        </label>
+        {venuePreset === "Otro" ? (
+          <label className={label}>
+            Especifica el espacio
+            <input className={input} name="location" required minLength={2} maxLength={140} placeholder="Ej. Laboratorio 2103" />
+          </label>
+        ) : (
+          <input type="hidden" name="location" value={venuePreset} />
+        )}
+      </div>
+      <label className={label}>
+        Descripción
+        <textarea className={`${input} min-h-24`} name="description" maxLength={500} />
+      </label>
+      <ImageUploadField name="image" label="Cartel del evento (opcional · JPG, PNG o WEBP)" compact />
+      {state.error && <p className="text-sm text-[#8C1D18]" role="alert">{state.error}</p>}
+      <div className="flex justify-end gap-2 border-t border-[#e5e1d4] pt-4">
+        <button type="button" onClick={onCancel} className={btnGhost}>Cancelar</button>
+        <SubmitButton className={btn} pending={pending} pendingText="Enviando…">
+          Enviar a revisión
+        </SubmitButton>
+      </div>
+    </form>
   );
 }
 
@@ -148,8 +337,8 @@ export function EventBoard({
   pendingEvents = [],
   spaces,
   spaceNames,
+  managedClubs = [],
   canPublishEvents,
-  canSubmitForReview = false,
   isAuthenticated = false,
   currentMonth,
 }: {
@@ -157,8 +346,8 @@ export function EventBoard({
   pendingEvents?: EventItem[];
   spaces: Space[];
   spaceNames: string[];
+  managedClubs?: { id: string; name: string }[];
   canPublishEvents: boolean;
-  canSubmitForReview?: boolean;
   isAuthenticated?: boolean;
   currentMonth: string;
 }) {
@@ -167,7 +356,13 @@ export function EventBoard({
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [next7DaysOnly, setNext7DaysOnly] = useState(false);
   const [showPublishForm, setShowPublishForm] = useState(false);
+  const [publishMode, setPublishMode] = useState<"space" | "club">(
+    canPublishEvents && spaces.length > 0 ? "space" : "club",
+  );
   const [lightboxItem, setLightboxItem] = useState<{ src: string; title: string } | null>(null);
+  const canCreateSpace = canPublishEvents && spaces.length > 0;
+  const canCreateClubEvent = managedClubs.length > 0;
+  const canCreateAnyEvent = canCreateSpace || canCreateClubEvent;
 
   useEffect(() => {
     if (!lightboxItem) return;
@@ -266,11 +461,14 @@ export function EventBoard({
             >
               Próximos 7 días ({next7DaysEvents.length})
             </button>
-            {(canPublishEvents || canSubmitForReview) && spaces.length > 0 && (
+            {canCreateAnyEvent && (
               <button
                 type="button"
                 aria-haspopup="dialog"
-                onClick={() => setShowPublishForm(true)}
+                onClick={() => {
+                  setPublishMode(canCreateSpace ? "space" : "club");
+                  setShowPublishForm(true);
+                }}
                 className="rounded border border-[#6ca3c1] bg-[#006699] px-2.5 py-0.5 text-[11px] font-extrabold tracking-wider text-white transition hover:bg-[#005580]"
               >
                 + Publicar evento
@@ -350,18 +548,57 @@ export function EventBoard({
         </div>
       </header>
 
-      {/* DIÁLOGO DE PUBLICACIÓN / REVISIÓN */}
-      {showPublishForm && (canPublishEvents || canSubmitForReview) && spaces.length > 0 && (
+      {/* DIÁLOGO DE PUBLICACIÓN */}
+      {showPublishForm && canCreateAnyEvent && (
         <FormDialog
-          title={canPublishEvents ? "Publicar evento autorizado" : "Enviar evento autorizado a revisión"}
+          title={publishMode === "space" && canCreateSpace ? "Publicar evento autorizado" : "Proponer evento de club"}
+          kicker="Cartelera ESCOM"
+          accent={publishMode === "space" && canCreateSpace ? "amber" : "teal"}
           onClose={() => setShowPublishForm(false)}
           serifTitle
         >
-          <SpaceEventForm
-            spaces={spaces.map((space) => ({ id: space.id, name: space.name }))}
-            isDirectPublisher={canPublishEvents}
-            onSuccess={() => setShowPublishForm(false)}
-          />
+          <div className="space-y-4">
+            {canCreateSpace && canCreateClubEvent && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPublishMode("space")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-extrabold ${
+                    publishMode === "space"
+                      ? "bg-[#142c3c] text-white"
+                      : "bg-[#f3f2ea] text-[#455c68]"
+                  }`}
+                >
+                  Espacio del campus
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPublishMode("club")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-extrabold ${
+                    publishMode === "club"
+                      ? "bg-[#165b47] text-white"
+                      : "bg-[#f3f2ea] text-[#455c68]"
+                  }`}
+                >
+                  Evento de mi club
+                </button>
+              </div>
+            )}
+
+            {publishMode === "space" && canCreateSpace ? (
+              <SpaceEventForm
+                spaces={spaces.map((space) => ({ id: space.id, name: space.name }))}
+                isDirectPublisher
+                onSuccess={() => setShowPublishForm(false)}
+              />
+            ) : (
+              <ClubEventBoardForm
+                clubs={managedClubs}
+                onSuccess={() => setShowPublishForm(false)}
+                onCancel={() => setShowPublishForm(false)}
+              />
+            )}
+          </div>
         </FormDialog>
       )}
 
@@ -551,12 +788,12 @@ export function EventBoard({
                     </div>
                     {ev.clubId ? <ClubEventReviewButtons clubId={ev.clubId} eventId={ev.id} /> : <form action={reviewSpaceEvent} className="flex flex-wrap gap-1.5">
                       <input type="hidden" name="id" value={ev.id} />
-                      <button name="decision" value="aprobado" className={btn}>
+                      <SubmitButton name="decision" value="aprobado" className={btn} pendingText="Aprobando…">
                         Aprobar y publicar
-                      </button>
-                      <button name="decision" value="rechazado" className={btnGhost}>
+                      </SubmitButton>
+                      <SubmitButton name="decision" value="rechazado" className={btnGhost} pendingText="Rechazando…">
                         Rechazar
-                      </button>
+                      </SubmitButton>
                     </form>}
                   </li>
                 ))}

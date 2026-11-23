@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { btn, input, label } from "@/lib/ui";
 import type { AnswerState } from "../actions";
 
@@ -28,9 +29,9 @@ export function AnswerForm({
         />
       </label>
       {state.error && <p className="text-sm text-[#8C1D18]">{state.error}</p>}
-      <button className={btn} disabled={pending}>
-        {pending ? "Publicando…" : "Publicar respuesta"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Publicando…">
+        Publicar respuesta
+      </SubmitButton>
     </form>
   );
 }

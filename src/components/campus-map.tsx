@@ -1,9 +1,14 @@
 "use client";
 
 import { memo, useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormDialog } from "@/components/form-dialog";
+import { SubmitButton } from "@/components/loading-ui";
+import { SearchableUserPicker } from "@/components/searchable-user-picker";
 import { CatalogSearch } from "./catalog-search";
 import "./campus-map.css";
 import { RoomEditor } from "@/app/mapa/room-editor";
+import { CubicleForm } from "@/app/espacios/forms";
+import { btn, btnGhost, input, label as labelClass } from "@/lib/ui";
 import {
   assignSelfToRoom,
   resolveRoomSuggestion,
@@ -11,20 +16,25 @@ import {
   voteRoomSuggestion,
 } from "@/app/mapa/actions";
 
-export type Professor = { id: string; name: string };
+export type Professor = { id: string; name: string; boleta?: string | null; email?: string | null };
 export type ProfessorDirectoryItem = {
   id: string;
   name: string;
   room_code: string | null;
+  status?: "confirmado" | "sugerido" | "sin_ubicacion";
+  schedule_text?: string | null;
+  subjects_text?: string | null;
   location: string | null;
 };
 export type RoomSuggestion = {
   id: string;
   room_code: string;
-  professor_id: string;
+  professor_id: string | null;
   professor_name: string;
   suggested_by: string;
   suggested_by_name: string;
+  schedule_text?: string;
+  subjects_text?: string;
   note: string;
   upvotes: number;
   downvotes: number;
@@ -849,13 +859,14 @@ function ProfessorSelfAssignBox({
           {isAssignedHere ? "Estás confirmado en este espacio" : "Confirmar tu cubículo o espacio"}
         </span>
         {isAssignedHere ? (
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-lg border border-[#c85a53] bg-white px-3 py-1.5 text-xs font-bold text-[#9a3028] hover:bg-[#fff5f5] disabled:opacity-50"
+          <SubmitButton
+            pending={pending}
+            pendingText="Retirando…"
+            spinnerClassName="h-3.5 w-3.5"
+            className="rounded-lg border border-[#c85a53] bg-white px-3 py-1.5 text-xs font-bold text-[#9a3028] hover:bg-[#fff5f5]"
           >
             Retirarme de aquí
-          </button>
+          </SubmitButton>
         ) : null}
       </div>
       {!isAssignedHere && existingOccupantsCount > 0 && (
@@ -872,13 +883,14 @@ function ProfessorSelfAssignBox({
             placeholder="Etiqueta opcional (ej. Cubículo 12 · Redes)"
             className="min-h-10 flex-1 rounded-lg border border-[#9fd0c4] bg-white px-3 text-sm"
           />
-          <button
-            type="submit"
-            disabled={pending}
-            className="min-h-10 rounded-lg bg-[#0d7a5f] px-4 text-xs font-extrabold text-white shadow-sm hover:bg-[#09634c] disabled:opacity-50"
+          <SubmitButton
+            pending={pending}
+            pendingText="Confirmando…"
+            spinnerClassName="h-3.5 w-3.5"
+            className="min-h-10 rounded-lg bg-[#0d7a5f] px-4 text-xs font-extrabold text-white shadow-sm hover:bg-[#09634c]"
           >
             Confirmar que estoy aquí
-          </button>
+          </SubmitButton>
         </div>
       )}
       {state.error && <p className="mt-2 text-xs font-semibold text-[#9a3028]">{state.error}</p>}
@@ -887,71 +899,131 @@ function ProfessorSelfAssignBox({
   );
 }
 
-function StudentSuggestionForm({
+function FormalSuggestionDialog({
   code,
+  buildingBadge,
+  roomName,
   professors,
   viewer,
+  onClose,
 }: {
   code: string;
+  buildingBadge: string;
+  roomName: string;
   professors: Professor[];
-  viewer: CurrentViewer;
+  viewer: NonNullable<CurrentViewer>;
+  onClose: () => void;
 }) {
-  const [state, action, pending] = useActionState(suggestProfessorInRoom, {});
-  const formRef = useRef<HTMLFormElement>(null);
+  const [manualNameMode, setManualNameMode] = useState(false);
+  const [state, action, pending] = useActionState(
+    async (prev: { error?: string; ok?: string }, formData: FormData) => {
+      const res = await suggestProfessorInRoom(prev, formData);
+      if (res.ok) {
+        onClose();
+      }
+      return res;
+    },
+    {},
+  );
 
-  useEffect(() => {
-    if (state.ok) {
-      formRef.current?.reset();
-    }
-  }, [state.ok]);
-
-  if (!viewer) return null;
   return (
-    <form ref={formRef} action={action} className="mt-3 space-y-2.5 rounded-xl border border-[#dce5e2] bg-[#f8fbfb] p-3.5">
-      <input type="hidden" name="code" value={code} />
-      <p className="text-xs font-extrabold uppercase tracking-wider text-[#355360]">
-        {viewer.role === "profesor" ? "Registrar profesor en este espacio" : "Sugerir qué profesor está aquí (sujeto a votación)"}
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <select
-          name="professor_id"
-          required
-          defaultValue={viewer.role === "profesor" ? viewer.id : ""}
-          className="min-h-10 w-full rounded-lg border border-[#bdcece] bg-white px-3 text-sm"
-        >
-          <option value="" disabled>
-            Selecciona profesor
-          </option>
-          {professors.map((prof) => (
-            <option key={prof.id} value={prof.id}>
-              {prof.name}
-            </option>
-          ))}
-        </select>
-        <input
-          name="note"
-          maxLength={240}
-          placeholder="Horario, materia o referencia (opcional)"
-          className="min-h-10 w-full rounded-lg border border-[#bdcece] bg-white px-3 text-sm"
-        />
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        {state.error ? (
-          <p className="text-xs font-semibold text-[#9a3028]">{state.error}</p>
-        ) : state.ok ? (
-          <p className="text-xs font-semibold text-[#006699]">{state.ok}</p>
-        ) : (
-          <span />
+    <FormDialog
+      title={viewer.role === "profesor" ? "Registrar ubicación en cubículo" : "Sugerir profesor en este cubículo"}
+      kicker={`${buildingBadge} · Espacio ${code}`}
+      subtitle={roomName}
+      accent="amber"
+      size="md"
+      onClose={onClose}
+      disableClose={pending}
+    >
+      <form action={action} className="space-y-4">
+        <input type="hidden" name="code" value={code} />
+
+        <div className="space-y-2">
+          {!manualNameMode ? (
+            <SearchableUserPicker
+              name="professor_id"
+              label="Nombre del profesor *"
+              roles={["profesor"]}
+              initialUsers={professors}
+              defaultValue={viewer.role === "profesor" ? viewer.id : ""}
+              required
+              placeholder="Buscar profesor por nombre o no. de empleado…"
+            />
+          ) : (
+            <label className={labelClass}>
+              Nombre completo del profesor *
+              <input
+                name="professor_name_input"
+                required
+                minLength={3}
+                maxLength={140}
+                placeholder="Ej. M. en C. Laura Patricia Méndez"
+                className={input}
+              />
+            </label>
+          )}
+          {viewer.role !== "profesor" && (
+            <button
+              type="button"
+              onClick={() => setManualNameMode((v) => !v)}
+              className="text-xs font-bold text-[#006699] hover:underline"
+            >
+              {manualNameMode
+                ? "← Seleccionar del directorio de profesores"
+                : "¿No aparece en el directorio? Escribir nombre manualmente"}
+            </button>
+          )}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={labelClass}>
+            Horario de atención / clases
+            <input
+              name="schedule_text"
+              maxLength={200}
+              placeholder="Ej. Lun y Mié 10:30–13:30"
+              className={input}
+            />
+          </label>
+          <label className={labelClass}>
+            Materia(s) que imparte
+            <input
+              name="subjects_text"
+              maxLength={240}
+              placeholder="Ej. Algoritmos, Compiladores"
+              className={input}
+            />
+          </label>
+        </div>
+
+        <label className={labelClass}>
+          Referencias adicionales (opcional)
+          <textarea
+            name="note"
+            rows={2}
+            maxLength={240}
+            placeholder="Puerta, academia o comentario breve"
+            className={`${input} resize-y`}
+          />
+        </label>
+
+        {state.error && (
+          <p className="rounded-md border border-[#e3b8b4] bg-[#fdf2f1] px-3 py-2 text-xs font-semibold text-[#8c2925]" role="alert">
+            {state.error}
+          </p>
         )}
-        <button
-          type="submit"
-          disabled={pending}
-          className="min-h-9 rounded-lg bg-[#006699] px-3.5 text-xs font-extrabold text-white hover:bg-[#00527a] disabled:opacity-50"
-        >
-          {viewer.role === "profesor" ? "Guardar ubicación" : "Publicar sugerencia"}
-        </button>
-      </div>
-    </form>
+
+        <div className="flex flex-wrap justify-end gap-2 border-t border-[#e5e1d4] pt-4">
+          <button type="button" onClick={onClose} disabled={pending} className={btnGhost}>
+            Cancelar
+          </button>
+          <SubmitButton pending={pending} pendingText="Guardando…" className={btn}>
+            {viewer.role === "profesor" ? "Guardar ubicación" : "Publicar sugerencia"}
+          </SubmitButton>
+        </div>
+      </form>
+    </FormDialog>
   );
 }
 
@@ -960,14 +1032,28 @@ export function CampusMap({
   professors,
   professorDirectories = [],
   canEdit,
+  myCubicle = null,
   viewer = null,
 }: {
   roomInfo: RoomInfo[];
   professors: Professor[];
   professorDirectories?: ProfessorDirectoryItem[];
   canEdit: boolean;
+  myCubicle?: {
+    label: string;
+    building: string;
+    floor: string | null;
+    room_code: string | null;
+    x: number;
+    y: number;
+  } | null;
   viewer?: CurrentViewer;
 }) {
+  const [activeTab, setActiveTab] = useState<"mapa" | "directorio">("mapa");
+  const [directoryQuery, setDirectoryQuery] = useState("");
+  const [directoryStatus, setDirectoryStatus] = useState<"all" | "confirmado" | "sugerido" | "sin_ubicacion">("all");
+  const [suggestionDialogOpen, setSuggestionDialogOpen] = useState(false);
+  const [cubicleDialogOpen, setCubicleDialogOpen] = useState(false);
   const [level, setLevel] = useState<number | null>(null);
   const [selected, setSelected] = useState("");
   const [query, setQuery] = useState("");
@@ -986,6 +1072,17 @@ export function CampusMap({
   const dragRaf = useRef<number | null>(null);
   const drag = useRef<{ x: number; y: number; angle: number; tilt: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
+
+  const filteredDirectory = useMemo(() => {
+    const q = directoryQuery.trim().toLocaleLowerCase("es-MX");
+    return professorDirectories.filter((prof) => {
+      if (directoryStatus !== "all" && prof.status !== directoryStatus) return false;
+      if (!q) return true;
+      return `${prof.name} ${prof.room_code ?? ""} ${prof.location ?? ""} ${prof.subjects_text ?? ""} ${prof.schedule_text ?? ""}`
+        .toLocaleLowerCase("es-MX")
+        .includes(q);
+    });
+  }, [professorDirectories, directoryQuery, directoryStatus]);
 
   useEffect(() => {
     const node = viewport.current;
@@ -1006,7 +1103,7 @@ export function CampusMap({
       observer.disconnect();
       node.removeEventListener("wheel", wheel);
     };
-  }, [view]);
+  }, [view, activeTab]);
 
   useEffect(() => {
     liveCamera.current = { angle, tilt };
@@ -1133,7 +1230,159 @@ export function CampusMap({
     viewer?.role === "profesor" && Boolean(selectedRoom?.professors.some((p) => p.id === viewer.id));
 
   return (
-    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
+    <div className="space-y-5">
+      {/* Cabecera del módulo con pestañas Mapa 3D | Directorio de profesores */}
+      <header className="edition-header">
+        <div className="edition-rule flex flex-wrap items-end justify-between gap-3">
+          <h1 className="edition-title">Mapa del campus</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            {viewer?.role === "profesor" && (
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                onClick={() => setCubicleDialogOpen(true)}
+                className={btnGhost}
+              >
+                {myCubicle ? "Actualizar mi cubículo" : "Registrar mi cubículo"}
+              </button>
+            )}
+          </div>
+        </div>
+        <nav role="tablist" aria-label="Vistas del mapa" className="mt-3 flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "mapa"}
+            onClick={() => setActiveTab("mapa")}
+            className="catalog-tab"
+          >
+            <span>Mapa interactivo 3D</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "directorio"}
+            onClick={() => setActiveTab("directorio")}
+            className="catalog-tab"
+          >
+            <span>Directorio de profesores</span>
+            <small>{professorDirectories.length}</small>
+          </button>
+        </nav>
+      </header>
+
+      {/* PESTAÑA: DIRECTORIO DE PROFESORES */}
+      {activeTab === "directorio" && (
+        <section className="space-y-4">
+          <div className="grid gap-3 rounded-md border border-[#d4dad2] bg-[#fffdf7] p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <CatalogSearch
+              value={directoryQuery}
+              onChange={setDirectoryQuery}
+              label="Buscar profesor, cubículo, materia u horario"
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ["all", `Todos (${professorDirectories.length})`],
+                  ["confirmado", `Confirmados (${professorDirectories.filter((p) => p.status === "confirmado").length})`],
+                  ["sugerido", `Sugeridos (${professorDirectories.filter((p) => p.status === "sugerido").length})`],
+                  ["sin_ubicacion", `Sin ubicar (${professorDirectories.filter((p) => p.status === "sin_ubicacion").length})`],
+                ] as const
+              ).map(([st, lbl]) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setDirectoryStatus(st)}
+                  className={`rounded border px-3 py-1.5 text-xs font-extrabold transition ${
+                    directoryStatus === st
+                      ? "border-[#142c3c] bg-[#142c3c] text-white"
+                      : "border-[#cfd5cc] bg-[#faf8f1] text-[#35505e] hover:border-[#006699]"
+                  }`}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {filteredDirectory.length === 0 ? (
+            <p className="rounded-md border border-[#d6d9d0] bg-[#fffdf7] p-8 text-center text-sm text-[#5d707a]">
+              No hay profesores que coincidan con tu búsqueda.
+            </p>
+          ) : (
+            <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredDirectory.map((prof) => (
+                <article
+                  key={prof.id}
+                  className="flex flex-col justify-between overflow-hidden rounded-md border border-[#c8d0ca] bg-[#fffdf7] shadow-[0_2px_6px_rgba(20,44,60,0.04)]"
+                >
+                  {/* Placa superior tipo señalética ESCOM */}
+                  <div className="flex items-center justify-between gap-2 bg-[#162f3e] px-4 py-2 text-xs text-[#f2f0e6]">
+                    <span className="font-mono text-sm font-black tracking-wider text-[#e3b341]">
+                      {prof.room_code ?? "SIN CUBÍCULO"}
+                    </span>
+                    <span
+                      className={`rounded px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${
+                        prof.status === "confirmado"
+                          ? "bg-[#157154] text-white"
+                          : prof.status === "sugerido"
+                            ? "bg-[#b88917] text-[#142c3c]"
+                            : "bg-[#2c4a5c] text-[#c7d9e3]"
+                      }`}
+                    >
+                      {prof.status === "confirmado"
+                        ? "Confirmado"
+                        : prof.status === "sugerido"
+                          ? "Sugerido"
+                          : "Por ubicar"}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-1 flex-col gap-2.5 p-4">
+                    <h2 className="text-base font-extrabold leading-snug text-[#142c3c]">{prof.name}</h2>
+                    <p className="text-xs font-medium text-[#4f646f]">
+                      {prof.location ?? "Ubicación pendiente de registro o sugerencia."}
+                    </p>
+                    {(prof.schedule_text || prof.subjects_text) && (
+                      <div className="flex flex-wrap gap-1.5 text-[11px]">
+                        {prof.schedule_text && (
+                          <span className="rounded border border-[#d6e0dc] bg-[#f3f8f6] px-2 py-0.5 font-semibold text-[#234d42]">
+                            Horario: {prof.schedule_text}
+                          </span>
+                        )}
+                        {prof.subjects_text && (
+                          <span className="rounded border border-[#d5e2ea] bg-[#f2f8fc] px-2 py-0.5 font-semibold text-[#164b68]">
+                            {prof.subjects_text}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {prof.room_code && (
+                      <div className="mt-auto pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab("mapa");
+                            handleSelectSpace(prof.room_code!);
+                          }}
+                          className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[#006699] hover:underline"
+                        >
+                          <span>Ubicar en el mapa 3D</span>
+                          <span aria-hidden="true">→</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* PESTAÑA: MAPA 3D INTERACTIVO */}
+      {activeTab === "mapa" && (
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
       {/* COLUMNA IZQUIERDA (MÁS CORTA EN ESCRITORIO): MAPA 3D CON CONTROLES FLOTANTES DENTRO */}
       <div className="lg:col-span-7">
         {view === "model" ? (
@@ -1536,38 +1785,40 @@ export function CampusMap({
           )}
         </section>
 
-        {/* Ficha paralela del espacio / cubículo seleccionado */}
+        {/* Ficha paralela del espacio / cubículo seleccionado — Diseño tipo placa arquitectónica */}
         {selected ? (
-          <section className="board-sidecard border-t-[3px] border-t-[#527166] p-5" aria-live="polite">
+          <section className="overflow-hidden rounded-md border-2 border-[#162f3e] bg-[#fffdf7] shadow-[4px_4px_0_rgba(22,47,62,0.1)]" aria-live="polite">
+            {/* Placa de puerta ESCOM */}
+            <div className="bg-[#162f3e] px-5 py-4 text-[#f5f2e6]">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="board-eyebrow">{buildingBadge}</span>
-                <div className="flex items-center gap-1.5">
-                  {govMeta && (
-                    <span className="rounded-full bg-[#eef4f7] px-2.5 py-0.5 text-xs font-bold text-[#285063]">
-                      {govMeta.coordLabel}
-                    </span>
-                  )}
-                  <span className="rounded-full bg-[#006699]/10 px-2.5 py-0.5 text-xs font-extrabold text-[#006699]">
-                    {selectedRoom ? kindLabel[selectedRoom.kind] ?? "Espacio" : "Salón / Cubículo"} · {selected}
-                  </span>
-                </div>
+                <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#9fc1d1]">
+                  {buildingBadge}
+                </span>
+                <span className="rounded border border-[#e3b341]/50 bg-[#203f52] px-2.5 py-0.5 font-mono text-xs font-extrabold text-[#e3b341]">
+                  {selected}
+                </span>
               </div>
-
-              <h2 className="mt-2 text-xl font-extrabold text-[#1b4053]">
+              <h2 className="mt-1.5 text-xl font-extrabold tracking-tight text-white">
                 {selectedRoom?.name || govMeta?.shortLabel || `Espacio ${selected}`}
               </h2>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-[#c1d5df]">
+                <span>{selectedRoom ? kindLabel[selectedRoom.kind] ?? "Espacio" : "Salón / Cubículo"}</span>
+                {govMeta && <span>· {govMeta.coordLabel}</span>}
+              </div>
+            </div>
 
+            <div className="p-5">
               {selectedRoom?.description ? (
-                <p className="mt-2 text-sm leading-relaxed text-[#485b65]">{selectedRoom.description}</p>
+                <p className="text-sm leading-relaxed text-[#425763]">{selectedRoom.description}</p>
               ) : null}
 
-              {/* SECCIÓN 1: UBICACIÓN OFICIAL (VERDAD CONFIRMADA POR PROFESOR / ADMIN) */}
-              <div className="mt-4 border-t border-[#e2ece9] pt-4">
+              {/* SECCIÓN 1: PROFESORES CONFIRMADOS */}
+              <div className={`${selectedRoom?.description ? "mt-4 border-t border-[#e2ece9] pt-4" : ""}`}>
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#0b5c46]">
                     Profesores confirmados
                   </h3>
-                  <span className="rounded-full bg-[#e1f3ee] px-2 py-0.5 text-[11px] font-bold text-[#0b5c46]">
+                  <span className="rounded bg-[#e1f3ee] px-2 py-0.5 font-mono text-[11px] font-bold text-[#0b5c46]">
                     {selectedRoom?.professors.length ?? 0}
                   </span>
                 </div>
@@ -1577,17 +1828,17 @@ export function CampusMap({
                     {selectedRoom.professors.map((p) => (
                       <li
                         key={p.id}
-                        className="flex items-center justify-between gap-2 rounded-sm border border-[#b7dfd5] bg-[#f4fbf9] px-3 py-2 text-sm"
+                        className="flex items-center justify-between gap-2 rounded-md border border-[#b4dcd1] bg-[#f2fbf8] px-3.5 py-2.5 text-sm"
                       >
-                        <span className="font-bold text-[#143d32]">{p.name}</span>
-                        <span className="rounded-full bg-[#0d7a5f] px-2.5 py-0.5 text-[11px] font-extrabold text-white">
-                          Confirmado
+                        <span className="font-extrabold text-[#123c31]">{p.name}</span>
+                        <span className="rounded bg-[#0d7a5f] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white">
+                          Oficial
                         </span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-2 text-xs text-[#64757e]">Ningún profesor se ha asignado oficialmente a este espacio todavía.</p>
+                  <p className="mt-2 text-xs text-[#64757e]">Ningún profesor confirmado todavía en este espacio.</p>
                 )}
 
                 {viewer?.role === "profesor" && (
@@ -1601,73 +1852,111 @@ export function CampusMap({
                 )}
               </div>
 
-              {/* SECCIÓN 2: SUGERENCIAS DE ALUMNOS Y VOTACIÓN DE LA COMUNIDAD */}
+              {/* SECCIÓN 2: SUGERENCIAS DE ALUMNOS + BOTÓN QUE ABRE DIÁLOGO FORMAL */}
               <div className="mt-4 border-t border-[#e2ece9] pt-4">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#8a5708]">
-                    Sugerencias de alumnos (Votación)
-                  </h3>
-                  <span className="rounded-full bg-[#fef3d6] px-2 py-0.5 text-[11px] font-bold text-[#8a5708]">
-                    {selectedRoom?.suggestions.length ?? 0}
-                  </span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#8a5708]">
+                      Sugerencias de la comunidad
+                    </h3>
+                    <span className="rounded bg-[#fef3d6] px-2 py-0.5 font-mono text-[11px] font-bold text-[#8a5708]">
+                      {selectedRoom?.suggestions.length ?? 0}
+                    </span>
+                  </div>
+                  {viewer && (
+                    <button
+                      type="button"
+                      aria-haspopup="dialog"
+                      onClick={() => setSuggestionDialogOpen(true)}
+                      className="inline-flex items-center gap-1 rounded border border-[#c9b37c] bg-[#fff9e8] px-2.5 py-1 text-xs font-extrabold text-[#7a4f06] transition hover:border-[#8a5708] hover:bg-[#fdf1cf]"
+                    >
+                      <span>+</span>
+                      <span>Sugerir profesor</span>
+                    </button>
+                  )}
                 </div>
 
                 {selectedRoom?.suggestions.length ? (
-                  <ul className="mt-2.5 space-y-2.5">
+                  <ul className="mt-3 space-y-2.5">
                     {selectedRoom.suggestions.map((sug) => {
                       const net = sug.upvotes - sug.downvotes;
                       const canConfirm =
-                        viewer?.role === "admin" || (viewer?.role === "profesor" && viewer.id === sug.professor_id);
-                      const canDismiss = canConfirm || viewer?.id === sug.suggested_by;
+                        Boolean(sug.professor_id) &&
+                        (viewer?.role === "admin" ||
+                          canEdit ||
+                          (viewer?.role === "profesor" && viewer.id === sug.professor_id));
+                      const canDismiss =
+                        viewer?.role === "admin" ||
+                        canEdit ||
+                        (sug.professor_id && viewer?.role === "profesor" && viewer.id === sug.professor_id) ||
+                        viewer?.id === sug.suggested_by;
                       return (
                         <li
                           key={sug.id}
-                          className="rounded-sm border border-[#ecd9ab] bg-[#fffcf2] p-3 text-sm"
+                          className="rounded-md border border-[#e7d6a8] bg-[#fffcf3] p-3.5 text-sm"
                         >
                           <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div>
-                              <span className="font-extrabold text-[#1b4053]">{sug.professor_name}</span>
-                              <span className="ml-2 rounded-full bg-[#fae6b1] px-2 py-0.5 text-[10px] font-extrabold text-[#784904]">
-                                Sugerencia · {net > 0 ? `+${net} a favor` : net < 0 ? `${net} en contra` : "En verificación"}
-                              </span>
-                              {sug.note && <p className="mt-1 text-xs text-[#4a5d66]">{sug.note}</p>}
-                              <p className="mt-0.5 text-[11px] text-[#73848c]">Sugerido por {sug.suggested_by_name}</p>
-                            </div>
+                            <span className="font-extrabold text-[#163445]">{sug.professor_name}</span>
+                            <span className="rounded bg-[#f9e7b6] px-2 py-0.5 font-mono text-[10px] font-extrabold text-[#754805]">
+                              {net > 0 ? `+${net} a favor` : net < 0 ? `${net} en contra` : "En verificación"}
+                            </span>
                           </div>
 
-                          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-[#f1e4c3] pt-2">
+                          {(sug.schedule_text || sug.subjects_text) && (
+                            <dl className="mt-2 grid gap-1.5 rounded border border-[#f0e3bf] bg-white/80 p-2.5 text-xs">
+                              {sug.schedule_text && (
+                                <div className="flex gap-1.5">
+                                  <dt className="shrink-0 font-bold text-[#6e5218]">Horario:</dt>
+                                  <dd className="text-[#2b424f]">{sug.schedule_text}</dd>
+                                </div>
+                              )}
+                              {sug.subjects_text && (
+                                <div className="flex gap-1.5">
+                                  <dt className="shrink-0 font-bold text-[#6e5218]">Materia:</dt>
+                                  <dd className="text-[#2b424f]">{sug.subjects_text}</dd>
+                                </div>
+                              )}
+                            </dl>
+                          )}
+
+                          {sug.note && <p className="mt-2 text-xs text-[#4a5d66]">{sug.note}</p>}
+                          <p className="mt-1.5 text-[11px] text-[#73848c]">Propuesto por {sug.suggested_by_name}</p>
+
+                          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-[#f1e4c3] pt-2.5">
                             <div className="flex items-center gap-1.5">
                               <form action={voteRoomSuggestion}>
                                 <input type="hidden" name="suggestion_id" value={sug.id} />
                                 <input type="hidden" name="vote" value="1" />
-                                <button
-                                  type="submit"
+                                <SubmitButton
                                   disabled={!viewer}
-                                  title={viewer ? "Votar que sí estuvo / está aquí" : "Inicia sesión para votar"}
-                                  className={`rounded-sm border px-2.5 py-1 text-xs font-extrabold transition ${
+                                  pendingText="Votando…"
+                                  spinnerClassName="h-3 w-3"
+                                  title={viewer ? "Confirmar que sí está aquí" : "Inicia sesión para votar"}
+                                  className={`rounded border px-2.5 py-1 text-xs font-extrabold transition ${
                                     sug.my_vote === 1
                                       ? "border-[#0d7a5f] bg-[#0d7a5f] text-white"
                                       : "border-[#cbd8da] bg-white text-[#1f4252] hover:bg-[#eef6f5]"
-                                  } disabled:opacity-50`}
+                                  }`}
                                 >
-                                  Sí está aquí ({sug.upvotes})
-                                </button>
+                                  Sí está ({sug.upvotes})
+                                </SubmitButton>
                               </form>
                               <form action={voteRoomSuggestion}>
                                 <input type="hidden" name="suggestion_id" value={sug.id} />
                                 <input type="hidden" name="vote" value="-1" />
-                                <button
-                                  type="submit"
+                                <SubmitButton
                                   disabled={!viewer}
+                                  pendingText="Votando…"
+                                  spinnerClassName="h-3 w-3"
                                   title={viewer ? "Votar que no corresponde" : "Inicia sesión para votar"}
-                                  className={`rounded-sm border px-2.5 py-1 text-xs font-extrabold transition ${
+                                  className={`rounded border px-2.5 py-1 text-xs font-extrabold transition ${
                                     sug.my_vote === -1
                                       ? "border-[#9a3028] bg-[#9a3028] text-white"
                                       : "border-[#cbd8da] bg-white text-[#526771] hover:bg-[#fdf2f2]"
-                                  } disabled:opacity-50`}
+                                  }`}
                                 >
                                   No está ({sug.downvotes})
-                                </button>
+                                </SubmitButton>
                               </form>
                             </div>
 
@@ -1677,24 +1966,26 @@ export function CampusMap({
                                   <form action={resolveRoomSuggestion}>
                                     <input type="hidden" name="suggestion_id" value={sug.id} />
                                     <input type="hidden" name="decision" value="confirm" />
-                                    <button
-                                      type="submit"
-                                      className="rounded-sm bg-[#0d7a5f] px-2.5 py-1 text-[11px] font-extrabold text-white hover:bg-[#095e49]"
+                                    <SubmitButton
+                                      pendingText="Confirmando…"
+                                      spinnerClassName="h-3 w-3"
+                                      className="rounded bg-[#0d7a5f] px-2.5 py-1 text-[11px] font-extrabold text-white hover:bg-[#095e49]"
                                     >
-                                      Confirmar verdad
-                                    </button>
+                                      Confirmar
+                                    </SubmitButton>
                                   </form>
                                 )}
                                 {canDismiss && (
                                   <form action={resolveRoomSuggestion}>
                                     <input type="hidden" name="suggestion_id" value={sug.id} />
                                     <input type="hidden" name="decision" value="dismiss" />
-                                    <button
-                                      type="submit"
-                                      className="rounded-sm border border-[#d9c3c1] bg-white px-2.5 py-1 text-[11px] font-bold text-[#8c2d25] hover:bg-[#fff2f1]"
+                                    <SubmitButton
+                                      pendingText="Descartando…"
+                                      spinnerClassName="h-3 w-3"
+                                      className="rounded border border-[#d9c3c1] bg-white px-2.5 py-1 text-[11px] font-bold text-[#8c2d25] hover:bg-[#fff2f1]"
                                     >
                                       Descartar
-                                    </button>
+                                    </SubmitButton>
                                   </form>
                                 )}
                               </div>
@@ -1705,16 +1996,45 @@ export function CampusMap({
                     })}
                   </ul>
                 ) : (
-                  <p className="mt-2 text-xs text-[#64757e]">Sin sugerencias pendientes en este espacio.</p>
+                  <p className="mt-2.5 text-xs text-[#64757e]">
+                    Sin sugerencias en este espacio.
+                  </p>
                 )}
-
-                <StudentSuggestionForm key={`sug-${selected}`} code={selected} professors={professors} viewer={viewer} />
               </div>
 
               {canEdit && <RoomEditor key={selected} code={selected} room={selectedRoom} professors={professors} />}
-            </section>
-          ) : null}
+            </div>
+          </section>
+        ) : null}
       </div>
+    </div>
+      )}
+
+      {/* DIÁLOGO FORMAL DE SUGERENCIA DE CUBÍCULO */}
+      {suggestionDialogOpen && selected && viewer && (
+        <FormalSuggestionDialog
+          key={`sug-dialog-${selected}`}
+          code={selected}
+          buildingBadge={buildingBadge}
+          roomName={selectedRoom?.name || govMeta?.shortLabel || `Espacio ${selected}`}
+          professors={professors}
+          viewer={viewer}
+          onClose={() => setSuggestionDialogOpen(false)}
+        />
+      )}
+
+      {/* DIÁLOGO: MI CUBÍCULO (PROFESORES) */}
+      {cubicleDialogOpen && viewer?.role === "profesor" && (
+        <FormDialog
+          title={myCubicle ? "Actualizar mi cubículo" : "Registrar mi cubículo"}
+          kicker="Profesorado ESCOM"
+          accent="teal"
+          size="md"
+          onClose={() => setCubicleDialogOpen(false)}
+        >
+          <CubicleForm cubicle={myCubicle} />
+        </FormDialog>
+      )}
     </div>
   );
 }

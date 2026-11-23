@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { canManageAnyClubs } from "@/app/clubes/format";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -70,29 +71,36 @@ export async function POST(request: NextRequest) {
       if (size > 10 * 1024 * 1024) {
         return NextResponse.json({ error: "El documento supera los 10 MB." }, { status: 400 });
       }
-      const proposalId = (body.contextId ?? "").trim();
-      if (!UUID_RE.test(proposalId)) {
-        return NextResponse.json({ error: "Propuesta inválida." }, { status: 400 });
-      }
+      const contextId = (body.contextId ?? "").trim();
       const ext = contentType === "image/webp" ? null : DOC_TYPES[contentType];
       if (!ext) {
         return NextResponse.json({ error: "Para clubes usa PDF, JPG o PNG." }, { status: 400 });
       }
-      const allowed = await pool.query<{ ok: boolean }>(
-        `select exists (
-           select 1 from public.club_proposals p
-            where p.id = $1
-              and p.status in ('en_documentacion', 'en_validacion', 'cita_pendiente', 'incompleta')
-              and (p.proposer_id = $2 or exists (
-                select 1 from public.club_interests i where i.proposal_id = p.id and i.user_id = $2
-              ))
-         ) as ok`,
-        [proposalId, user.id],
-      );
-      if (!allowed.rows[0]?.ok) {
-        return NextResponse.json({ error: "No participas en esta propuesta o ya cerró carga." }, { status: 403 });
+      if (contextId === "direct") {
+        if (!canManageAnyClubs(user)) {
+          return NextResponse.json({ error: "Solo el área de clubes puede subir expedientes de alta directa." }, { status: 403 });
+        }
+        path = `direct/${user.id}/${randomUUID()}.${ext}`;
+      } else {
+        if (!UUID_RE.test(contextId)) {
+          return NextResponse.json({ error: "Propuesta inválida." }, { status: 400 });
+        }
+        const allowed = await pool.query<{ ok: boolean }>(
+          `select exists (
+             select 1 from public.club_proposals p
+              where p.id = $1
+                and p.status in ('en_documentacion', 'en_validacion', 'cita_pendiente', 'incompleta')
+                and (p.proposer_id = $2 or exists (
+                  select 1 from public.club_interests i where i.proposal_id = p.id and i.user_id = $2
+                ))
+           ) as ok`,
+          [contextId, user.id],
+        );
+        if (!allowed.rows[0]?.ok) {
+          return NextResponse.json({ error: "No participas en esta propuesta o ya cerró carga." }, { status: 403 });
+        }
+        path = `${contextId}/${user.id}/${randomUUID()}.${ext}`;
       }
-      path = `${proposalId}/${user.id}/${randomUUID()}.${ext}`;
     } else if (bucket === "lost-evidence") {
       if (size > 10 * 1024 * 1024) {
         return NextResponse.json({ error: "La evidencia supera los 10 MB." }, { status: 400 });

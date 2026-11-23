@@ -371,9 +371,9 @@ export async function generateDraft(bytes: Buffer, name: string) {
       new Set(
         [
           process.env.GOOGLE_GUIDE_MODEL?.trim(),
-          "gemini-2.5-flash",
+          "gemini-3.5-flash-lite",
           "gemini-2.5-flash-lite",
-          "gemini-2.0-flash",
+          "gemini-2.5-flash",
         ].filter((value): value is string => Boolean(value)),
       ),
     );

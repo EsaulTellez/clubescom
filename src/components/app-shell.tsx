@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { NavPendingBar, SubmitButton } from "@/components/loading-ui";
 import { officeModules } from "@/lib/areas";
 import { logout } from "@/lib/auth-actions";
 import type { SessionUser } from "@/lib/auth";
@@ -55,6 +56,7 @@ function NavItems({ pathname, modules, mobile = false }: { pathname: string; mod
             <span className={mobile ? "max-w-full truncate text-center text-[10px] font-bold leading-tight" : "text-sm"}>
               {mobile && link.mobileLabel ? link.mobileLabel : link.label}
             </span>
+            <NavPendingBar />
           </Link>
         );
       })}
@@ -159,6 +161,7 @@ export function AppShell({
           <Link href={modules?.[0] ?? "/"} className="flex shrink-0 items-center gap-2.5" aria-label="ESCOM, inicio">
             <img src="/brand/escudo-escom.png" alt="ESCOM IPN" className="h-7 w-auto sm:h-8" />
             <span className="border-l border-[#d8d5ca] pl-2.5 text-base font-bold tracking-tight text-[#244753] sm:text-xl">Comunidad</span>
+            <NavPendingBar />
           </Link>
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
             {user ? <>
@@ -169,17 +172,27 @@ export function AppShell({
                     {unread > 99 ? "99+" : unread}
                   </span>
                 )}
+                <NavPendingBar />
               </Link>
-              {user.role === "admin" && <Link href="/admin" className="rounded-md px-2 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73]">Panel</Link>}
-              {(user.role === "admin" || (user.role === "moderador" && !modules)) && <Link href="/moderacion" className="hidden rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73] sm:inline">Moderación</Link>}
+              {user.role === "admin" && <Link href="/admin" className="rounded-md px-2 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73]">Panel<NavPendingBar /></Link>}
+              {(user.role === "admin" || (user.role === "moderador" && !modules)) && <Link href="/moderacion" className="hidden rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73] sm:inline">Moderación<NavPendingBar /></Link>}
               <Link href="/perfil" className="flex min-h-10 items-center gap-2 rounded-md border border-[#e3e0d6] bg-white px-2">
                 <span className="grid h-7 w-7 place-items-center rounded-md bg-[#e5eff1] text-xs font-extrabold text-[#004d73]">{user.name.slice(0, 1)}</span>
                 <span className="hidden max-w-28 truncate text-sm font-bold sm:block">{user.name.split(" ")[0]}</span>
+                <NavPendingBar />
               </Link>
-              <form action={logout}><button className="min-h-10 rounded-md px-2 text-xs font-bold text-[#687780] hover:bg-[#e9efef] hover:text-[#004d73] sm:px-3 sm:text-sm">Salir</button></form>
+              <form action={logout}>
+                <SubmitButton
+                  pendingText="Saliendo…"
+                  spinnerClassName="h-3.5 w-3.5"
+                  className="min-h-10 rounded-md px-2 text-xs font-bold text-[#687780] hover:bg-[#e9efef] hover:text-[#004d73] sm:px-3 sm:text-sm"
+                >
+                  Salir
+                </SubmitButton>
+              </form>
             </> : <>
-              <Link href="/entrar" className="min-h-10 rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73]">Entrar</Link>
-              <Link href="/registro" className="min-h-10 rounded-sm border border-[#164b62] bg-[#155775] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#004d73]">Crear cuenta</Link>
+              <Link href="/entrar" className="min-h-10 rounded-md px-3 py-2 text-sm font-bold text-[#526974] hover:bg-[#e9efef] hover:text-[#004d73]">Entrar<NavPendingBar /></Link>
+              <Link href="/registro" className="min-h-10 rounded-sm border border-[#164b62] bg-[#155775] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#004d73]">Crear cuenta<NavPendingBar /></Link>
             </>}
           </div>
         </div>

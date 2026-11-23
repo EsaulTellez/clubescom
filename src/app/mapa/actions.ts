@@ -156,26 +156,27 @@ export async function suggestProfessorInRoom(
     return { error: "Inicia sesión para sugerir la ubicación de un profesor." };
   }
 
-  const code = String(form.get("code") ?? "").trim();
-  const professorId = String(form.get("professor_id") ?? "").trim();
-  const note = String(form.get("note") ?? "").trim();
+  const code = String(form.get("code") ?? "").trim().toUpperCase();
+  const professorIdRaw = String(form.get("professor_id") ?? "").trim();
+  const professorId = UUID_RE.test(professorIdRaw) ? professorIdRaw : null;
+  const professorNameInput = String(form.get("professor_name_input") ?? "").trim().slice(0, 140);
+  const scheduleText = String(form.get("schedule_text") ?? "").trim().slice(0, 200);
+  const subjectsText = String(form.get("subjects_text") ?? "").trim().slice(0, 240);
+  const note = String(form.get("note") ?? "").trim().slice(0, 240);
 
   if (!isValidRoomCode(code)) {
     return { error: "Selecciona un espacio válido en el mapa." };
   }
-  if (!UUID_RE.test(professorId)) {
-    return { error: "Selecciona a un profesor de la lista." };
-  }
-  if (note.length > 240) {
-    return { error: "La nota no puede exceder 240 caracteres." };
+  if (!professorId && professorNameInput.length < 3) {
+    return { error: "Selecciona un profesor del directorio o escribe su nombre completo (mín. 3 caracteres)." };
   }
 
   // Si quien guarda es el propio profesor, se guarda directamente como verdad oficial
-  if (user.role === "profesor" && user.id === professorId) {
+  if (user.role === "profesor" && professorId && user.id === professorId) {
     const fd = new FormData();
     fd.set("code", code);
     fd.set("mode", "assign");
-    fd.set("label", note);
+    fd.set("label", note || subjectsText);
     return assignSelfToRoom({}, fd);
   }
 
@@ -183,43 +184,106 @@ export async function suggestProfessorInRoom(
   try {
     await client.query("begin");
 
-    const profCheck = await client.query(
-      "select id from users where id = $1 and role = 'profesor' and is_active",
-      [professorId],
-    );
-    if (!profCheck.rowCount) {
-      await client.query("rollback");
-      return { error: "El profesor seleccionado no está disponible." };
+    if (professorId) {
+      const profCheck = await client.query(
+        "select id from users where id = $1 and role = 'profesor' and is_active",
+        [professorId],
+      );
+      if (!profCheck.rowCount) {
+        await client.query("rollback");
+        return { error: "El profesor seleccionado no está disponible." };
+      }
+
+      const alreadyOfficial = await client.query(
+        "select 1 from map_room_people where room_code = $1 and id = $2 limit 1",
+        [code, professorId],
+      );
+      if (alreadyOfficial.rowCount) {
+        await client.query("rollback");
+        return { error: "Este profesor ya está confirmado oficialmente en este espacio." };
+      }
     }
 
-    const alreadyOfficial = await client.query(
-      "select 1 from map_room_people where room_code = $1 and id = $2 limit 1",
-      [code, professorId],
-    );
-    if (alreadyOfficial.rowCount) {
-      await client.query("rollback");
-      return { error: "Este profesor ya está confirmado oficialmente en este espacio." };
+    let suggestionId: string | undefined;
+
+    if (professorId) {
+      const existingSuggestion = await client.query<{ id: string; suggested_by: string }>(
+        "select id, suggested_by from map_room_suggestions where room_code = $1 and professor_id = $2 limit 1",
+        [code, professorId],
+      );
+      suggestionId = existingSuggestion.rows[0]?.id;
+      if (suggestionId && existingSuggestion.rows[0].suggested_by === user.id) {
+        try {
+          await client.query(
+            `update map_room_suggestions
+                set schedule_text = case when $1 <> '' then $1 else schedule_text end,
+                    subjects_text = case when $2 <> '' then $2 else subjects_text end,
+                    note = case when $3 <> '' then $3 else note end
+              where id = $4`,
+            [scheduleText, subjectsText, note, suggestionId],
+          );
+        } catch {
+          const fallbackNote = [
+            scheduleText ? `Horario: ${scheduleText}` : "",
+            subjectsText ? `Materia: ${subjectsText}` : "",
+            note,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+            .slice(0, 240);
+          if (fallbackNote) {
+            await client.query("update map_room_suggestions set note = $1 where id = $2", [
+              fallbackNote,
+              suggestionId,
+            ]);
+          }
+        }
+      }
     }
 
-    const existingSuggestion = await client.query<{ id: string; suggested_by: string }>(
-      "select id, suggested_by from map_room_suggestions where room_code = $1 and professor_id = $2 limit 1",
-      [code, professorId],
-    );
-
-    let suggestionId = existingSuggestion.rows[0]?.id;
     if (!suggestionId) {
-      const inserted = await client.query<{ id: string }>(
-        `insert into map_room_suggestions (room_code, professor_id, suggested_by, note)
-         values ($1, $2, $3, $4)
-         returning id`,
-        [code, professorId, user.id, note],
-      );
-      suggestionId = inserted.rows[0].id;
-    } else if (existingSuggestion.rows[0].suggested_by === user.id && note !== "") {
-      await client.query(
-        "update map_room_suggestions set note = $1 where id = $2",
-        [note, suggestionId],
-      );
+      try {
+        const inserted = await client.query<{ id: string }>(
+          `insert into map_room_suggestions
+             (room_code, professor_id, professor_name_input, schedule_text, subjects_text, suggested_by, note)
+           values ($1, $2, $3, $4, $5, $6, $7)
+           returning id`,
+          [
+            code,
+            professorId,
+            professorId ? null : professorNameInput,
+            scheduleText,
+            subjectsText,
+            user.id,
+            note,
+          ],
+        );
+        suggestionId = inserted.rows[0].id;
+      } catch (insertErr) {
+        const pgCode =
+          typeof insertErr === "object" && insertErr !== null && "code" in insertErr
+            ? String((insertErr as { code?: unknown }).code)
+            : "";
+        if (pgCode === "42703" && professorId) {
+          const fallbackNote = [
+            scheduleText ? `Horario: ${scheduleText}` : "",
+            subjectsText ? `Materia: ${subjectsText}` : "",
+            note,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+            .slice(0, 240);
+          const inserted = await client.query<{ id: string }>(
+            `insert into map_room_suggestions (room_code, professor_id, suggested_by, note)
+             values ($1, $2, $3, $4)
+             returning id`,
+            [code, professorId, user.id, fallbackNote],
+          );
+          suggestionId = inserted.rows[0].id;
+        } else {
+          throw insertErr;
+        }
+      }
     }
 
     await client.query(
@@ -233,7 +297,7 @@ export async function suggestProfessorInRoom(
   } catch (err) {
     await client.query("rollback");
     console.error("Error registrando sugerencia en mapa:", err);
-    return { error: "No se pudo registrar la sugerencia. Verifica tu sesión y el espacio seleccionado." };
+    return { error: "No se pudo registrar la sugerencia. Verifica los datos y el espacio seleccionado." };
   } finally {
     client.release();
   }
@@ -291,7 +355,7 @@ export async function resolveRoomSuggestion(formData: FormData) {
   const client = await pool.connect();
   try {
     await client.query("begin");
-    const row = await client.query<{ room_code: string; professor_id: string; suggested_by: string }>(
+    const row = await client.query<{ room_code: string; professor_id: string | null; suggested_by: string }>(
       "select room_code, professor_id, suggested_by from map_room_suggestions where id = $1",
       [suggestionId],
     );
@@ -300,11 +364,11 @@ export async function resolveRoomSuggestion(formData: FormData) {
       return;
     }
     const sug = row.rows[0];
-    const isTargetProfessor = user.role === "profesor" && user.id === sug.professor_id;
+    const isTargetProfessor = Boolean(sug.professor_id && user.role === "profesor" && user.id === sug.professor_id);
     const isStaff = canManageMapRooms(user);
     const isAuthor = user.id === sug.suggested_by;
 
-    if (decision === "confirm" && (isTargetProfessor || isStaff)) {
+    if (decision === "confirm" && sug.professor_id && (isTargetProfessor || isStaff)) {
       await client.query(
         `insert into map_rooms (code, kind, name, description)
          values ($1, 'cubiculo', $2, '')

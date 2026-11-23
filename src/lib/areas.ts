@@ -5,6 +5,7 @@ export const STAFF_AREAS = [
   "comunicacion",
   "clubes_academicos",
   "clubes_culturales",
+  "sseis",
   "prefectura",
   "subdireccion_academica",
 ] as const;
@@ -18,6 +19,7 @@ export const STAFF_AREA_LABELS: Record<StaffArea, string> = {
   comunicacion: "Comunicación Social",
   clubes_academicos: "Clubes Académicos",
   clubes_culturales: "Clubes Culturales y Deportivos",
+  sseis: "SSEIS (Servicios Educativos e Integración Social)",
   prefectura: "Prefectura",
   subdireccion_academica: "Subdirección Académica (Sala 14)",
 };

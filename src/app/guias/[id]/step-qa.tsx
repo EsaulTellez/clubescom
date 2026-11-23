@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/components/loading-ui";
 import { answerStepQuestion, voteGuideAnswer } from "../actions";
 import { btnGhost, input, label } from "@/lib/ui";
 
@@ -39,15 +40,15 @@ export function StepQA({ stepIndex, questions, signedIn }: {
             </div>
             <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{answer.body}</p>
             {signedIn && <div className="mt-2 flex gap-2">
-              <form action={voteGuideAnswer}><input type="hidden" name="answerId" value={answer.id} /><input type="hidden" name="helpful" value="true" /><button className="text-xs font-bold text-[#006699] underline">Me sirvió</button></form>
-              <form action={voteGuideAnswer}><input type="hidden" name="answerId" value={answer.id} /><input type="hidden" name="helpful" value="false" /><button className="text-xs font-semibold text-[#596c76] underline">No me sirvió</button></form>
+              <form action={voteGuideAnswer}><input type="hidden" name="answerId" value={answer.id} /><input type="hidden" name="helpful" value="true" /><SubmitButton pendingText="Guardando…" spinnerClassName="h-3 w-3" className="text-xs font-bold text-[#006699] underline">Me sirvió</SubmitButton></form>
+              <form action={voteGuideAnswer}><input type="hidden" name="answerId" value={answer.id} /><input type="hidden" name="helpful" value="false" /><SubmitButton pendingText="Guardando…" spinnerClassName="h-3 w-3" className="text-xs font-semibold text-[#596c76] underline">No me sirvió</SubmitButton></form>
             </div>}
           </div>)}
         </div>
         {signedIn && question.status !== "cerrada" ? <form action={answerStepQuestion} className="mt-3 space-y-2">
           <input type="hidden" name="questionId" value={question.id} />
           <label className={label}>Responder<textarea className={`${input} mt-1 min-h-20`} name="body" required minLength={5} maxLength={2000} placeholder="Comparte una respuesta clara para esta duda." /></label>
-          <button className={btnGhost}>Publicar respuesta</button>
+          <SubmitButton className={btnGhost} pendingText="Publicando…">Publicar respuesta</SubmitButton>
         </form> : null}
       </article>)}
     </div>

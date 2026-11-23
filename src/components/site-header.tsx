@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SubmitButton } from "@/components/loading-ui";
 import { logout } from "@/lib/auth-actions";
 import type { SessionUser } from "@/lib/auth";
 
@@ -42,9 +43,13 @@ export function SiteHeader({ user }: { user: SessionUser | null }) {
                 </Link>
               )}
               <form action={logout}>
-                <button className="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20">
+                <SubmitButton
+                  pendingText="Saliendo…"
+                  spinnerClassName="h-3.5 w-3.5"
+                  className="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20"
+                >
                   Salir
-                </button>
+                </SubmitButton>
               </form>
             </>
           ) : (

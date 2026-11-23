@@ -1,14 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { ImageUploadField } from "@/components/image-upload-field";
+import { SearchableUserPicker, type DirectoryUserOption } from "@/components/searchable-user-picker";
 import { formatMxDateTime, toMxLocalInputValue } from "@/lib/datetime";
 import { uploadFileDirectly } from "@/lib/direct-upload";
 import { btn, btnGhost, input, label } from "@/lib/ui";
 import {
   advisorRespondAppointment,
   approveProposal,
+  assignSseisDelegate,
   claimInactiveProposal,
   completeClubAppointment,
   confirmAdvisorByTeacher,
@@ -22,16 +26,20 @@ import {
   deleteClubPost,
   issueAdvisorCode,
   markInterest,
+  proposeClubAppointmentSlots,
   removeMember,
   requestClubAppointment,
   requestMembership,
+  respondClubAppointmentSlots,
   reviewClubEvent,
   reviewProposalDocument,
   reviewProposalStatus,
+  revokeSseisDelegate,
   saveParticipantProfile,
   sendAdvisorCodeToEmail,
   submitFormalClubRequest,
   updateClubDetails,
+  updateClubLogo,
   updateProposalDetails,
   uploadProposalDocument,
   verifyAdvisorCode,
@@ -209,35 +217,229 @@ export function DirectClubForm({
   professors,
   allowedKinds,
 }: {
-  students: { id: string; name: string }[];
-  professors: { id: string; name: string }[];
+  students: DirectoryUserOption[];
+  professors: DirectoryUserOption[];
   allowedKinds: ClubKind[];
 }) {
   const [state, action, pending] = useActionState(createClubDirectly, {});
   const kinds = allowedKinds.length > 0 ? allowedKinds : (["academico"] as ClubKind[]);
+  const [execPath, setExecPath] = useState("");
+  const [execFileName, setExecFileName] = useState("");
+  const [execUploading, setExecUploading] = useState(false);
+  const [execError, setExecError] = useState("");
+  const [rosterPath, setRosterPath] = useState("");
+  const [rosterFileName, setRosterFileName] = useState("");
+  const [rosterUploading, setRosterUploading] = useState(false);
+  const [rosterError, setRosterError] = useState("");
+
+  async function handlePdfUpload(
+    e: React.ChangeEvent<HTMLInputElement>,
+    kind: "exec" | "roster",
+  ) {
+    const file = e.target.files?.[0];
+    const setErr = kind === "exec" ? setExecError : setRosterError;
+    const setPath = kind === "exec" ? setExecPath : setRosterPath;
+    const setName = kind === "exec" ? setExecFileName : setRosterFileName;
+    const setBusy = kind === "exec" ? setExecUploading : setRosterUploading;
+
+    setErr("");
+    setPath("");
+    setName("");
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      setErr("Debe ser un archivo PDF.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setErr("El archivo supera los 10 MB.");
+      e.target.value = "";
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await uploadFileDirectly(file, {
+        bucket: "club-documents",
+        contextId: "direct",
+      });
+      setPath(res.path);
+      setName(file.name);
+      e.target.value = "";
+    } catch (err) {
+      setErr(err instanceof Error ? err.message : "No se pudo subir el PDF.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} className="space-y-3.5">
+      {execPath && <input type="hidden" name="executive_project_uploaded_path" value={execPath} />}
+      {rosterPath && <input type="hidden" name="founding_roster_uploaded_path" value={rosterPath} />}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={label}>
+          Nombre del club
+          <input className={input} name="name" required minLength={3} maxLength={120} />
+        </label>
+        <label className={label}>
+          Tipo
+          <select className={input} name="kind" defaultValue={kinds[0]}>
+            {kinds.map((k) => (
+              <option key={k} value={k}>
+                {kindLabel(k)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <fieldset className="space-y-3 rounded-xl border border-[#d4e3ec] bg-[#f7fbfe] p-3.5">
+        <legend className="px-1 text-xs font-extrabold uppercase tracking-wide text-[#005580]">
+          Proyecto ejecutivo (Procedimiento oficial ESCOM)
+        </legend>
+        <label className={label}>
+          Objetivo del club
+          <textarea className={`${input} min-h-20 bg-white`} name="objectives" required minLength={10} maxLength={2000} />
+        </label>
+        <label className={label}>
+          Cronograma de actividades a realizar a lo largo del año
+          <textarea
+            className={`${input} min-h-20 bg-white`}
+            name="schedule_plan"
+            required
+            minLength={10}
+            maxLength={2000}
+            placeholder="Ej. Feb–Mar: sesiones base; Abr–Jun: talleres prácticos y muestra..."
+          />
+        </label>
+        <label className={label}>
+          Detalle de las actividades a realizar
+          <textarea
+            className={`${input} min-h-20 bg-white`}
+            name="activities_detail"
+            required
+            minLength={10}
+            maxLength={2000}
+            placeholder="Talleres, asesorías, entrenamientos, concursos o eventos previstos"
+          />
+        </label>
+        <label className={label}>
+          Espacios y tiempos solicitados (lunes a viernes de 08:30 a 20:00 hrs)
+          <input
+            className={`${input} bg-white`}
+            name="requested_spaces"
+            required
+            minLength={3}
+            maxLength={600}
+            placeholder="Ej. Salón 2104 · Martes y jueves de 16:00 a 18:00 hrs"
+          />
+        </label>
+        <label className={label}>
+          Impacto académico, cultural o deportivo en los integrantes
+          <textarea
+            className={`${input} min-h-16 bg-white`}
+            name="community_impact"
+            required
+            minLength={10}
+            maxLength={2000}
+          />
+        </label>
+      </fieldset>
+
+      <fieldset className="space-y-3 rounded-xl border border-[#d4e3ec] bg-[#f7fbfe] p-3.5">
+        <legend className="px-1 text-xs font-extrabold uppercase tracking-wide text-[#005580]">
+          Documentación oficial obligatoria (PDF, máx. 10 MB c/u)
+        </legend>
+        <label className={label}>
+          Solicitud por escrito y proyecto ejecutivo (PDF)
+          <input
+            className={`${input} bg-white`}
+            name={execPath ? undefined : "executive_project"}
+            type="file"
+            accept="application/pdf"
+            required={!execPath}
+            onChange={(e) => handlePdfUpload(e, "exec")}
+            disabled={execUploading}
+          />
+          {execUploading && <span className="mt-1 block text-xs text-[#006699]">Subiendo PDF…</span>}
+          {execFileName && <span className="mt-1 block text-xs font-semibold text-[#17634a]">Listo: {execFileName}</span>}
+          {execError && <span className="mt-1 block text-xs text-[#8C1D18]">{execError}</span>}
+        </label>
+
+        <label className={label}>
+          Padrón de mínimo 20 estudiantes (boleta, carrera, correo, contacto, vigencia IMSS, credencial IPN vigente y firmas · PDF)
+          <input
+            className={`${input} bg-white`}
+            name={rosterPath ? undefined : "founding_roster"}
+            type="file"
+            accept="application/pdf"
+            required={!rosterPath}
+            onChange={(e) => handlePdfUpload(e, "roster")}
+            disabled={rosterUploading}
+          />
+          {rosterUploading && <span className="mt-1 block text-xs text-[#006699]">Subiendo PDF…</span>}
+          {rosterFileName && <span className="mt-1 block text-xs font-semibold text-[#17634a]">Listo: {rosterFileName}</span>}
+          {rosterError && <span className="mt-1 block text-xs text-[#8C1D18]">{rosterError}</span>}
+        </label>
+
+        <label className={label}>
+          Número de estudiantes en el padrón (mínimo 20)
+          <input
+            className={`${input} max-w-[10rem] bg-white`}
+            type="number"
+            name="founding_members_count"
+            min={20}
+            max={500}
+            defaultValue={20}
+            required
+          />
+        </label>
+      </fieldset>
+
+      <fieldset className="space-y-3 rounded-xl border border-[#d4e3ec] bg-[#f7fbfe] p-3.5">
+        <legend className="px-1 text-xs font-extrabold uppercase tracking-wide text-[#005580]">
+          Designación de responsables
+        </legend>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SearchableUserPicker
+            name="leader_id"
+            label="Alumno presidente / moderador"
+            roles={["alumno"]}
+            initialUsers={students}
+            required
+            placeholder="Buscar por boleta, nombre o correo…"
+          />
+          <SearchableUserPicker
+            name="advisor_id"
+            label="Profesor o PAAE coordinador"
+            roles={["profesor"]}
+            initialUsers={professors}
+            required
+            placeholder="Buscar por no. empleado, nombre o correo…"
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className={label}>
+            Semestre del alumno presidente (3º a 7º)
+            <select className={`${input} bg-white`} name="president_semester" required defaultValue="5">
+              <option value="3">3er semestre</option>
+              <option value="4">4º semestre</option>
+              <option value="5">5º semestre</option>
+              <option value="6">6º semestre</option>
+              <option value="7">7º semestre</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 self-end rounded-lg border border-[#d6e4ed] bg-white px-3 py-2.5 text-xs font-semibold text-[#173a4c]">
+            <input type="checkbox" name="president_is_regular" required defaultChecked />
+            <span>Alumno regular verificado</span>
+          </label>
+        </div>
+      </fieldset>
+
       <label className={label}>
-        Nombre del club
-        <input className={input} name="name" required minLength={3} maxLength={120} />
-      </label>
-      <label className={label}>
-        Tipo
-        <select className={input} name="kind" defaultValue={kinds[0]}>
-          {kinds.map((k) => (
-            <option key={k} value={k}>
-              {kindLabel(k)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className={label}>
-        Descripción
-        <textarea className={`${input} min-h-24`} name="description" required minLength={10} maxLength={2000} />
-      </label>
-      <label className={label}>
-        Horario y sede (opcional)
-        <input className={input} name="schedule" maxLength={160} placeholder="Ej. Martes y jueves · 16:00 · Salón 2104" />
+        Descripción pública para el directorio (opcional; si se omite usa el objetivo)
+        <textarea className={`${input} min-h-16`} name="description" maxLength={2000} />
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={label}>
@@ -249,32 +451,6 @@ export function DirectClubForm({
           <input className={input} name="contact_info" maxLength={400} placeholder="Discord, Telegram o cubículo" />
         </label>
       </div>
-      <label className={label}>
-        Alumno moderador / presidente
-        <select className={input} name="leader_id" required defaultValue="">
-          <option value="" disabled>
-            Selecciona un alumno
-          </option>
-          {students.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className={label}>
-        Profesor coordinador
-        <select className={input} name="advisor_id" required defaultValue="">
-          <option value="" disabled>
-            Selecciona un profesor
-          </option>
-          {professors.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.name}
-            </option>
-          ))}
-        </select>
-      </label>
       <ImageUploadField name="logo" label="Logo del club (opcional · JPG, PNG o WEBP)" compact />
       <label className={label}>
         Indicaciones o enlace de filtro externo (opcional)
@@ -282,9 +458,14 @@ export function DirectClubForm({
       </label>
       <JoinQuestionnaireBuilder initial={[]} />
       <FieldError state={state} />
-      <button className={btn} disabled={pending || !students.length || !professors.length}>
-        {pending ? "Registrando…" : "Registrar club"}
-      </button>
+      <SubmitButton
+        className={btn}
+        pending={pending}
+        disabled={!students.length || !professors.length || execUploading || rosterUploading}
+        pendingText="Registrando…"
+      >
+        Registrar club con expediente completo
+      </SubmitButton>
       {(!students.length || !professors.length) && (
         <p className="text-sm text-[#667085]">Se necesita al menos una cuenta activa de alumno y una de profesor.</p>
       )}
@@ -398,12 +579,14 @@ export function ProposalForm({ catalog = [] }: { catalog?: CatalogEntry[] }) {
       )}
 
       <FieldError state={state} />
-      <button
+      <SubmitButton
         className={btn}
-        disabled={pending || hasBlocking || (hasWarning && !confirmDifferent)}
+        pending={pending}
+        disabled={hasBlocking || (hasWarning && !confirmDifferent)}
+        pendingText="Publicando propuesta…"
       >
-        {pending ? "Publicando propuesta…" : "Publicar propuesta"}
-      </button>
+        Publicar propuesta
+      </SubmitButton>
     </form>
   );
 }
@@ -517,9 +700,9 @@ export function UpdateProposalActivitiesForm({
         </label>
       </div>
       <FieldError state={state} />
-      <button className={btnGhost} disabled={pending}>
-        {pending ? "Guardando…" : "Guardar proyecto ejecutivo"}
-      </button>
+      <SubmitButton className={btnGhost} pending={pending} pendingText="Guardando…">
+        Guardar proyecto ejecutivo
+      </SubmitButton>
     </form>
   );
 }
@@ -561,9 +744,9 @@ export function ParticipantProfileForm({
           placeholder="55 1234 5678"
         />
       </label>
-      <button className={btnGhost} disabled={pending}>
-        {pending ? "Guardando…" : "Guardar datos"}
-      </button>
+      <SubmitButton className={btnGhost} pending={pending} pendingText="Guardando…">
+        Guardar datos
+      </SubmitButton>
       {(state.error || state.success) && (
         <div className="sm:col-span-3">
           <FieldError state={state} />
@@ -591,9 +774,9 @@ export function ActionForm({
         <input key={name} type="hidden" name={name} value={value} />
       ))}
       <FieldError state={state} />
-      <button className={variant === "ghost" ? btnGhost : btn} disabled={pending}>
+      <SubmitButton className={variant === "ghost" ? btnGhost : btn} pending={pending} pendingText="Procesando…">
         {text}
-      </button>
+      </SubmitButton>
     </form>
   );
 }
@@ -710,9 +893,9 @@ export function ClaimInactiveProposalButton({
                 <button type="button" onClick={() => setOpen(false)} className={btnGhost}>
                   Cancelar
                 </button>
-                <button type="submit" className={btn} disabled={pending || !accepted}>
-                  {pending ? "Asumiendo mando…" : "Aceptar y continuar registro"}
-                </button>
+                <SubmitButton className={btn} pending={pending} disabled={!accepted} pendingText="Asumiendo mando…">
+                  Aceptar y continuar registro
+                </SubmitButton>
               </div>
             </form>
           </div>
@@ -724,24 +907,38 @@ export function ClaimInactiveProposalButton({
 
 export function SendAdvisorEmailCodeForm({ proposalId }: { proposalId: string }) {
   const [state, action, pending] = useActionState(sendAdvisorCodeToEmail, {});
+  const [email, setEmail] = useState("");
+
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="proposal_id" value={proposalId} />
+      <SearchableUserPicker
+        name="_advisor_lookup"
+        label="Buscar profesor coordinador (por nombre, no. empleado o correo)"
+        roles={["profesor"]}
+        returnField="email"
+        placeholder="Escribe el nombre o número de empleado del profesor…"
+        onSelect={(picked) => {
+          if (picked?.email) setEmail(picked.email);
+        }}
+      />
       <label className={label}>
-        Correo institucional del profesor coordinador (@ipn.mx)
+        Correo institucional del profesor (@ipn.mx)
         <input
           className={input}
           type="email"
           name="advisor_email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           required
-          placeholder="profesor@ipn.mx"
+          placeholder="nombre@ipn.mx"
           autoComplete="email"
         />
       </label>
       <FieldError state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Enviando código…" : "Enviar código al correo del profesor"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Enviando código…">
+        Enviar código al correo del profesor
+      </SubmitButton>
     </form>
   );
 }
@@ -765,9 +962,9 @@ export function IssueAdvisorCodeForm({ proposalId }: { proposalId: string }) {
         />
       </label>
       <FieldError state={state} />
-      <button className={btnGhost} disabled={pending}>
-        {pending ? "Emitiendo…" : "Generar código manualmente"}
-      </button>
+      <SubmitButton className={btnGhost} pending={pending} pendingText="Emitiendo…">
+        Generar código manualmente
+      </SubmitButton>
     </form>
   );
 }
@@ -791,9 +988,9 @@ export function VerifyAdvisorCodeForm({ proposalId }: { proposalId: string }) {
         />
       </label>
       <FieldError state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Validando…" : "Confirmar que el profesor aceptó"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Validando…">
+        Confirmar que el profesor aceptó
+      </SubmitButton>
     </form>
   );
 }
@@ -804,9 +1001,9 @@ export function AdvisorConfirmForm({ proposalId }: { proposalId: string }) {
     <form action={action} className="space-y-3">
       <input type="hidden" name="proposal_id" value={proposalId} />
       <FieldError state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Confirmando…" : "Confirmar que coordinaré este club"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Confirmando…">
+        Confirmar que coordinaré este club
+      </SubmitButton>
     </form>
   );
 }
@@ -818,7 +1015,7 @@ export function AdvisorMeetingResponseForm({
   proposalId: string;
   existingNote?: string | null;
 }) {
-  const [state, action, pending] = useActionState(advisorRespondAppointment, {});
+  const [state, action] = useActionState(advisorRespondAppointment, {});
   const [note, setNote] = useState(existingNote ?? "");
   return (
     <form action={action} className="space-y-3 rounded-xl border border-[#cfe2ec] bg-white p-3.5">
@@ -836,12 +1033,12 @@ export function AdvisorMeetingResponseForm({
       </label>
       <FieldError state={state} />
       <div className="flex flex-wrap gap-2">
-        <button className={btn} name="confirm" value="1" disabled={pending}>
-          {pending ? "Guardando…" : "Confirmar asistencia a la reunión"}
-        </button>
-        <button className={btnGhost} name="confirm" value="0" disabled={pending || note.trim().length < 4}>
+        <SubmitButton className={btn} name="confirm" value="1" pendingText="Confirmando…">
+          Confirmar asistencia a la reunión
+        </SubmitButton>
+        <SubmitButton className={btnGhost} name="confirm" value="0" disabled={note.trim().length < 4} pendingText="Enviando…">
           Sugerir otro horario
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );
@@ -957,7 +1154,7 @@ export function FormalClubRequestForm({
       </label>
       <div className="space-y-1.5">
         <label className={label}>
-          Espacios y tiempos solicitados en ESCOM
+          Espacios y tiempos solicitados en ESCOM (lunes a viernes de 08:30 a 20:00 hrs)
           <input
             className={input}
             name="requested_spaces"
@@ -981,6 +1178,22 @@ export function FormalClubRequestForm({
             </button>
           ))}
         </div>
+      </div>
+      <div className="grid gap-3 rounded-xl border border-[#d6e4ed] bg-[#f8fbfd] p-3.5 sm:grid-cols-2">
+        <label className={label}>
+          Semestre del alumno presidente (requisitos PDF: 3º a 7º semestre)
+          <select className={input} name="president_semester" required defaultValue="5">
+            <option value="3">3er semestre</option>
+            <option value="4">4º semestre</option>
+            <option value="5">5º semestre</option>
+            <option value="6">6º semestre</option>
+            <option value="7">7º semestre</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2.5 self-end rounded-lg border border-[#d6e4ed] bg-white px-3 py-2.5 text-xs font-semibold text-[#173a4c]">
+          <input type="checkbox" name="president_is_regular" required defaultChecked />
+          <span>Confirmo ser alumno regular de ESCOM (requisito para presidir el club)</span>
+        </label>
       </div>
       <label className={label}>
         Contribución y beneficios a la comunidad ESCOM
@@ -1020,24 +1233,24 @@ export function FormalClubRequestForm({
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={label}>
-          Opción 1 de fecha y hora para junta conjunta (CDMX)
-          <input className={input} type="datetime-local" name="slot1" required />
+          Preferencia 1 de fecha/hora para junta (opcional · {targetOfficeLabel} propondrá horarios)
+          <input className={input} type="datetime-local" name="slot1" />
         </label>
         <label className={label}>
-          Opción 2 de fecha y hora (opcional)
+          Preferencia 2 de fecha/hora (opcional)
           <input className={input} type="datetime-local" name="slot2" />
         </label>
       </div>
       <FieldError state={state} />
-      <button className={btn} disabled={pending || planUploading}>
-        {pending ? "Enviando registro formal…" : `Enviar registro formal a ${targetOfficeLabel}`}
-      </button>
+      <SubmitButton className={btn} pending={pending} disabled={planUploading} pendingText="Enviando registro formal…">
+        {`Enviar registro formal a ${targetOfficeLabel}`}
+      </SubmitButton>
     </form>
   );
 }
 
 export function ProposalStaffDecisionForm({ proposalId }: { proposalId: string }) {
-  const [state, action, pending] = useActionState(reviewProposalStatus, {});
+  const [state, action] = useActionState(reviewProposalStatus, {});
   return (
     <form action={action} className="space-y-3 border-t border-[#d5e4ee] pt-4">
       <input type="hidden" name="proposal_id" value={proposalId} />
@@ -1054,15 +1267,15 @@ export function ProposalStaffDecisionForm({ proposalId }: { proposalId: string }
       </label>
       <FieldError state={state} />
       <div className="flex flex-wrap gap-2">
-        <button className={btnGhost} name="decision" value="incompleta" disabled={pending}>
+        <SubmitButton className={btnGhost} name="decision" value="incompleta" pendingText="Actualizando…">
           Marcar incompleta (con observaciones)
-        </button>
-        <button className={btnGhost} name="decision" value="rechazada" disabled={pending}>
+        </SubmitButton>
+        <SubmitButton className={btnGhost} name="decision" value="rechazada" pendingText="Rechazando…">
           Rechazar propuesta
-        </button>
-        <button className={btnGhost} name="decision" value="en_documentacion" disabled={pending}>
+        </SubmitButton>
+        <SubmitButton className={btnGhost} name="decision" value="en_documentacion" pendingText="Reabriendo…">
           Reabrir a documentación
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );
@@ -1161,9 +1374,9 @@ export function JoinButton({
         </label>
       )}
       <FieldError state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Enviando solicitud…" : "Enviar solicitud al club"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Enviando solicitud…">
+        Enviar solicitud al club
+      </SubmitButton>
     </form>
   );
 }
@@ -1327,19 +1540,15 @@ export function ProposalDocumentForm({
       {fileName && <p className="text-xs font-semibold text-[#17634a]">Archivo listo: {fileName}</p>}
       {uploadErr && <p className="text-xs text-[#8C1D18]">{uploadErr}</p>}
       <FieldError state={state} />
-      <button className={btn} disabled={pending || uploading}>
-        {pending
-          ? "Registrando…"
-          : docMap.has(docType)
-            ? "Reemplazar documento"
-            : "Subir documento privado"}
-      </button>
+      <SubmitButton className={btn} pending={pending} disabled={uploading} pendingText="Registrando…">
+        {docMap.has(docType) ? "Reemplazar documento" : "Subir documento privado"}
+      </SubmitButton>
     </form>
   );
 }
 
 export function ProposalDocumentReviewForm({ proposalId, documentId }: { proposalId: string; documentId: string }) {
-  const [state, action, pending] = useActionState(reviewProposalDocument, {});
+  const [state, action] = useActionState(reviewProposalDocument, {});
   return (
     <form action={action} className="mt-3 space-y-2 border-t border-[#d5e4ee] pt-3">
       <input type="hidden" name="proposal_id" value={proposalId} />
@@ -1350,12 +1559,12 @@ export function ProposalDocumentReviewForm({ proposalId, documentId }: { proposa
       </label>
       <FieldError state={state} />
       <div className="flex flex-wrap gap-2">
-        <button className={btn} name="status" value="recibido" disabled={pending}>
+        <SubmitButton className={btn} name="status" value="recibido" pendingText="Aprobando…">
           Marcar correcto
-        </button>
-        <button className={btnGhost} name="status" value="requiere_correccion" disabled={pending}>
+        </SubmitButton>
+        <SubmitButton className={btnGhost} name="status" value="requiere_correccion" pendingText="Enviando…">
           Solicitar corrección
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );
@@ -1375,9 +1584,237 @@ export function AppointmentRequestForm({ proposalId }: { proposalId: string }) {
         <input className={input} type="datetime-local" name="slot2" />
       </label>
       <FieldError state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Enviando…" : "Solicitar cita"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Enviando…">
+        Solicitar cita
+      </SubmitButton>
+    </form>
+  );
+}
+
+export function StaffProposeSlotsForm({
+  proposalId,
+  defaultPlace,
+  existingSlots = [],
+  existingMode,
+  existingLocation,
+}: {
+  proposalId: string;
+  defaultPlace: string;
+  existingSlots?: string[];
+  existingMode?: string | null;
+  existingLocation?: string | null;
+}) {
+  const [state, action, pending] = useActionState(proposeClubAppointmentSlots, {});
+  const [slots, setSlots] = useState<string[]>(() => {
+    if (existingSlots.length >= 2) {
+      return existingSlots.slice(0, 5).map((s) => toMxLocalInputValue(s));
+    }
+    return ["", "", ""];
+  });
+  const [mode, setMode] = useState<"presencial" | "en_linea">(
+    existingMode === "en_linea" ? "en_linea" : "presencial",
+  );
+  const [location, setLocation] = useState(existingLocation || defaultPlace);
+
+  function addSlot() {
+    if (slots.length >= 5) return;
+    setSlots((prev) => [...prev, ""]);
+  }
+
+  function updateSlot(idx: number, val: string) {
+    setSlots((prev) => prev.map((s, i) => (i === idx ? val : s)));
+  }
+
+  function removeSlot(idx: number) {
+    if (slots.length <= 1) return;
+    setSlots((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  return (
+    <form action={action} className="space-y-3 rounded-xl border border-[#cde0ea] bg-[#f7fbfe] p-4">
+      <input type="hidden" name="proposal_id" value={proposalId} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-extrabold uppercase tracking-wide text-[#005580]">
+          Proponer fechas y horarios para la junta (alumno y profesor elegirán disponibilidad)
+        </p>
+        <button
+          type="button"
+          onClick={addSlot}
+          disabled={slots.length >= 5}
+          className="rounded-lg border border-[#006699] bg-white px-2.5 py-1 text-xs font-bold text-[#005580] hover:bg-[#eaf4f8] disabled:opacity-40"
+        >
+          + Agregar horario ({slots.length}/5)
+        </button>
+      </div>
+
+      <div className="grid gap-2.5 sm:grid-cols-2">
+        {slots.map((val, idx) => (
+          <div key={idx} className="flex items-end gap-1.5">
+            <label className={`${label} flex-1`}>
+              Opción {idx + 1} (hora CDMX)
+              <input
+                className={input}
+                type="datetime-local"
+                name="proposed_slot"
+                value={val}
+                onChange={(e) => updateSlot(idx, e.target.value)}
+                required={idx === 0}
+              />
+            </label>
+            {slots.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeSlot(idx)}
+                className="mb-1 rounded-lg border border-[#d5e0e6] bg-white px-2.5 py-2 text-xs font-bold text-[#8C1D18] hover:bg-[#fff2f0]"
+                aria-label={`Quitar opción ${idx + 1}`}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={label}>
+          Modalidad
+          <select
+            className={input}
+            name="meeting_mode"
+            value={mode}
+            onChange={(e) => {
+              const next = e.target.value === "en_linea" ? "en_linea" : "presencial";
+              setMode(next);
+              if (next === "en_linea" && !/^https?:\/\//i.test(location)) setLocation("");
+              if (next === "presencial" && !location) setLocation(defaultPlace);
+            }}
+          >
+            <option value="presencial">Presencial en ESCOM</option>
+            <option value="en_linea">En línea (videollamada)</option>
+          </select>
+        </label>
+        <label className={label}>
+          {mode === "en_linea" ? "Enlace de videollamada (opcional)" : "Lugar en ESCOM"}
+          <input
+            className={input}
+            name="meeting_location"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            maxLength={300}
+            placeholder={mode === "en_linea" ? "https://meet.google.com/..." : defaultPlace}
+          />
+        </label>
+      </div>
+
+      <label className={label}>
+        Indicaciones para el alumno presidente y el profesor coordinador (opcional)
+        <input
+          className={input}
+          name="subdireccion_notes"
+          maxLength={400}
+          placeholder="Ej. Traer proyecto ejecutivo impreso o tener lista la presentación breve"
+        />
+      </label>
+
+      <FieldError state={state} />
+      <SubmitButton className={btn} pending={pending} pendingText="Enviando horarios…">
+        Enviar opciones de horario a alumno y profesor
+      </SubmitButton>
+    </form>
+  );
+}
+
+export function ParticipantSlotAvailabilityForm({
+  proposalId,
+  roleLabel,
+  staffSlots,
+  mySelectedSlots,
+  otherPartySelectedSlots,
+  otherPartyLabel,
+  existingNote,
+}: {
+  proposalId: string;
+  roleLabel: string;
+  staffSlots: string[];
+  mySelectedSlots: string[];
+  otherPartySelectedSlots: string[];
+  otherPartyLabel: string;
+  existingNote?: string | null;
+}) {
+  const [state, action, pending] = useActionState(respondClubAppointmentSlots, {});
+  const [selected, setSelected] = useState<string[]>(mySelectedSlots);
+  const [note, setNote] = useState(existingNote ?? "");
+  const otherSet = useMemo(() => new Set(otherPartySelectedSlots), [otherPartySelectedSlots]);
+
+  function toggleSlot(iso: string) {
+    setSelected((prev) => (prev.includes(iso) ? prev.filter((s) => s !== iso) : [...prev, iso]));
+  }
+
+  return (
+    <form action={action} className="space-y-3 rounded-xl border border-[#b8d7e6] bg-[#f4fafe] p-4">
+      <input type="hidden" name="proposal_id" value={proposalId} />
+      <div>
+        <p className="text-xs font-extrabold uppercase tracking-wide text-[#005580]">
+          Tu disponibilidad ({roleLabel})
+        </p>
+        <p className="mt-0.5 text-xs text-[#3b5968]">
+          Marca todos los horarios en los que puedes asistir para encontrar una fecha en común con {otherPartyLabel}.
+        </p>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        {staffSlots.map((slot) => {
+          const checked = selected.includes(slot);
+          const otherPicked = otherSet.has(slot);
+          const isMatch = checked && otherPicked;
+          return (
+            <label
+              key={slot}
+              className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-xs transition ${
+                isMatch
+                  ? "border-[#25805b] bg-[#eaf8f1] ring-1 ring-[#25805b]"
+                  : checked
+                    ? "border-[#006699] bg-white ring-1 ring-[#006699]"
+                    : "border-[#d2e2eb] bg-white hover:bg-[#f7fbfe]"
+              }`}
+            >
+              <input
+                type="checkbox"
+                name="selected_slots"
+                value={slot}
+                checked={checked}
+                onChange={() => toggleSlot(slot)}
+                className="mt-0.5"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-[#14374a]">{formatMxDateTime(slot)}</p>
+                {otherPicked && (
+                  <p className="mt-0.5 text-[11px] font-bold text-[#17634a]">
+                    ✓ {otherPartyLabel} también puede en este horario
+                  </p>
+                )}
+              </div>
+            </label>
+          );
+        })}
+      </div>
+
+      <label className={label}>
+        Comentario adicional (opcional; obligatorio si ninguno de estos horarios te funciona)
+        <input
+          className={input}
+          name="availability_note"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          maxLength={400}
+          placeholder="Ej. Puedo cualquiera de los marcados, o prefiero martes después de las 14:00"
+        />
+      </label>
+
+      <FieldError state={state} />
+      <SubmitButton className={btn} pending={pending} pendingText="Guardando disponibilidad…">
+        Guardar mis horarios disponibles
+      </SubmitButton>
     </form>
   );
 }
@@ -1387,6 +1824,7 @@ export function AppointmentReviewForm({
   appointmentId,
   defaultPlace,
   proposedSlots = [],
+  matchingSlots = [],
   currentScheduledAt,
   currentMode,
   currentLocation,
@@ -1395,6 +1833,7 @@ export function AppointmentReviewForm({
   appointmentId: string;
   defaultPlace?: string;
   proposedSlots?: string[];
+  matchingSlots?: string[];
   currentScheduledAt?: string | null;
   currentMode?: string | null;
   currentLocation?: string | null;
@@ -1409,9 +1848,11 @@ export function AppointmentReviewForm({
   const [scheduledLocal, setScheduledLocal] = useState(
     currentScheduledAt
       ? toMxLocalInputValue(currentScheduledAt)
-      : proposedSlots[0]
-        ? toMxLocalInputValue(proposedSlots[0])
-        : "",
+      : matchingSlots[0]
+        ? toMxLocalInputValue(matchingSlots[0])
+        : proposedSlots[0]
+          ? toMxLocalInputValue(proposedSlots[0])
+          : "",
   );
 
   return (
@@ -1419,10 +1860,38 @@ export function AppointmentReviewForm({
       <input type="hidden" name="proposal_id" value={proposalId} />
       <input type="hidden" name="appointment_id" value={appointmentId} />
 
+      {matchingSlots.length > 0 && (
+        <div className="space-y-1.5 rounded-xl border border-[#b4dfc9] bg-[#eef9f3] p-3">
+          <p className="text-xs font-extrabold text-[#14593e]">
+            ✓ Horarios donde coinciden alumno presidente y profesor coordinador (clic para acordar):
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {matchingSlots.map((slot) => {
+              const localVal = toMxLocalInputValue(slot);
+              const isSelected = scheduledLocal === localVal;
+              return (
+                <button
+                  key={slot}
+                  type="button"
+                  onClick={() => setScheduledLocal(localVal)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-extrabold transition ${
+                    isSelected
+                      ? "border-[#14593e] bg-[#14593e] text-white"
+                      : "border-[#9fd2b7] bg-white text-[#14593e] hover:bg-[#e1f4ea]"
+                  }`}
+                >
+                  {formatMxDateTime(slot)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {proposedSlots.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-xs font-bold text-[#2b4d61]">
-            Horarios propuestos por el estudiante (clic para elegir):
+            Horarios propuestos (clic para seleccionar):
           </p>
           <div className="flex flex-wrap gap-2">
             {proposedSlots.map((slot, idx) => {
@@ -1507,13 +1976,11 @@ export function AppointmentReviewForm({
         />
       </label>
       <FieldError state={state} />
-      <button className={btn} disabled={pending}>
-        {pending
-          ? "Guardando y notificando…"
-          : currentScheduledAt
-            ? "Reprogramar y notificar a alumno y profesor"
-            : "Confirmar junta y notificar a ambos"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Guardando y notificando…">
+        {currentScheduledAt
+          ? "Reprogramar y notificar a alumno y profesor"
+          : "Confirmar junta y notificar a ambos"}
+      </SubmitButton>
     </form>
   );
 }
@@ -1525,36 +1992,178 @@ export function CompleteAppointmentButton({ proposalId, appointmentId }: { propo
       <input type="hidden" name="proposal_id" value={proposalId} />
       <input type="hidden" name="appointment_id" value={appointmentId} />
       <FieldError state={state} />
-      <button className={btnGhost} disabled={pending}>
-        {pending ? "Guardando…" : "Marcar cita completada"}
-      </button>
+      <SubmitButton className={btnGhost} pending={pending} pendingText="Guardando…">
+        Marcar cita completada
+      </SubmitButton>
     </form>
   );
 }
 
-export function ClubPostForm({ clubId }: { clubId: string }) {
-  const [state, action, pending] = useActionState(createClubPost, {});
+export function ClubPostForm({
+  clubId,
+  onSuccess,
+  onCancel,
+}: {
+  clubId: string;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    async (prev: ClubState, formData: FormData) => {
+      const res = await createClubPost(prev, formData);
+      if (res.success) {
+        router.refresh();
+        onSuccess?.();
+      }
+      return res;
+    },
+    {},
+  );
   return (
-    <form action={action} className="space-y-3.5 rounded-[24px] border border-[#dce9f1] bg-white p-4 shadow-[0_8px_28px_rgba(0,45,75,0.05)] sm:p-5">
+    <form action={action} className="space-y-4">
       <input type="hidden" name="club_id" value={clubId} />
-      <p className="text-sm font-bold text-[#19435b]">Comparte algo con el club</p>
-      <input className={input} name="title" required minLength={4} maxLength={120} placeholder="Título de la publicación" />
-      <textarea
-        className={`${input} min-h-24 resize-y`}
-        name="body"
-        required
-        minLength={10}
-        maxLength={3000}
-        placeholder="Una pregunta, idea o actualización…"
-      />
+      <input type="hidden" name="stay_on_page" value="1" />
+      <label className={label}>
+        Título
+        <input className={input} name="title" required minLength={4} maxLength={120} placeholder="Título de la publicación" />
+      </label>
+      <label className={label}>
+        Contenido
+        <textarea
+          className={`${input} min-h-28 resize-y`}
+          name="body"
+          required
+          minLength={10}
+          maxLength={3000}
+          placeholder="Comparte anuncios, avances o actividades del club…"
+        />
+      </label>
       <ImageUploadField name="image" label="Imagen de la publicación (opcional · JPG, PNG o WEBP)" compact />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <FieldError state={state} />
-        <button className={btn} disabled={pending}>
-          {pending ? "Publicando…" : "Publicar"}
-        </button>
+      <FieldError state={state} />
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#e5e1d4] pt-4">
+        {onCancel && (
+          <button type="button" onClick={onCancel} className={btnGhost}>
+            Cancelar
+          </button>
+        )}
+        <SubmitButton className={btn} pending={pending} pendingText="Publicando…">
+          Publicar
+        </SubmitButton>
       </div>
     </form>
+  );
+}
+
+export function ClubLogoForm({
+  clubId,
+  currentLogoUrl,
+  onSuccess,
+  onCancel,
+}: {
+  clubId: string;
+  currentLogoUrl?: string | null;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    async (prev: ClubState, formData: FormData) => {
+      const res = await updateClubLogo(prev, formData);
+      if (res.success) {
+        router.refresh();
+        onSuccess?.();
+      }
+      return res;
+    },
+    {},
+  );
+  return (
+    <form action={action} className="space-y-4">
+      <input type="hidden" name="club_id" value={clubId} />
+      <ImageUploadField
+        name="logo"
+        label="Nuevo logo del club (JPG, PNG o WEBP · cuadrado recomendado)"
+        initialImageUrl={currentLogoUrl ?? null}
+      />
+      <FieldError state={state} />
+      <div className="flex flex-wrap justify-end gap-2 border-t border-[#e5e1d4] pt-4">
+        {onCancel && (
+          <button type="button" onClick={onCancel} className={btnGhost}>
+            Cancelar
+          </button>
+        )}
+        <SubmitButton className={btn} pending={pending} pendingText="Guardando logo…">
+          Guardar logo
+        </SubmitButton>
+      </div>
+    </form>
+  );
+}
+
+export function SseisDelegateForm({
+  candidates,
+  onSuccess,
+  onCancel,
+}: {
+  candidates: DirectoryUserOption[];
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    async (prev: ClubState, formData: FormData) => {
+      const res = await assignSseisDelegate(prev, formData);
+      if (res.success) {
+        router.refresh();
+        onSuccess?.();
+      }
+      return res;
+    },
+    {},
+  );
+  return (
+    <form action={action} className="space-y-4">
+      <SearchableUserPicker
+        name="user_id"
+        label="Profesora o responsable a designar"
+        roles={["profesor", "moderador"]}
+        initialUsers={candidates}
+        required
+        placeholder="Buscar por nombre, no. empleado o correo…"
+      />
+      <label className={label}>
+        Nota o cargo (opcional)
+        <input
+          className={input}
+          name="note"
+          maxLength={300}
+          placeholder="Ej. Coordinación de actividades culturales y deportivas SSEIS"
+        />
+      </label>
+      <FieldError state={state} />
+      <div className="flex flex-wrap justify-end gap-2 border-t border-[#e5e1d4] pt-4">
+        {onCancel && (
+          <button type="button" onClick={onCancel} className={btnGhost}>
+            Cancelar
+          </button>
+        )}
+        <SubmitButton className={btn} pending={pending} pendingText="Designando…">
+          Designar responsable
+        </SubmitButton>
+      </div>
+    </form>
+  );
+}
+
+export function RevokeSseisDelegateButton({ userId }: { userId: string }) {
+  return (
+    <ActionForm
+      action={revokeSseisDelegate}
+      fields={{ user_id: userId }}
+      label="Retirar designación"
+      variant="ghost"
+    />
   );
 }
 
@@ -1590,12 +2199,20 @@ export function ClubEditForm({
     active: boolean;
   };
   isStaff: boolean;
-  students: { id: string; name: string }[];
-  professors: { id: string; name: string }[];
+  students: DirectoryUserOption[];
+  professors: DirectoryUserOption[];
 }) {
   const [state, action, pending] = useActionState(updateClubDetails, {});
+  const currentLeader = useMemo(
+    () => students.find((s) => s.id === club.leader_id) ?? null,
+    [students, club.leader_id],
+  );
+  const currentAdvisor = useMemo(
+    () => professors.find((p) => p.id === club.advisor_id) ?? null,
+    [professors, club.advisor_id],
+  );
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} className="space-y-4">
       <input type="hidden" name="club_id" value={club.id} />
       <label className={label}>
         Descripción
@@ -1632,58 +2249,75 @@ export function ClubEditForm({
       <JoinQuestionnaireBuilder initial={parseJoinQuestions(club.join_questions)} />
       <ImageUploadField
         name="logo"
-        label="Logo del club (opcional · JPG, PNG o WEBP)"
+        label="Logo del club (JPG, PNG o WEBP)"
         initialImageUrl={club.logo_url ?? null}
         compact
       />
       {isStaff && (
-        <>
+        <div className="space-y-4 rounded-md border border-[#d6e2ea] bg-[#f7fafc] p-4">
+          <p className="text-xs font-extrabold uppercase tracking-wider text-[#144c69]">
+            Titulares y vigencia del club
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className={label}>
-              Cambiar alumno moderador / presidente
-              <select className={input} name="leader_id" defaultValue={club.leader_id ?? ""}>
-                <option value="">Conservar actual</option>
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={label}>
-              Cambiar profesor coordinador
-              <select className={input} name="advisor_id" defaultValue={club.advisor_id ?? ""}>
-                <option value="">Conservar actual</option>
-                {professors.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SearchableUserPicker
+              name="leader_id"
+              label="Alumno moderador / presidente"
+              roles={["alumno"]}
+              initialUsers={students}
+              defaultUser={currentLeader}
+              defaultValue={club.leader_id ?? ""}
+              placeholder="Buscar alumno por boleta o nombre…"
+            />
+            <SearchableUserPicker
+              name="advisor_id"
+              label="Profesor coordinador"
+              roles={["profesor"]}
+              initialUsers={professors}
+              defaultUser={currentAdvisor}
+              defaultValue={club.advisor_id ?? ""}
+              placeholder="Buscar profesor por no. empleado o nombre…"
+            />
           </div>
           <label className="inline-flex items-center gap-2 text-sm font-semibold text-[#19384c]">
             <input type="hidden" name="active_field" value="1" />
             <input type="checkbox" name="active" defaultChecked={club.active} />
             Club activo en el directorio público
           </label>
-        </>
+        </div>
       )}
       <FieldError state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Guardando…" : "Guardar cambios del club"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Guardando…">
+        Guardar cambios del club
+      </SubmitButton>
     </form>
   );
 }
 
-export function ClubEventForm({ clubId }: { clubId: string }) {
-  const [state, action, pending] = useActionState(createClubEvent, {});
+export function ClubEventForm({
+  clubId,
+  onSuccess,
+  onCancel,
+}: {
+  clubId: string;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    async (prev: ClubState, formData: FormData) => {
+      const res = await createClubEvent(prev, formData);
+      if (res.success) {
+        router.refresh();
+        onSuccess?.();
+      }
+      return res;
+    },
+    {},
+  );
   const [venuePreset, setVenuePreset] = useState("Auditorio");
   return (
-    <form action={action} className="space-y-3 border-t border-[#edf2f5] pt-4">
+    <form action={action} className="space-y-4">
       <input type="hidden" name="club_id" value={clubId} />
-      <p className="text-xs font-extrabold uppercase tracking-wide text-[#006699]">Proponer evento del club</p>
       <label className={label}>
         Título
         <input className={input} name="title" required minLength={3} maxLength={140} />
@@ -1732,13 +2366,20 @@ export function ClubEventForm({ clubId }: { clubId: string }) {
       </div>
       <label className={label}>
         Descripción
-        <textarea className={`${input} min-h-16`} name="description" maxLength={500} />
+        <textarea className={`${input} min-h-20`} name="description" maxLength={500} />
       </label>
       <ImageUploadField name="image" label="Cartel o imagen del evento (opcional)" compact />
       <FieldError state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Enviando…" : "Publicar / enviar evento"}
-      </button>
+      <div className="flex flex-wrap justify-end gap-2 border-t border-[#e5e1d4] pt-4">
+        {onCancel && (
+          <button type="button" onClick={onCancel} className={btnGhost}>
+            Cancelar
+          </button>
+        )}
+        <SubmitButton className={btn} pending={pending} pendingText="Enviando…">
+          Enviar evento a revisión
+        </SubmitButton>
+      </div>
     </form>
   );
 }

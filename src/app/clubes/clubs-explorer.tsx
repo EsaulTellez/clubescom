@@ -1,12 +1,20 @@
 "use client";
 
 import { CatalogSearch } from "@/components/catalog-search";
+import { FormDialog } from "@/components/form-dialog";
+import type { DirectoryUserOption } from "@/components/searchable-user-picker";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { formatMxDateTime } from "@/lib/datetime";
 import { btn, btnGhost, card } from "@/lib/ui";
-import { ClaimInactiveProposalButton, DirectClubForm, ProposalForm } from "./forms";
+import {
+  ClaimInactiveProposalButton,
+  DirectClubForm,
+  ProposalForm,
+  RevokeSseisDelegateButton,
+  SseisDelegateForm,
+} from "./forms";
 import { interestLabel, kindLabel, statusLabel, type ClubKind } from "./format";
 import { normalizeClubText, type CatalogEntry } from "./similarity";
 
@@ -72,6 +80,15 @@ export type PendingMembershipRow = {
   user_role: string;
 };
 
+export type SseisDelegateRow = {
+  user_id: string;
+  name: string;
+  role: string;
+  boleta: string | null;
+  email: string | null;
+  note: string | null;
+};
+
 type MainTab = "clubes" | "propuestas" | "panel";
 type ProposalStageFilter = "todas" | "votacion" | "documentos" | "listo_envio" | "revision";
 
@@ -119,10 +136,13 @@ export function ClubesExplorer({
   proposalStageCounts,
   sala14EventsCount,
   people,
+  sseisDelegates = [],
   allowedKinds,
   isAreaStaff,
   isSubdireccion,
   isCulturales,
+  isSseisTitular = false,
+  isSseisDelegated = false,
   canCreateDirect,
   viewer,
   dbDown,
@@ -134,11 +154,14 @@ export function ClubesExplorer({
   pendingMemberships: PendingMembershipRow[];
   proposalStageCounts: { en_documentacion: number; en_validacion: number; cita_pendiente: number; registrado: number };
   sala14EventsCount: number;
-  people: { id: string; name: string; role: string }[];
+  people: DirectoryUserOption[];
+  sseisDelegates?: SseisDelegateRow[];
   allowedKinds: ClubKind[];
   isAreaStaff: boolean;
   isSubdireccion: boolean;
   isCulturales: boolean;
+  isSseisTitular?: boolean;
+  isSseisDelegated?: boolean;
   canCreateDirect: boolean;
   viewer: { id: string; name: string; role: string } | null;
   dbDown: boolean;
@@ -150,6 +173,7 @@ export function ClubesExplorer({
   const [formalFilter, setFormalFilter] = useState<"activas" | "cita_pendiente" | "cita_confirmada" | "incompleta" | "historial">("activas");
   const [newClubModalOpen, setNewClubModalOpen] = useState(false);
   const [directClubModalOpen, setDirectClubModalOpen] = useState(false);
+  const [delegateModalOpen, setDelegateModalOpen] = useState(false);
 
   const canPropose = viewer?.role === "alumno";
   const pendingFormalCount = formalRequests.filter(
@@ -175,18 +199,6 @@ export function ClubesExplorer({
       return r.status === formalFilter;
     });
   }, [formalRequests, formalFilter]);
-
-  useEffect(() => {
-    if (!newClubModalOpen && !directClubModalOpen) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setNewClubModalOpen(false);
-        setDirectClubModalOpen(false);
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [newClubModalOpen, directClubModalOpen]);
 
   const catalog: CatalogEntry[] = useMemo(
     () => [
@@ -550,18 +562,89 @@ export function ClubesExplorer({
         </section>
       )}
 
-      {/* Pestaña 3 (solo staff de área): Solicitudes formales prioritarias y KPIs */}
+      {/* Pestaña 3 (solo staff de área): Solicitudes formales prioritarias, SSEIS y KPIs */}
       {isAreaStaff && activeTab === "panel" && !dbDown && (
         <div className="space-y-5">
+          {isSseisTitular && (
+            <section className="space-y-4 rounded-md border border-[#bcd6d0] border-t-4 border-t-[#165b47] bg-[#fffdf7] p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e4ece9] pb-3">
+                <div>
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#145542]">
+                    SSEIS · Servicios Educativos e Integración Social
+                  </p>
+                  <h2 className="mt-0.5 text-lg font-extrabold text-[#142c3c]">
+                    Responsable designada(o) de Clubes Culturales y Deportivos
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => setDelegateModalOpen(true)}
+                  className={btn}
+                >
+                  + Designar responsable
+                </button>
+              </div>
+              {sseisDelegates.length === 0 ? (
+                <p className="text-sm text-[#546975]">
+                  Aún no hay una profesora o responsable delegada. Puedes designar a quien llevará el seguimiento de apertura y operación de clubes culturales y deportivos.
+                </p>
+              ) : (
+                <ul className="grid gap-3 md:grid-cols-2">
+                  {sseisDelegates.map((del) => (
+                    <li
+                      key={del.user_id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#d6e4df] bg-[#f7fbf9] px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <strong className="text-sm text-[#142c3c]">{del.name}</strong>
+                          {del.boleta && (
+                            <span className="rounded bg-[#dcebe6] px-1.5 py-0.5 font-mono text-[11px] font-bold text-[#145542]">
+                              {del.boleta}
+                            </span>
+                          )}
+                        </div>
+                        {del.email && <p className="text-xs text-[#546975]">{del.email}</p>}
+                        {del.note && <p className="mt-1 text-xs text-[#3b5760]">{del.note}</p>}
+                      </div>
+                      <RevokeSseisDelegateButton userId={del.user_id} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
           <section className="space-y-4 rounded-[12px] border border-[#cde0ea] bg-[#fffdf7] p-5 shadow-xs" aria-labelledby="formal-requests-heading">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e5edf2] pb-3">
               <div>
-                <p className="board-eyebrow">Bandeja prioritaria de registro formal</p>
+                <p className="board-eyebrow">
+                  {isSubdireccion
+                    ? "Subdirección Académica · Clubes Académicos"
+                    : isSseisDelegated
+                      ? "Designación SSEIS · Clubes Culturales y Deportivos"
+                      : isCulturales
+                        ? "SSEIS · Clubes Culturales y Deportivos"
+                        : "Bandeja de registro formal"}
+                </p>
                 <h2 id="formal-requests-heading" className="text-lg font-extrabold text-[#15394d]">
                   Solicitudes formales de nuevos clubes
                 </h2>
               </div>
-              <span className="board-label">{pendingFormalCount} activas</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="board-label">{pendingFormalCount} activas</span>
+                {canCreateDirect && (
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    onClick={() => setDirectClubModalOpen(true)}
+                    className={btn}
+                  >
+                    + Registrar club
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-1.5">
@@ -634,7 +717,7 @@ export function ClubesExplorer({
                 <span className="board-label">{pendingFormalCount} solicitudes activas</span>
                 <span className="board-label">{totalPendingRequests} ingresos pendientes</span>
                 {isSubdireccion && (
-                  <Link href="/espacios" className="board-label hover:bg-[#e5f1f7]">
+                  <Link href="/eventos" className="board-label hover:bg-[#e5f1f7]">
                     {sala14EventsCount} en Sala 14 →
                   </Link>
                 )}
@@ -732,74 +815,51 @@ export function ClubesExplorer({
         </div>
       )}
 
-      {/* Overlay 1: Nuevo club (Propuesta rápida: nombre, tipo, objetivo + detector de duplicados) */}
+      {/* Diálogo 1: Proponer nuevo club */}
       {newClubModalOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="new-club-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-xs"
-          onClick={() => setNewClubModalOpen(false)}
+        <FormDialog
+          title="Proponer nuevo club"
+          kicker="Comunidad ESCOM"
+          accent="teal"
+          size="lg"
+          onClose={() => setNewClubModalOpen(false)}
         >
-          <div
-            className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-[#cfdbe2] bg-[#fffefa] shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-[#e4ecee] bg-[#f4f9fb] px-5 py-4">
-              <h2 id="new-club-modal-title" className="text-lg font-extrabold text-[#14374a]">
-                Proponer nuevo club
-              </h2>
-              <button
-                type="button"
-                aria-label="Cerrar ventana"
-                onClick={() => setNewClubModalOpen(false)}
-                className="grid h-8 w-8 place-items-center rounded-lg border border-[#cbd9e0] bg-white text-sm font-bold text-[#35505e] hover:bg-[#eaf3f7]"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="overflow-y-auto p-5 sm:p-6">
-              <ProposalForm catalog={catalog} />
-            </div>
-          </div>
-        </div>
+          <ProposalForm catalog={catalog} />
+        </FormDialog>
       )}
 
-      {/* Overlay 2 (solo staff): Registro directo de club */}
+      {/* Diálogo 2 (solo staff): Registro directo de club */}
       {directClubModalOpen && canCreateDirect && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="direct-club-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-xs"
-          onClick={() => setDirectClubModalOpen(false)}
+        <FormDialog
+          title={isSubdireccion ? "Registrar club académico" : isCulturales ? "Registrar club cultural o deportivo" : "Registrar club directamente"}
+          kicker={isSubdireccion ? "Subdirección Académica" : isCulturales ? "SSEIS · Clubes" : "Dirección de clubes"}
+          accent="teal"
+          size="xl"
+          onClose={() => setDirectClubModalOpen(false)}
         >
-          <div
-            className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-[#cfdbe2] bg-[#fffefa] shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-[#e4ecee] bg-[#f4f9fb] px-5 py-4">
-              <h2 id="direct-club-modal-title" className="text-lg font-extrabold text-[#14374a]">
-                {isSubdireccion ? "Registrar club académico" : "Registrar club directamente"}
-              </h2>
-              <button
-                type="button"
-                aria-label="Cerrar ventana"
-                onClick={() => setDirectClubModalOpen(false)}
-                className="grid h-8 w-8 place-items-center rounded-lg border border-[#cbd9e0] bg-white text-sm font-bold text-[#35505e] hover:bg-[#eaf3f7]"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="overflow-y-auto p-5 sm:p-6">
-              <DirectClubForm
-                students={people.filter((p) => p.role === "alumno")}
-                professors={people.filter((p) => p.role === "profesor")}
-                allowedKinds={allowedKinds}
-              />
-            </div>
-          </div>
-        </div>
+          <DirectClubForm
+            students={people.filter((p) => p.role === "alumno")}
+            professors={people.filter((p) => p.role === "profesor")}
+            allowedKinds={allowedKinds}
+          />
+        </FormDialog>
+      )}
+
+      {/* Diálogo 3 (solo SSEIS titular / Admin): Designar responsable de clubes culturales y deportivos */}
+      {delegateModalOpen && isSseisTitular && (
+        <FormDialog
+          title="Designar responsable de clubes"
+          kicker="SSEIS · Clubes Culturales y Deportivos"
+          accent="teal"
+          size="md"
+          onClose={() => setDelegateModalOpen(false)}
+        >
+          <SseisDelegateForm
+            candidates={people.filter((p) => p.role === "profesor" || p.role === "moderador")}
+            onSuccess={() => setDelegateModalOpen(false)}
+            onCancel={() => setDelegateModalOpen(false)}
+          />
+        </FormDialog>
       )}
     </div>
   );

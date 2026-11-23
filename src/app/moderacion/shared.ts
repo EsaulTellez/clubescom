@@ -1,8 +1,9 @@
 export const MODERATION_AREAS = [
-  { id: "comunicacion", label: "Comunicación" },
-  { id: "gestion_escolar", label: "Gestión escolar" },
-  { id: "clubes_academicos", label: "Clubes académicos" },
-  { id: "clubes_culturales", label: "Clubes culturales" },
+  { id: "comunicacion", label: "Comunicación Social" },
+  { id: "gestion_escolar", label: "Gestión Escolar" },
+  { id: "clubes_academicos", label: "Clubes Académicos" },
+  { id: "clubes_culturales", label: "Clubes Culturales y Deportivos" },
+  { id: "sseis", label: "SSEIS" },
   { id: "becas", label: "Becas" },
   { id: "catt", label: "CATT" },
   { id: "prefectura", label: "Prefectura" },

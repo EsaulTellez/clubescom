@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { createItem } from "../actions";
 import type { FormState } from "../labels";
@@ -97,9 +98,9 @@ export function ReportForm() {
       )}
 
       {state.error && <p role="alert" className="text-sm text-[#8C1D18]">{state.error}</p>}
-      <button className={btn} disabled={pending}>
-        {pending ? "Publicando…" : "Publicar reporte"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Publicando…">
+        Publicar reporte
+      </SubmitButton>
     </form>
   );
 }

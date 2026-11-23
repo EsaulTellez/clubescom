@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SubmitButton } from "@/components/loading-ui";
 import { getAppealIdentity } from "./auth";
 import { submitAppeal } from "./actions";
 import { pool } from "@/lib/db";
@@ -53,7 +54,7 @@ export default async function ApelacionesPage({
             <div><p className="text-xs font-extrabold uppercase tracking-[.13em] text-[#006699]">{moderationAreaLabel(suspension.area)}</p><h2 className="mt-1 text-xl font-extrabold">Suspensión por {suspension.strike_count} infracciones</h2></div>
             <span className="rounded border border-[#dfb2aa] bg-[#fff0ed] px-2.5 py-1 text-xs font-extrabold text-[#8a3528]">{suspensionLabel(suspension)}</span>
           </div>
-          {suspension.appeal_id ? <div className="border-l-4 border-[#b3cbd3] pl-3"><p className="text-sm font-bold">Estado de la apelación: {suspension.appeal_status}</p>{suspension.review_note && <p className="mt-1 text-sm leading-6 text-[#526974]">Respuesta de administración: {suspension.review_note}</p>}</div> : <form action={submitAppeal} className="grid gap-3 border-t border-[#e2e7e8] pt-4"><input type="hidden" name="suspension_id" value={suspension.id} /><label className="grid gap-1.5 text-sm font-bold">Motivo de la apelación<textarea required minLength={20} maxLength={3000} rows={5} name="body" className={`${input} resize-y`} placeholder="Explica qué ocurrió, qué parte quieres que revisemos y cualquier contexto útil." /></label><button className="min-h-11 w-fit rounded-md bg-[#006699] px-4 py-2 text-sm font-extrabold text-white hover:bg-[#004d73]">Enviar apelación</button></form>}
+          {suspension.appeal_id ? <div className="border-l-4 border-[#b3cbd3] pl-3"><p className="text-sm font-bold">Estado de la apelación: {suspension.appeal_status}</p>{suspension.review_note && <p className="mt-1 text-sm leading-6 text-[#526974]">Respuesta de administración: {suspension.review_note}</p>}</div> : <form action={submitAppeal} className="grid gap-3 border-t border-[#e2e7e8] pt-4"><input type="hidden" name="suspension_id" value={suspension.id} /><label className="grid gap-1.5 text-sm font-bold">Motivo de la apelación<textarea required minLength={20} maxLength={3000} rows={5} name="body" className={`${input} resize-y`} placeholder="Explica qué ocurrió, qué parte quieres que revisemos y cualquier contexto útil." /></label><SubmitButton pendingText="Enviando apelación…" className="min-h-11 w-fit rounded-md bg-[#006699] px-4 py-2 text-sm font-extrabold text-white hover:bg-[#004d73]">Enviar apelación</SubmitButton></form>}
         </article>
       ))}
       <p><Link href="/" className="text-sm font-bold text-[#006699] underline underline-offset-2">Volver al tablero</Link></p>

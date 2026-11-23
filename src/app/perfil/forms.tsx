@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { submitPrivacyRequest, updateOwnProfile, type AuthState } from "@/lib/auth-actions";
 import { btn, input, label } from "@/lib/ui";
 
@@ -23,9 +24,9 @@ export function ProfileEditForm({ name, boleta }: { name: string; boleta: string
         <input className={input} name="boleta" defaultValue={boleta ?? ""} maxLength={32} placeholder="Ej. 2023630001 o EMP-100" />
       </label>
       <Status state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Guardando…" : "Guardar perfil"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Guardando…">
+        Guardar perfil
+      </SubmitButton>
     </form>
   );
 }
@@ -55,9 +56,9 @@ export function PrivacyRequestForm() {
         />
       </label>
       <Status state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Enviando…" : "Enviar solicitud ARCO / incidente"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Enviando…">
+        Enviar solicitud ARCO / incidente
+      </SubmitButton>
     </form>
   );
 }

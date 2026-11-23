@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ResendLinkForm } from "@/components/auth-forms";
+import { ConfirmTokenForm, ResendLinkForm } from "@/components/auth-forms";
 import { getSession } from "@/lib/auth";
 import { confirmEmailTokenAction, resendConfirmation } from "@/lib/auth-actions";
 import { btn, btnGhost, card } from "@/lib/ui";
@@ -33,13 +33,13 @@ export default async function AuthConfirmadoPage({
             ? "Presiona el botón de abajo para verificar tu enlace y elegir tu nueva contraseña."
             : "Presiona el botón para completar la verificación de tu cuenta. Este paso protege el enlace ante escáneres automáticos de correo."}
         </p>
-        <form action={confirmEmailTokenAction} className="space-y-3">
-          <input type="hidden" name="token_hash" value={token_hash} />
-          <input type="hidden" name="type" value={type} />
-          <button className={btn}>
-            {isRecovery ? "Continuar a nueva contraseña" : "Confirmar y activar cuenta"}
-          </button>
-        </form>
+        <ConfirmTokenForm
+          action={confirmEmailTokenAction}
+          tokenHash={token_hash}
+          type={type}
+          isRecovery={isRecovery}
+          isInvite={isInvite}
+        />
       </section>
     );
   }

@@ -2,6 +2,7 @@
 
 import jsQR from "jsqr";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { btn, btnGhost, input, label } from "@/lib/ui";
 
 type BarcodeDetectorLike = {
@@ -233,7 +234,9 @@ export function QrDeliveryVerifyForm({
           autoComplete="off"
         />
       </label>
-      <button className={`${btn} w-full`}>Confirmar entrega</button>
+      <SubmitButton className={`${btn} w-full`} pendingText="Confirmando entrega…">
+        Confirmar entrega
+      </SubmitButton>
     </form>
   );
 }

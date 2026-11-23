@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { btn, input, label } from "@/lib/ui";
 import type { SuggestState } from "../actions";
 
@@ -31,9 +32,9 @@ export function SuggestForm({
         />
       </label>
       {state.error && <p className="text-sm text-[#8C1D18]">{state.error}</p>}
-      <button className={btn} disabled={pending}>
-        {pending ? "Enviando…" : "Enviar sugerencia"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Enviando…">
+        Enviar sugerencia
+      </SubmitButton>
     </form>
   );
 }

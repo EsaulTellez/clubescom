@@ -1,9 +1,23 @@
 import { CampusMap, type RoomInfo, type Professor, type RoomSuggestion } from "@/components/campus-map";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
-import { CubicleForm } from "../espacios/forms";
 
 export const dynamic = "force-dynamic";
+
+type RawSuggestionRow = {
+  id: string;
+  room_code: string;
+  professor_id: string | null;
+  professor_name: string;
+  suggested_by: string;
+  suggested_by_name: string;
+  schedule_text: string;
+  subjects_text: string;
+  note: string;
+  upvotes: number;
+  downvotes: number;
+  my_vote: number;
+};
 
 export default async function MapaPage() {
   const user = await getSession();
@@ -14,44 +28,62 @@ export default async function MapaPage() {
     pool.query<{ room_code: string; id: string; name: string }>(
       "select room_code, id, name from map_room_people order by name",
     ),
-    pool.query<{
-      id: string;
-      room_code: string;
-      professor_id: string;
-      professor_name: string;
-      suggested_by: string;
-      suggested_by_name: string;
-      note: string;
-      upvotes: number;
-      downvotes: number;
-      my_vote: number;
-    }>(
-      `select s.id,
-              s.room_code,
-              s.professor_id,
-              up.name as professor_name,
-              s.suggested_by,
-              us.name as suggested_by_name,
-              s.note,
-              coalesce(sum(case when v.vote = 1 then 1 else 0 end), 0)::int as upvotes,
-              coalesce(sum(case when v.vote = -1 then 1 else 0 end), 0)::int as downvotes,
-              coalesce(max(case when v.user_id = $1::uuid then v.vote else 0 end), 0)::int as my_vote
-         from map_room_suggestions s
-         join users up on up.id = s.professor_id
-         join users us on us.id = s.suggested_by
-         left join map_room_suggestion_votes v on v.suggestion_id = s.id
-        group by s.id, up.name, us.name
-        order by (coalesce(sum(case when v.vote = 1 then 1 else 0 end), 0) - coalesce(sum(case when v.vote = -1 then 1 else 0 end), 0)) desc,
-                 s.created_at desc`,
-      [user?.id ?? null],
-    ),
-    pool.query<Professor>(
-      // `anon` only has column-level SELECT on (id, name, role, area, created_at);
-      // RLS `users_public_profile_read` already enforces `is_active` for anon.
-      user
-        ? "select id, name from users where role = 'profesor' and is_active order by name"
-        : "select id, name from users where role = 'profesor' order by name",
-    ),
+    pool
+      .query<RawSuggestionRow>(
+        `select s.id,
+                s.room_code,
+                s.professor_id::text as professor_id,
+                coalesce(up.name, s.professor_name_input, 'Profesor') as professor_name,
+                s.suggested_by,
+                us.name as suggested_by_name,
+                coalesce(s.schedule_text, '') as schedule_text,
+                coalesce(s.subjects_text, '') as subjects_text,
+                s.note,
+                coalesce(sum(case when v.vote = 1 then 1 else 0 end), 0)::int as upvotes,
+                coalesce(sum(case when v.vote = -1 then 1 else 0 end), 0)::int as downvotes,
+                coalesce(max(case when v.user_id = $1::uuid then v.vote else 0 end), 0)::int as my_vote
+           from map_room_suggestions s
+           left join users up on up.id = s.professor_id
+           join users us on us.id = s.suggested_by
+           left join map_room_suggestion_votes v on v.suggestion_id = s.id
+          group by s.id, up.name, us.name
+          order by (coalesce(sum(case when v.vote = 1 then 1 else 0 end), 0) - coalesce(sum(case when v.vote = -1 then 1 else 0 end), 0)) desc,
+                   s.created_at desc`,
+        [user?.id ?? null],
+      )
+      .catch(() =>
+        pool.query<RawSuggestionRow>(
+          `select s.id,
+                  s.room_code,
+                  s.professor_id::text as professor_id,
+                  up.name as professor_name,
+                  s.suggested_by,
+                  us.name as suggested_by_name,
+                  ''::text as schedule_text,
+                  ''::text as subjects_text,
+                  s.note,
+                  coalesce(sum(case when v.vote = 1 then 1 else 0 end), 0)::int as upvotes,
+                  coalesce(sum(case when v.vote = -1 then 1 else 0 end), 0)::int as downvotes,
+                  coalesce(max(case when v.user_id = $1::uuid then v.vote else 0 end), 0)::int as my_vote
+             from map_room_suggestions s
+             join users up on up.id = s.professor_id
+             join users us on us.id = s.suggested_by
+             left join map_room_suggestion_votes v on v.suggestion_id = s.id
+            group by s.id, up.name, us.name
+            order by (coalesce(sum(case when v.vote = 1 then 1 else 0 end), 0) - coalesce(sum(case when v.vote = -1 then 1 else 0 end), 0)) desc,
+                     s.created_at desc`,
+          [user?.id ?? null],
+        ),
+      ),
+    user
+      ? pool.query<Professor>(
+          `select u.id::text as id, u.name, p.boleta, p.email
+             from public.users u
+             left join private.user_private p on p.user_id = u.id
+            where u.role = 'profesor' and u.is_active
+            order by u.name`,
+        )
+      : pool.query<Professor>("select id::text as id, name from public.users where role = 'profesor' order by name"),
     pool.query<{
       id: string;
       professor_id: string | null;
@@ -118,14 +150,19 @@ export default async function MapaPage() {
     const cub = cubicles.rows.find((c) => c.professor_id === prof.id);
     const assignedRoom = assignments.rows.find((a) => a.id === prof.id);
     const topSuggestion = suggestionsRaw.rows.find(
-      (s) => s.professor_id === prof.id && s.upvotes - s.downvotes > 0,
+      (s) => s.professor_id === prof.id && s.upvotes - s.downvotes >= 0,
     );
+    const isConfirmed = Boolean(cub || assignedRoom);
+    const status = isConfirmed ? ("confirmado" as const) : topSuggestion ? ("sugerido" as const) : ("sin_ubicacion" as const);
     return {
       id: prof.id,
       name: prof.name,
       room_code: cub?.room_code ?? assignedRoom?.room_code ?? topSuggestion?.room_code ?? null,
+      status,
+      schedule_text: topSuggestion?.schedule_text || null,
+      subjects_text: topSuggestion?.subjects_text || null,
       location: cub
-        ? `${cub.label} · ${cub.building}${cub.floor ? ` · piso ${cub.floor}` : ""}${cub.room_code ? ` (Confirmado en ${cub.room_code})` : ""}`
+        ? `${cub.label} · ${cub.building}${cub.floor ? ` · piso ${cub.floor}` : ""}`
         : assignedRoom
           ? `Confirmado en ${assignedRoom.room_code}`
           : topSuggestion
@@ -138,41 +175,13 @@ export default async function MapaPage() {
     user?.role === "admin" || (user?.role === "moderador" && user.area === "prefectura");
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b-2 border-[#49695c] pb-3">
-        <h1 className="edition-title">Mapa del campus</h1>
-        <a href="#directorio-profesores" className="text-sm font-semibold text-[#255d57] underline underline-offset-4">Directorio de profesores ↓</a>
-      </header>
-      <CampusMap
-        roomInfo={roomInfo}
-        professors={allProfessors.rows}
-        professorDirectories={professorDirectories}
-        canEdit={canManageRooms}
-        viewer={user ? { id: user.id, name: user.name, role: user.role } : null}
-      />
-
-      <section id="directorio-profesores" className="board-sidecard scroll-mt-32 p-5">
-        <h2 className="text-lg font-extrabold text-[#1b4053]">Directorio de profesores y cubículos</h2>
-        {professorDirectories.length ? (
-          <ul className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            {professorDirectories.map((item) => (
-              <li key={item.id} className="border-t border-[#d4dbce] py-3 text-sm">
-                <strong className="text-[#1b4053]">{item.name}</strong>
-                <p className="mt-1 text-xs text-[#5f6e78]">{item.location ?? "Ubicación no disponible"}</p>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
-
-      {user?.role === "profesor" && (
-        <details className="board-sidecard p-5">
-          <summary className="cursor-pointer font-bold text-[#1b4053]">Actualizar datos detallados de mi cubículo</summary>
-          <div className="mt-4 max-w-xl">
-            <CubicleForm cubicle={mine.rows[0] ?? null} />
-          </div>
-        </details>
-      )}
-    </div>
+    <CampusMap
+      roomInfo={roomInfo}
+      professors={allProfessors.rows}
+      professorDirectories={professorDirectories}
+      canEdit={canManageRooms}
+      myCubicle={mine.rows[0] ?? null}
+      viewer={user ? { id: user.id, name: user.name, role: user.role } : null}
+    />
   );
 }

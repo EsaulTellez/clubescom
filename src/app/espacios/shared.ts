@@ -6,9 +6,7 @@ export function canPublishAnySpaceEvents(
   if (!user) return false;
   if (user.role === "admin") return true;
   if (user.role !== "moderador") return false;
-  return ["subdireccion_academica", "becas", "clubes_academicos", "clubes_culturales"].includes(
-    user.area ?? "",
-  );
+  return user.area === "subdireccion_academica" || user.area === "becas";
 }
 
 export function canManageSpaceByName(
@@ -21,7 +19,7 @@ export function canManageSpaceByName(
   const clean = spaceName.trim().toLowerCase();
   if (clean === "sala 14") return user.area === "subdireccion_academica";
   if (clean === "auditorio") return user.area === "becas";
-  return user.area === "clubes_academicos" || user.area === "clubes_culturales";
+  return false;
 }
 
 export function officeEventSpace(user: Pick<SessionUser, "role" | "area"> | null) {

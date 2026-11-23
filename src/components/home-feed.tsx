@@ -194,11 +194,11 @@ export function HomeFeed({
               return (
                 <article
                   key={item.id}
-                  className="group overflow-hidden rounded-sm border border-[#c9d6cf] border-l-4 border-l-[#165b47] bg-[#fffdf7] shadow-[0_2px_0_rgba(22,91,71,0.06)] transition hover:border-[#8eb8a7]"
+                  className="group overflow-hidden rounded-2xl border border-[#d1e0d9] bg-white shadow-[0_2px_12px_rgba(22,91,71,0.06)] transition hover:border-[#94bfb0]"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-[#d8e3dd] bg-[#f7faf8] px-5 py-3 sm:px-6">
+                  <div className="flex flex-wrap items-center justify-between gap-2.5 px-5 pt-4 pb-3 sm:px-6">
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md border border-[#bfd4ca] bg-white text-sm font-extrabold text-[#14523f]">
+                      <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-[#b7d6c9] bg-[#eef7f3] text-sm font-extrabold text-[#14523f]">
                         {item.avatarImage ? (
                           <img src={item.avatarImage} alt="" className="h-full w-full object-cover" />
                         ) : (
@@ -218,27 +218,24 @@ export function HomeFeed({
                             {item.clubName ?? "Club ESCOM"}
                           </p>
                         )}
-                        <p className="text-xs text-[#546e66]">
+                        <p className="text-xs text-[#5d766e]">
+                          <span>{item.categoryLabel}</span>
+                          <span aria-hidden="true"> · </span>
                           <time dateTime={item.publishedAtIso}>
                             {item.publishedDateFormatted}, {item.publishedTimeFormatted}
                           </time>
                         </p>
                       </div>
                     </div>
-                    <div className="flex max-w-full flex-wrap items-center gap-1.5">
-                      <span className="inline-flex max-w-full items-center rounded border border-[#b4d3c6] bg-[#e9f5f0] px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-[#11503d] break-words whitespace-normal">
-                        {item.categoryLabel}
+                    {item.clubSchedule && (
+                      <span className="inline-flex max-w-full items-center rounded-full border border-[#d5e3dd] bg-[#f4faf7] px-3 py-1 text-[11px] font-bold text-[#2b5749] break-words whitespace-normal">
+                        {item.clubSchedule}
                       </span>
-                      {item.clubSchedule && (
-                        <span className="inline-flex max-w-full items-center rounded border border-[#d6dedb] bg-white px-2.5 py-0.5 text-[11px] font-bold text-[#49635b] break-words whitespace-normal">
-                          {item.clubSchedule}
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
 
-                  <div className="p-5 sm:p-6">
-                    <h3 className="text-lg font-extrabold tracking-tight text-[#133547] sm:text-xl">
+                  <div className="px-5 pb-5 sm:px-6">
+                    <h3 className="text-lg font-extrabold tracking-tight text-[#14332a] sm:text-xl">
                       {item.title}
                     </h3>
                     <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-[#384d57]">
@@ -249,21 +246,22 @@ export function HomeFeed({
                       <button
                         type="button"
                         onClick={() => setLightboxItem({ src: item.imageUrl!, title: item.title })}
-                        className="mt-4 block w-full overflow-hidden rounded-md border border-[#d8d5c9] bg-[#f5f3ea] p-1.5 text-left"
+                        className="mt-4 block w-full cursor-zoom-in overflow-hidden rounded-xl border border-[#dce6e1] bg-[#0f1f26] text-left"
                       >
                         <img
                           src={item.imageUrl}
                           alt={item.title}
-                          className="max-h-[25rem] w-full rounded-sm object-contain"
+                          className="max-h-[25rem] w-full object-contain"
                         />
                       </button>
                     )}
                   </div>
 
                   {item.clubId && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#dce7e1] bg-[#f8fbf9] px-5 py-2.5 text-xs font-bold text-[#165b47] sm:px-6">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e5efea] bg-[#f7fbf9] px-5 py-2.5 text-xs font-extrabold text-[#165b47] sm:px-6">
+                      <span>Comunidad de clubes</span>
                       <Link href={`/clubes/${item.clubId}`} className="shrink-0 hover:underline">
-                        Ir al club →
+                        Entrar al club →
                       </Link>
                     </div>
                   )}
@@ -275,89 +273,68 @@ export function HomeFeed({
               return (
                 <article
                   key={item.id}
-                  className="group overflow-hidden rounded-sm border border-[#c6d4dc] border-t-4 border-t-[#005a87] bg-[#fffdf7] shadow-[0_2px_0_rgba(7,68,99,0.06)] transition hover:border-[#86b1c8]"
+                  className="group overflow-hidden rounded-md border-2 border-[#1b3647] bg-[#fffdf7] shadow-[4px_4px_0_rgba(23,49,66,0.1)] transition hover:shadow-[6px_6px_0_rgba(23,49,66,0.14)]"
                 >
-                  {item.imageUrl ? (
-                    <div className="relative border-b border-[#d6dfe4] bg-[#f3f1e8]">
-                      <button
-                        type="button"
-                        onClick={() => setLightboxItem({ src: item.imageUrl!, title: item.title })}
-                        className="block h-52 w-full overflow-hidden text-left sm:h-60"
-                      >
-                        <img
-                          src={item.imageUrl}
-                          alt={item.title}
-                          className="h-full w-full object-cover"
-                        />
-                      </button>
-                      <span className="pointer-events-none absolute top-3 left-3 rounded border border-[#004d73] bg-[#004d73] px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wider text-white">
-                        Eventos ESCOM
+                  {/* Marquesina superior oscura del evento */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 bg-[#142c3c] px-5 py-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#f5f1e4] sm:px-6">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-[#e3b341]" aria-hidden="true" />
+                      <span>{item.eventLocation ?? "Cartelera ESCOM"}</span>
+                    </span>
+                    {item.eventStartsAtFormatted && (
+                      <span className="font-mono text-[#e3b341]">
+                        {item.eventStartsAtFormatted}
+                        {item.eventTimeRange ? ` · ${item.eventTimeRange}` : ""}
                       </span>
-                    </div>
-                  ) : null}
-
-                  <div className="border-b border-[#d4dce0] bg-[#f7f5ec] px-5 py-3 sm:px-6">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs font-bold">
-                        {!item.imageUrl && (
-                          <span className="inline-flex max-w-full items-center rounded border border-[#004d73] bg-[#004d73] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wider text-white">
-                            Eventos
-                          </span>
-                        )}
-                        {item.eventStartsAtFormatted && (
-                          <span className="inline-flex max-w-full items-center gap-1.5 py-1 text-[#004d73] break-words whitespace-normal">
-                            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                              <rect x="2" y="3" width="12" height="11" rx="1.8" />
-                              <path d="M5 1.5v2.5M11 1.5v2.5M2 6.5h12" strokeLinecap="round" />
-                            </svg>
-                            <span className="min-w-0 break-words">
-                              {item.eventStartsAtFormatted}
-                              {item.eventTimeRange ? ` · ${item.eventTimeRange}` : ""}
-                            </span>
-                          </span>
-                        )}
-                        {item.eventLocation && (
-                          <span className="inline-flex max-w-full items-start gap-1.5 py-1 text-[#3d525e] break-words whitespace-normal">
-                            <span className="shrink-0" aria-hidden="true">⌖</span>
-                            <span className="min-w-0 break-words">{item.eventLocation}</span>
-                          </span>
-                        )}
-                        {item.eventSpeaker && (
-                          <span className="inline-flex max-w-full items-start gap-1 py-1 text-[#2c4452] break-words whitespace-normal">
-                            <span className="min-w-0 break-words">Ponente: {item.eventSpeaker}</span>
-                          </span>
-                        )}
-                      </div>
-
-                      {item.eventKind && (
-                        <div className="shrink-0">
-                          <AttendButton
-                            eventKind={item.eventKind}
-                            eventId={item.rawId}
-                            initialAttending={Boolean(item.viewerAttending)}
-                            initialCount={item.attendeesCount ?? 0}
-                            isAuthenticated={isAuthenticated}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="p-5 sm:p-6">
-                    <h3 className="text-lg font-extrabold tracking-tight text-[#133547] sm:text-xl">
-                      {item.title}
-                    </h3>
-                    {item.body && (
-                      <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-[#3a4f5a]">
-                        {item.body}
-                      </p>
                     )}
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#dce5ea] bg-[#f8fafb] px-5 py-2.5 text-xs font-bold text-[#005a87] sm:px-6">
-                    {item.clubName && <span className="text-[#586d77]">{item.clubName}</span>}
-                    <Link href="/eventos" className="ml-auto shrink-0 hover:underline">
-                      Ver en eventos →
+                  {item.imageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setLightboxItem({ src: item.imageUrl!, title: item.title })}
+                      className="block max-h-72 w-full cursor-zoom-in overflow-hidden border-b border-[#1b3647] bg-[#10202b] text-left"
+                    >
+                      <img
+                        src={item.imageUrl}
+                        alt={item.title}
+                        className="max-h-72 w-full object-contain"
+                      />
+                    </button>
+                  )}
+
+                  <div className="p-5 sm:p-6">
+                    <h3 className="font-serif text-2xl font-bold leading-tight tracking-tight text-[#142c3c]">
+                      {item.title}
+                    </h3>
+                    {item.body && (
+                      <p className="mt-2.5 whitespace-pre-wrap text-sm leading-relaxed text-[#425864]">
+                        {item.body}
+                      </p>
+                    )}
+                    {(item.eventSpeaker || item.clubName) && (
+                      <div className="mt-3.5 flex flex-wrap gap-x-4 gap-y-1 border-l-2 border-[#e3b341] pl-3 text-xs font-semibold text-[#35505e]">
+                        {item.eventSpeaker && <span>Ponente: <strong className="text-[#142c3c]">{item.eventSpeaker}</strong></span>}
+                        {item.clubName && <span>Organiza: <strong className="text-[#142c3c]">{item.clubName}</strong></span>}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Talón perforado inferior */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t-2 border-dashed border-[#c7bfa9] bg-[#faf7ee] px-5 py-3 sm:px-6">
+                    {item.eventKind ? (
+                      <AttendButton
+                        eventKind={item.eventKind}
+                        eventId={item.rawId}
+                        initialAttending={Boolean(item.viewerAttending)}
+                        initialCount={item.attendeesCount ?? 0}
+                        isAuthenticated={isAuthenticated}
+                      />
+                    ) : (
+                      <span />
+                    )}
+                    <Link href="/eventos" className="text-xs font-extrabold text-[#142c3c] hover:text-[#006699] hover:underline">
+                      Ver cartelera completa →
                     </Link>
                   </div>
                 </article>
@@ -368,92 +345,94 @@ export function HomeFeed({
               return (
                 <article
                   key={item.id}
-                  className="group overflow-hidden rounded-sm border border-[#ddd4be] border-l-4 border-l-[#b88917] bg-[#fffdf7] shadow-[0_2px_0_rgba(110,80,8,0.05)] transition hover:border-[#cbb88d]"
+                  className="group overflow-hidden rounded-md border border-[#d6d2c3] bg-white shadow-[0_2px_6px_rgba(20,44,60,0.04)] transition hover:border-[#b9b092]"
                 >
-                  <div className="p-5 sm:p-6">
-                    <div className="flex items-start gap-4">
-                      <div className="flex shrink-0 flex-col items-center justify-center rounded-md border border-[#dfd3b2] bg-[#faf5e4] px-3 py-2 text-[#6e5008]">
-                        <strong className="text-lg font-extrabold leading-none">{item.votesCount ?? 0}</strong>
-                        <span className="mt-1 text-[10px] font-extrabold uppercase tracking-wider">votos</span>
+                  <div className="grid sm:grid-cols-[4.5rem_minmax(0,1fr)]">
+                    {/* Riel lateral de votos */}
+                    <div className="flex items-center justify-between border-b border-[#e8e3d4] bg-[#f8f5ea] px-4 py-2.5 text-[#6e5008] sm:flex-col sm:justify-start sm:border-b-0 sm:border-r sm:px-2 sm:py-5">
+                      <div className="flex items-baseline gap-1.5 sm:flex-col sm:items-center sm:gap-0">
+                        <span className="text-xs" aria-hidden="true">▲</span>
+                        <strong className="font-mono text-lg font-black leading-none tabular-nums">{item.votesCount ?? 0}</strong>
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider sm:mt-1">votos</span>
+                      </div>
+                      <span className="font-mono text-[11px] font-bold text-[#5d6e76] sm:mt-3">
+                        {item.answersCount ?? 0} resp.
+                      </span>
+                    </div>
+
+                    <div className="min-w-0 p-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="rounded bg-[#fcf5de] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-[#6e5008]">
+                            Foro · {item.categoryLabel}
+                          </span>
+                          {item.forumStatus === "respondida" ? (
+                            <span className="rounded bg-[#e8f6ef] px-2 py-0.5 text-[11px] font-extrabold text-[#14593e]">
+                              ✓ Respondida
+                            </span>
+                          ) : (
+                            <span className="rounded bg-[#f2f4f5] px-2 py-0.5 text-[11px] font-bold text-[#546873]">
+                              Abierta
+                            </span>
+                          )}
+                        </div>
+                        <time dateTime={item.publishedAtIso} className="text-xs text-[#64757e]">
+                          {item.publishedDateFormatted}
+                        </time>
                       </div>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex max-w-full flex-wrap items-center gap-1.5">
-                            <span className="inline-flex max-w-full items-center rounded border border-[#e2cf98] bg-[#fcf5de] px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-[#6e5008] break-words whitespace-normal">
-                              Foro · {item.categoryLabel}
-                            </span>
-                            {item.forumStatus === "respondida" && (
-                              <span className="inline-flex items-center rounded border border-[#bdd9cf] bg-[#ebf5f1] px-2.5 py-0.5 text-[11px] font-extrabold text-[#195444]">
-                                ✓ Respondida
-                              </span>
-                            )}
-                          </div>
-                          <time dateTime={item.publishedAtIso} className="text-xs font-medium text-[#64757e]">
-                            {item.publishedDateFormatted}, {item.publishedTimeFormatted}
-                          </time>
+                      <h3 className="mt-2.5 text-lg font-extrabold tracking-tight text-[#142c3c]">
+                        <Link href={`/foro?duda=${item.rawId}#duda-${item.rawId}`} className="hover:text-[#006699] hover:underline">
+                          {item.title}
+                        </Link>
+                      </h3>
+                      <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-[#3d505a]">
+                        {item.body}
+                      </p>
+
+                      {item.imageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setLightboxItem({ src: item.imageUrl!, title: item.title })}
+                          className="mt-3 inline-block max-w-sm cursor-zoom-in overflow-hidden rounded border border-[#dcd3bd] bg-[#f6f3e8] p-1 text-left"
+                        >
+                          <img src={item.imageUrl} alt={item.title} className="max-h-52 w-auto object-contain" />
+                        </button>
+                      )}
+
+                      {item.topAnswerBody && (
+                        <div className="mt-3.5 rounded border border-[#c8dce7] border-l-4 border-l-[#006699] bg-[#f2f8fb] p-3">
+                          <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#004d73]">
+                            {item.topAnswerOfficial ? "✓ Respuesta oficial" : "Respuesta destacada"}
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-[#294352]">
+                            {item.topAnswerBody}
+                          </p>
                         </div>
+                      )}
 
-                        <h3 className="mt-2.5 text-lg font-extrabold tracking-tight text-[#153749] sm:text-xl">
-                          <Link href={`/foro?duda=${item.rawId}#duda-${item.rawId}`} className="hover:text-[#006699] hover:underline">
-                            {item.title}
-                          </Link>
-                        </h3>
-                        <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-[#3d505a]">
-                          {item.body}
-                        </p>
-
-                        {item.imageUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setLightboxItem({ src: item.imageUrl!, title: item.title })}
-                            className="mt-3.5 inline-block max-w-sm overflow-hidden rounded-md border border-[#dcd3bd] bg-[#f6f3e8] p-1 text-left"
-                          >
-                            <img
-                              src={item.imageUrl}
-                              alt={item.title}
-                              className="max-h-56 w-auto rounded-sm object-contain"
-                            />
-                          </button>
-                        )}
-
-                        {item.topAnswerBody && (
-                          <div className="mt-4 rounded-md border border-[#d6e2e6] border-l-[3px] border-l-[#006699] bg-[#f4f8fa] p-3.5">
-                            <div className="text-xs font-extrabold text-[#004d73]">
-                              {item.topAnswerOfficial ? "✓ Respuesta oficial" : "Respuesta destacada"}
-                            </div>
-                            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-[#2c4654]">
-                              {item.topAnswerBody}
-                            </p>
-                          </div>
-                        )}
+                      <div className="mt-3.5 flex justify-end">
+                        <Link href={`/foro?duda=${item.rawId}#duda-${item.rawId}`} className="text-xs font-extrabold text-[#006699] hover:underline">
+                          Participar en el hilo →
+                        </Link>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e7dfc9] bg-[#fbf8ef] px-5 py-2.5 text-xs font-bold text-[#6e5008] sm:px-6">
-                    <span>
-                      {item.answersCount ?? 0} {item.answersCount === 1 ? "respuesta" : "respuestas"}
-                    </span>
-                    <Link href={`/foro?duda=${item.rawId}#duda-${item.rawId}`} className="shrink-0 hover:underline">
-                      Participar en el hilo →
-                    </Link>
                   </div>
                 </article>
               );
             }
 
-            // sourceType === "aviso" — Estilo Gaceta / Boletín Escolar
+            // sourceType === "aviso" — Despacho Editorial / Gaceta Oficial
             return (
               <article
                 key={item.id}
-                className="group overflow-hidden rounded-sm border border-[#d6d3c6] border-t-[3px] border-t-[#004d73] bg-[#fffdf7] shadow-[0_2px_0_rgba(0,77,115,0.05)] transition hover:border-[#8bb7cf]"
+                className="group overflow-hidden rounded-none border border-[#c7c2b4] border-y-2 border-y-[#14374a] bg-[#fffdf7] transition hover:border-[#006699]"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e4e0d3] bg-[#f7f5ec] px-5 py-2.5 sm:px-6">
-                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#004d73]">
-                    Gaceta ESCOM · {item.categoryLabel}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-double border-[#bdb7a7] bg-[#f5f2e6] px-5 py-2.5 sm:px-6">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#004d73]">
+                    Gaceta Oficial ESCOM · {item.categoryLabel}
                   </span>
-                  <time dateTime={item.publishedAtIso} className="text-xs font-semibold text-[#5b6f7a]">
+                  <time dateTime={item.publishedAtIso} className="font-mono text-xs font-bold text-[#4a606c]">
                     {item.publishedDateFormatted}
                   </time>
                 </div>
@@ -461,7 +440,7 @@ export function HomeFeed({
                 <div className="p-5 sm:p-6">
                   <div className={item.imageUrl ? "flex flex-col gap-5 sm:flex-row sm:items-start" : ""}>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-xl font-extrabold tracking-tight text-[#133649] sm:text-[22px]">
+                      <h3 className="text-xl font-extrabold leading-snug tracking-tight text-[#112e3f] sm:text-[23px]">
                         <Link href={`/avisos/${item.rawId}`} className="hover:text-[#006699] hover:underline">
                           {item.title}
                         </Link>
@@ -475,27 +454,27 @@ export function HomeFeed({
                       <button
                         type="button"
                         onClick={() => setLightboxItem({ src: item.imageUrl!, title: item.title })}
-                        className="group/img relative w-full shrink-0 overflow-hidden rounded-md border border-[#cfccc0] bg-[#f4f1e6] p-1 text-left sm:w-44 md:w-48"
+                        className="group/img relative w-full shrink-0 cursor-zoom-in overflow-hidden border border-[#cfccc0] bg-[#f4f1e6] p-1 text-left sm:w-44 md:w-48"
                       >
                         <img
                           src={item.imageUrl}
                           alt={item.title}
-                          className="max-h-72 w-full rounded-xs object-contain sm:aspect-[4/5] sm:max-h-none sm:object-cover"
+                          className="max-h-72 w-full object-contain sm:aspect-[4/5] sm:max-h-none sm:object-cover"
                         />
                       </button>
                     )}
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#dfdccc] bg-[#faf8f1] px-5 py-2.5 text-xs font-bold text-[#005a87] sm:px-6">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e0dccf] bg-[#faf7ee] px-5 py-2.5 text-xs font-bold text-[#005a87] sm:px-6">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[#5b6f7a]">Comunicado oficial</span>
+                    <span className="font-mono text-[11px] uppercase tracking-wider text-[#5b6f7a]">Comunicado</span>
                     {item.externalUrl && (
                       <AvisoExternalLink avisoId={item.rawId} url={item.externalUrl} compact />
                     )}
                   </div>
                   <Link href={`/avisos/${item.rawId}`} className="shrink-0 hover:underline">
-                    Abrir comunicado →
+                    Leer despacho completo →
                   </Link>
                 </div>
               </article>

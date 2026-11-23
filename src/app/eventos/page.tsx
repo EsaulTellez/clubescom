@@ -45,7 +45,7 @@ export default async function EspaciosPage() {
   const viewerId = user?.id ?? null;
   const officeSpace = officeEventSpace(user);
   const canPublishEvents = canPublishAnySpaceEvents(user);
-  const [spaces, events, pendingEvents] = await Promise.all([
+  const [spaces, events, pendingEvents, managedClubsRes] = await Promise.all([
     pool.query<Space>("select id, name, kind, building, description from spaces order by name"),
     pool.query<RawCarteleraEvent>(
       `
@@ -135,11 +135,20 @@ export default async function EspaciosPage() {
           order by starts_at asc
         `)
       : Promise.resolve({ rows: [] as RawCarteleraEvent[] }),
+    user && (user.role === "alumno" || user.role === "profesor")
+      ? pool.query<{ id: string; name: string }>(
+          `select id, name from public.clubs
+           where active = true
+             and (($2 = 'alumno' and leader_id = $1) or ($2 = 'profesor' and advisor_id = $1))
+           order by name`,
+          [user.id, user.role],
+        )
+      : Promise.resolve({ rows: [] as { id: string; name: string }[] }),
   ]);
 
   const publishableSpaces = canPublishEvents
     ? spaces.rows.filter((space) => canManageSpaceByName(user, space.name))
-    : spaces.rows;
+    : [];
 
   const visiblePendingEvents = canPublishEvents
     ? pendingEvents.rows.filter((ev) => canManageSpaceByName(user, ev.space_name))
@@ -184,8 +193,8 @@ export default async function EspaciosPage() {
         }))}
         spaceNames={(officeSpace ? publishableSpaces : spaces.rows).map((space) => space.name)}
         spaces={publishableSpaces}
+        managedClubs={managedClubsRes.rows}
         canPublishEvents={canPublishEvents}
-        canSubmitForReview={user?.role === "alumno" || user?.role === "profesor"}
         isAuthenticated={Boolean(user)}
         currentMonth={currentMonth()}
       />

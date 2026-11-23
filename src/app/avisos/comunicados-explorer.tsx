@@ -1,6 +1,7 @@
 "use client";
 
 import { CatalogSearch } from "@/components/catalog-search";
+import { FormDialog } from "@/components/form-dialog";
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1217,90 +1218,70 @@ export function ComunicadosExplorer({
 
       {/* Ventana flotante / Popup para Publicar o Editar comunicado */}
       {formModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="aviso-form-modal-title"
-          className="aviso-modal-backdrop fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-3 backdrop-blur-xs sm:p-5"
+        <FormDialog
+          title={formModal.mode === "create" ? "Publicar comunicado" : "Editar comunicado"}
+          kicker="Comunicación Social"
+          accent="blue"
+          size="xl"
+          onClose={() => setFormModal(null)}
         >
-          <div
-            className="aviso-modal-panel relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-sm border border-[#dcd9ce] bg-[#fffdf7] shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-[#e7e4d9] bg-[#faf8f0] px-5 py-3.5">
-              <h2 id="aviso-form-modal-title" className="text-base font-extrabold text-[#14374a] sm:text-lg">
-                {formModal.mode === "create" ? "Publicar comunicado" : "Editar comunicado"}
-              </h2>
-              <button
-                type="button"
-                aria-label="Cerrar formulario"
-                onClick={() => setFormModal(null)}
-                className="grid h-9 w-9 place-items-center rounded-lg border border-[#d6d9d0] bg-white text-sm font-extrabold text-[#35505e] transition hover:border-[#8C1D18] hover:bg-[#fdf3f2] hover:text-[#8C1D18]"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="overflow-y-auto p-5 sm:p-6">
-              {formModal.mode === "create" ? (
-                <AvisoForm
-                  key="create-aviso"
-                  action={crearAviso}
-                  submitLabel="Publicar comunicado"
-                  stayOnPage
-                  onCancel={() => setFormModal(null)}
-                  onSuccess={() => {
-                    setFormModal(null);
-                    setExtra7d({ views: 0, clicks: 0 });
-                    router.refresh();
-                  }}
-                  initial={{
-                    title: "",
-                    body: "",
-                    category: "academico",
-                    sourceArea: "general",
-                    featured: false,
-                    isPublic: true,
-                    publishAt: defaultPublishAt,
-                    externalUrl: "",
-                    socialCopy: "",
-                    socialTwitter: "",
-                    socialFacebook: "",
-                    socialInstagram: "",
-                  }}
-                />
-              ) : (
-                <AvisoForm
-                  key={`edit-aviso-${formModal.item.id}`}
-                  action={actualizarAviso}
-                  submitLabel="Guardar cambios"
-                  stayOnPage
-                  onCancel={() => setFormModal(null)}
-                  onSuccess={() => {
-                    setFormModal(null);
-                    router.refresh();
-                  }}
-                  initial={{
-                    id: formModal.item.id,
-                    title: formModal.item.title,
-                    body: formModal.item.body,
-                    category: formModal.item.category,
-                    sourceArea: formModal.item.sourceArea ?? "general",
-                    featured: formModal.item.featured,
-                    isPublic: formModal.item.isPublic,
-                    publishAt: formModal.item.publishAtLocal,
-                    externalUrl: formModal.item.externalUrl ?? "",
-                    socialCopy: formModal.item.socialCopy ?? "",
-                    socialTwitter: formModal.item.socialTwitter ?? "",
-                    socialFacebook: formModal.item.socialFacebook ?? "",
-                    socialInstagram: formModal.item.socialInstagram ?? "",
-                    imageUrl: formModal.item.imageUrl,
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        </div>
+          {formModal.mode === "create" ? (
+            <AvisoForm
+              key="create-aviso"
+              action={crearAviso}
+              submitLabel="Publicar comunicado"
+              stayOnPage
+              onCancel={() => setFormModal(null)}
+              onSuccess={() => {
+                setFormModal(null);
+                setExtra7d({ views: 0, clicks: 0 });
+                router.refresh();
+              }}
+              initial={{
+                title: "",
+                body: "",
+                category: "academico",
+                sourceArea: "general",
+                featured: false,
+                isPublic: true,
+                publishAt: defaultPublishAt,
+                externalUrl: "",
+                socialCopy: "",
+                socialTwitter: "",
+                socialFacebook: "",
+                socialInstagram: "",
+              }}
+            />
+          ) : (
+            <AvisoForm
+              key={`edit-aviso-${formModal.item.id}`}
+              action={actualizarAviso}
+              submitLabel="Guardar cambios"
+              stayOnPage
+              onCancel={() => setFormModal(null)}
+              onSuccess={() => {
+                setFormModal(null);
+                router.refresh();
+              }}
+              initial={{
+                id: formModal.item.id,
+                title: formModal.item.title,
+                body: formModal.item.body,
+                category: formModal.item.category,
+                sourceArea: formModal.item.sourceArea ?? "general",
+                featured: formModal.item.featured,
+                isPublic: formModal.item.isPublic,
+                publishAt: formModal.item.publishAtLocal,
+                externalUrl: formModal.item.externalUrl ?? "",
+                socialCopy: formModal.item.socialCopy ?? "",
+                socialTwitter: formModal.item.socialTwitter ?? "",
+                socialFacebook: formModal.item.socialFacebook ?? "",
+                socialInstagram: formModal.item.socialInstagram ?? "",
+                imageUrl: formModal.item.imageUrl,
+              }}
+            />
+          )}
+        </FormDialog>
       )}
     </div>
   );

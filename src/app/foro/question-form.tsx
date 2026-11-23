@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useState, useTransition } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { btn, input, label } from "@/lib/ui";
 import { suggestSimilarQuestions, type QuestionState } from "./actions";
@@ -11,6 +12,7 @@ export function QuestionForm({
   action,
   defaultArea,
   step,
+  stayInGuide = false,
   office,
   guides = [],
   onSelectQuestion,
@@ -18,6 +20,7 @@ export function QuestionForm({
   action: (state: QuestionState, form: FormData) => Promise<QuestionState>;
   defaultArea?: string;
   step?: { guideId: string; id: number };
+  stayInGuide?: boolean;
   office?: string | null;
   guides?: { id: string; title: string; area: string }[];
   onSelectQuestion?: (questionId: string) => void;
@@ -78,6 +81,7 @@ export function QuestionForm({
         <input type="hidden" name="area" value={defaultArea} />
         <input type="hidden" name="target_guide_id" value={step.guideId} />
         <input type="hidden" name="target_step_index" value={step.id} />
+        {stayInGuide && <input type="hidden" name="stay_in_guide" value="1" />}
       </> : <>
       <label className={label}>
         Tipo de publicación
@@ -135,11 +139,22 @@ export function QuestionForm({
       )}
 
       {requestKind === "nuevo_club" && (
-        <div className="rounded-lg border border-[#b4dce0] bg-[#e7f5f6] px-3 py-2 text-xs text-[#0b565e]">
-          Para abrir la votación de 20 alumnos puedes publicar directo en{" "}
-          <Link href="/clubes#proponer-club" className="font-extrabold underline">
-            Propuestas de clubes →
-          </Link>
+        <div className="space-y-2.5 rounded-lg border border-[#b4dce0] bg-[#e7f5f6] p-3 text-xs text-[#0b565e]">
+          <label className="block font-bold text-[#0b565e]">
+            Categoría del club (define el área que lo revisa al llegar a 20 votos)
+            <select className={`${input} mt-1 bg-white text-[#14374a]`} name="club_kind" defaultValue="academico">
+              <option value="academico">Académico · Subdirección Académica</option>
+              <option value="cultural">Cultural · SSEIS (Clubes Culturales y Deportivos)</option>
+              <option value="deportivo">Deportivo · SSEIS (Clubes Culturales y Deportivos)</option>
+            </select>
+          </label>
+          <p>
+            Al publicar como alumno se abrirá automáticamente la propuesta oficial (meta 20 votos) en{" "}
+            <Link href="/clubes" className="font-extrabold underline">
+              Clubes → Propuestas
+            </Link>{" "}
+            y los votos aquí suman al seguimiento del registro.
+          </p>
         </div>
       )}
 
@@ -229,9 +244,9 @@ export function QuestionForm({
           </Link>
         </div>
       )}
-      <button className={btn} disabled={pending}>
-        {pending ? "Publicando…" : "Publicar en foro"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Publicando…">
+        Publicar en foro
+      </SubmitButton>
     </form>
   );
 }

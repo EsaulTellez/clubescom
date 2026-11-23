@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Spinner } from "@/components/loading-ui";
 
 export function AutoRedirect({
   to = "/",
@@ -29,10 +30,13 @@ export function AutoRedirect({
   }, [delayMs, router, to]);
 
   return (
-    <p className="text-xs font-medium text-[#526974]">
-      {seconds > 0
-        ? `Entrando a la plataforma en ${seconds} s…`
-        : "Entrando a la plataforma…"}
+    <p role="status" className="inline-flex items-center gap-2 text-xs font-medium text-[#526974]">
+      <Spinner className="h-3.5 w-3.5 text-[#155775]" />
+      <span>
+        {seconds > 0
+          ? `Entrando a la plataforma en ${seconds} s…`
+          : "Entrando a la plataforma…"}
+      </span>
     </p>
   );
 }

@@ -18,14 +18,16 @@ import {
   InterestButton,
   IssueAdvisorCodeForm,
   ParticipantProfileForm,
+  ParticipantSlotAvailabilityForm,
   ProposalDocumentForm,
-  ProposalDocumentReviewForm,
   ProposalStaffDecisionForm,
   SendAdvisorEmailCodeForm,
+  StaffProposeSlotsForm,
   VerifyAdvisorCodeForm,
   WithdrawInterestButton,
 } from "../../forms";
-import { canModerateClubKind, interestLabel, isUuid, kindLabel, safeHttpUrl, statusLabel } from "../../format";
+import { canModerateClubKind, clubOfficeLabel, interestLabel, isUuid, kindLabel, safeHttpUrl, statusLabel } from "../../format";
+import { ProposalDossierViewer, type DossierRosterPerson } from "./dossier-viewer";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +71,10 @@ type Appointment = {
   id: string;
   status: string;
   requested_slots: string[];
+  staff_proposed_slots: string[];
+  proposer_available_slots: string[];
+  advisor_available_slots: string[];
+  proposer_note: string | null;
   scheduled_at: Date | null;
   subdireccion_notes: string | null;
   meeting_mode: string;
@@ -93,12 +99,6 @@ type RosterRow = {
     review_note: string | null;
   }[];
 };
-const DOCUMENT_LABELS: Record<string, string> = {
-  credencial_ipn: "Credencial IPN",
-  boleta: "Boleta",
-  firma: "Firma",
-  vigencia_ims: "Vigencia de derechos IMSS",
-};
 
 export default async function PropuestaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -114,6 +114,7 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
   let proposerContactEmail: string | null = null;
   let summaryParticipantsCount = 1;
   let summaryCompleteDocsCount = 0;
+  let summaryProposerComplete = false;
   let threshold = 20;
   let inactivityDays = 5;
   let dbDown = false;
@@ -133,14 +134,14 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
          left join users advisor on advisor.id = p.advisor_id
          left join users pending_adv on pending_adv.id = p.pending_advisor_id
          left join clubs c on c.proposal_id = p.id
-         where p.id = $1 and (not $2 or p.kind = 'academico')`,
-        [id, user?.role === "moderador" && user.area === "subdireccion_academica"],
+         where p.id = $1`,
+        [id],
       ),
       pool.query<{ key: string; value_int: number }>(
         `select key, value_int from system_settings where key in ('club_interest_threshold', 'club_claim_inactivity_days')`,
       ),
-      pool.query<{ proposal_id: string; participants_count: number; participants_complete_docs: number }>(
-        `select proposal_id, participants_count, participants_complete_docs
+      pool.query<{ proposal_id: string; participants_count: number; participants_complete_docs: number; proposer_complete: boolean }>(
+        `select proposal_id, participants_count, participants_complete_docs, proposer_complete
          from public.get_club_proposal_progress_summary()
          where proposal_id = $1`,
         [id],
@@ -150,6 +151,7 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
     if (progressResult.rows[0]) {
       summaryParticipantsCount = Number(progressResult.rows[0].participants_count);
       summaryCompleteDocsCount = Number(progressResult.rows[0].participants_complete_docs);
+      summaryProposerComplete = Boolean(progressResult.rows[0].proposer_complete);
     }
 
     for (const row of settingsResult.rows) {
@@ -177,7 +179,13 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
             [id],
           ),
           pool.query<Appointment>(
-            `select id, status, requested_slots, scheduled_at, subdireccion_notes,
+            `select id, status,
+                    coalesce(requested_slots, '[]'::jsonb) as requested_slots,
+                    coalesce(staff_proposed_slots, '[]'::jsonb) as staff_proposed_slots,
+                    coalesce(proposer_available_slots, '[]'::jsonb) as proposer_available_slots,
+                    coalesce(advisor_available_slots, '[]'::jsonb) as advisor_available_slots,
+                    proposer_note,
+                    scheduled_at, subdireccion_notes,
                     coalesce(meeting_mode, 'presencial') as meeting_mode,
                     meeting_location, advisor_confirmed_at, advisor_note
              from club_appointments where proposal_id = $1 order by created_at desc`,
@@ -224,12 +232,11 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
   const areaReviewer = canModerateClubKind(user, proposal.kind);
   const formalSubmitted = Boolean(proposal.formal_submitted_at);
   const canReviewFormal = areaReviewer && formalSubmitted;
-  const targetOfficeLabel =
-    proposal.kind === "academico" ? "Subdirección Académica" : "Clubes Culturales y Deportivos";
+  const targetOfficeLabel = clubOfficeLabel(proposal.kind);
   const defaultAppointmentPlace =
     proposal.kind === "academico"
       ? "Subdirección Académica / Sala 14 · Edificio 1"
-      : "Coordinación de Clubes Culturales y Deportivos";
+      : "SSEIS · Coordinación de Clubes Culturales y Deportivos";
 
   const thresholdReached = Number(proposal.interests) >= threshold;
   const advisorConfirmed = Boolean(proposal.advisor_id && proposal.advisor_confirmed_at);
@@ -246,7 +253,7 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
   const totalParticipants = Math.max(roster.length, summaryParticipantsCount);
   const participantsWithCompleteDocs = summaryCompleteDocsCount;
   const allParticipantsDocsComplete =
-    totalParticipants >= 1 && participantsWithCompleteDocs >= totalParticipants;
+    summaryProposerComplete && participantsWithCompleteDocs >= threshold;
   const readyForFormalSubmit =
     thresholdReached && advisorConfirmed && allParticipantsDocsComplete;
 
@@ -347,6 +354,16 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
             </dd>
           </div>
           <div><dt className="text-[#667085]">Respaldo estudiantil</dt><dd className="font-medium">{interestLabel(proposal.interests)} / {threshold}</dd></div>
+          <div>
+            <dt className="text-[#667085]">Expedientes completos (público)</dt>
+            <dd className="font-medium">
+              {participantsWithCompleteDocs} de {totalParticipants} participantes (mín. {threshold})
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[#667085]">Área encargada del registro</dt>
+            <dd className="font-medium">{targetOfficeLabel}</dd>
+          </div>
           {proposal.advisor_name && (
             <div>
               <dt className="text-[#667085]">Profesor coordinador confirmado</dt>
@@ -476,163 +493,216 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
         )}
 
         {roster.length > 0 && (proposer || isAssignedAdvisor || areaReviewer) && (
-          <div className="space-y-3 border-t border-[#d5e4ee] pt-4">
-            <h3 className="font-semibold">Padrón de integrantes y documentos ({roster.length})</h3>
-            <div className="space-y-2">
-              {roster.map((person) => {
-                const profileReady = person.career.trim().length >= 2 && person.phone.trim().length >= 8;
-                const personDocs = person.docs_json ?? [];
-                return (
-                  <article key={person.user_id} className="rounded-xl border border-[#d5e4ee] bg-white p-3.5 text-sm">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <p className="font-bold text-[#14374a]">
-                          {person.name} {person.is_proposer ? "· Responsable" : ""}
-                        </p>
-                        <p className="text-xs text-[#596f7b]">
-                          {person.boleta ? `Boleta ${person.boleta}` : "Sin boleta"}
-                          {person.career ? ` · ${person.career}` : " · Carrera pendiente"}
-                          {person.phone ? ` · Tel. ${person.phone}` : " · Teléfono pendiente"}
-                          {person.email ? ` · ${person.email}` : ""}
-                        </p>
-                      </div>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${
-                          profileReady && person.docs_received >= 4
-                            ? "bg-[#eaf7f0] text-[#17634a]"
-                            : "bg-[#f8f3e4] text-[#7a5612]"
-                        }`}
-                      >
-                        {person.docs_received}/4 docs {profileReady ? "· Datos ✓" : "· Faltan datos"}
-                      </span>
-                    </div>
-                    {personDocs.length > 0 && (
-                      <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
-                        {personDocs.map((doc) => {
-                          const signedUrl = signedDocMap.get(doc.id);
-                          return (
-                            <div key={doc.id} className="rounded-lg border border-[#e3edf2] bg-[#fafcfd] p-2.5 text-xs">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-bold text-[#19435b]">
-                                  {DOCUMENT_LABELS[doc.document_type] ?? doc.document_type}
-                                </span>
-                                <span className="text-[#58707c]">{doc.status}</span>
-                              </div>
-                              {doc.review_note && (
-                                <p className="mt-1 text-[#8C1D18]">{doc.review_note}</p>
-                              )}
-                              {signedUrl && (
-                                <a
-                                  href={signedUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="mt-1.5 inline-block font-bold text-[#006699] underline"
-                                >
-                                  Abrir documento →
-                                </a>
-                              )}
-                              {canReviewFormal && (
-                                <ProposalDocumentReviewForm proposalId={proposal.id} documentId={doc.id} />
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          </div>
+          <ProposalDossierViewer
+            proposalId={proposal.id}
+            canReviewFormal={canReviewFormal}
+            roster={roster.map<DossierRosterPerson>((person) => ({
+              user_id: person.user_id,
+              name: person.name,
+              email: person.email,
+              boleta: person.boleta,
+              career: person.career,
+              phone: person.phone,
+              is_proposer: person.is_proposer,
+              docs_received: person.docs_received,
+              docs: (person.docs_json ?? []).map((doc) => ({
+                ...doc,
+                signedUrl: signedDocMap.get(doc.id) ?? null,
+              })),
+            }))}
+          />
         )}
       </section>
 
-      {appointments.length > 0 && (formalSubmitted || proposer || interested || isAssignedAdvisor || areaReviewer) && (
+      {(formalSubmitted || appointments.length > 0) && (proposer || interested || isAssignedAdvisor || areaReviewer) && (
         <section className={`${card} space-y-4`}>
           <h2 className="font-semibold">Junta conjunta con {targetOfficeLabel}</h2>
           <p className="text-xs text-[#667085]">
-            Convoca al alumno responsable ({proposal.proposer_name}) y al profesor coordinador ({proposal.advisor_name ?? "confirmado"}).
+            Convoca al alumno presidente ({proposal.proposer_name}) y al profesor coordinador ({proposal.advisor_name ?? "confirmado"}). {targetOfficeLabel} propone fechas disponibles y entre ambos eligen los horarios en que pueden asistir para acordar la cita.
           </p>
-          {appointments.map((appointment) => (
-            <article key={appointment.id} className="space-y-3 rounded-xl border border-[#d5e4ee] bg-white p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm"><strong>Estado:</strong> {statusLabel(appointment.status)}</p>
-                {appointment.advisor_confirmed_at ? (
-                  <span className="rounded-full bg-[#eaf7f0] px-2.5 py-0.5 text-xs font-bold text-[#17634a]">
-                    Profesor confirmó asistencia
-                  </span>
-                ) : appointment.status === "confirmada" ? (
-                  <span className="rounded-full bg-[#fff5e2] px-2.5 py-0.5 text-xs font-bold text-[#7c5611]">
-                    Pendiente confirmación del profesor
-                  </span>
-                ) : null}
-              </div>
-              <p className="text-sm">
-                <strong>Opciones propuestas (CDMX):</strong>{" "}
-                {appointment.requested_slots.map((slot) => formatMxDateTime(slot)).join(" · ") || "sin opciones"}
-              </p>
-              {appointment.scheduled_at && (
-                <div className="space-y-1 rounded-lg border border-[#cbe2ee] bg-[#f4f9fc] p-3 text-sm">
-                  <p>
-                    <strong>Fecha y hora acordada (CDMX):</strong> {formatMxDateTime(appointment.scheduled_at)}
+
+          {canReviewFormal && (!latestAppointment || latestAppointment.status === "pendiente") && (
+            <StaffProposeSlotsForm
+              proposalId={proposal.id}
+              defaultPlace={defaultAppointmentPlace}
+              existingSlots={latestAppointment?.staff_proposed_slots ?? []}
+              existingMode={latestAppointment?.meeting_mode}
+              existingLocation={latestAppointment?.meeting_location}
+            />
+          )}
+
+          {appointments.map((appointment) => {
+            const staffSlots = Array.isArray(appointment.staff_proposed_slots) ? appointment.staff_proposed_slots : [];
+            const studentSlots = Array.isArray(appointment.proposer_available_slots) ? appointment.proposer_available_slots : [];
+            const advisorSlots = Array.isArray(appointment.advisor_available_slots) ? appointment.advisor_available_slots : [];
+            const advisorSet = new Set(advisorSlots);
+            const matchingSlots = staffSlots.filter((s) => studentSlots.includes(s) && advisorSet.has(s));
+
+            return (
+              <article key={appointment.id} className="space-y-3 rounded-xl border border-[#d5e4ee] bg-white p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm"><strong>Estado:</strong> {statusLabel(appointment.status)}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {studentSlots.length > 0 && (
+                      <span className="rounded-full bg-[#e9f4fa] px-2.5 py-0.5 text-xs font-bold text-[#005580]">
+                        Alumno marcó {studentSlots.length} horario{studentSlots.length === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    {advisorSlots.length > 0 && (
+                      <span className="rounded-full bg-[#eaf7f0] px-2.5 py-0.5 text-xs font-bold text-[#17634a]">
+                        Profesor marcó {advisorSlots.length} horario{advisorSlots.length === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    {matchingSlots.length > 0 && appointment.status === "pendiente" && (
+                      <span className="rounded-full bg-[#d8f3e4] px-2.5 py-0.5 text-xs font-extrabold text-[#14593e]">
+                        ✓ {matchingSlots.length} coincidencia{matchingSlots.length === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {staffSlots.length > 0 && (
+                  <div className="space-y-1 text-xs text-[#3a5563]">
+                    <p className="font-bold text-[#14374a]">Horarios propuestos por {targetOfficeLabel} (CDMX):</p>
+                    <ul className="grid gap-1.5 sm:grid-cols-2">
+                      {staffSlots.map((slot) => {
+                        const sOk = studentSlots.includes(slot);
+                        const aOk = advisorSet.has(slot);
+                        return (
+                          <li
+                            key={slot}
+                            className={`rounded-lg border px-2.5 py-1.5 ${
+                              sOk && aOk
+                                ? "border-[#9ad4b6] bg-[#eef9f3] font-bold text-[#14593e]"
+                                : "border-[#dce7ee] bg-[#fafcfd]"
+                            }`}
+                          >
+                            <span>{formatMxDateTime(slot)}</span>
+                            <span className="ml-1.5 text-[11px] font-semibold">
+                              {sOk && aOk
+                                ? "· Coinciden ambos ✓"
+                                : sOk
+                                  ? "· Alumno ✓"
+                                  : aOk
+                                    ? "· Profesor ✓"
+                                    : "· Sin respuesta aún"}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+
+                {appointment.requested_slots.length > 0 && staffSlots.length === 0 && (
+                  <p className="text-sm">
+                    <strong>Preferencias iniciales del alumno (CDMX):</strong>{" "}
+                    {appointment.requested_slots.map((slot) => formatMxDateTime(slot)).join(" · ")}
                   </p>
-                  <p>
-                    <strong>Modalidad:</strong> {appointment.meeting_mode === "en_linea" ? "En línea" : "Presencial"}
-                  </p>
-                  {appointment.meeting_location && (
+                )}
+
+                {appointment.scheduled_at && (
+                  <div className="space-y-1 rounded-lg border border-[#cbe2ee] bg-[#f4f9fc] p-3 text-sm">
                     <p>
-                      <strong>{appointment.meeting_mode === "en_linea" ? "Enlace:" : "Lugar:"}</strong>{" "}
-                      {/^https?:\/\//i.test(appointment.meeting_location) ? (
-                        <a href={appointment.meeting_location} target="_blank" rel="noreferrer" className="text-[#006699] underline break-all">
-                          {appointment.meeting_location}
-                        </a>
-                      ) : (
-                        appointment.meeting_location
-                      )}
+                      <strong>Fecha y hora acordada (CDMX):</strong> {formatMxDateTime(appointment.scheduled_at)}
                     </p>
-                  )}
-                </div>
-              )}
-              {appointment.subdireccion_notes && (
-                <p className="text-sm text-[#45616e]"><strong>Indicaciones:</strong> {appointment.subdireccion_notes}</p>
-              )}
-              {appointment.advisor_note && (
-                <p className="text-sm text-[#2c4f63]"><strong>Nota del profesor coordinador:</strong> {appointment.advisor_note}</p>
-              )}
-              {isAssignedAdvisor && (appointment.status === "pendiente" || appointment.status === "confirmada") && (
-                <AdvisorMeetingResponseForm proposalId={proposal.id} existingNote={appointment.advisor_note} />
-              )}
-              {canReviewFormal && appointment.status === "pendiente" && (
-                <AppointmentReviewForm
-                  proposalId={proposal.id}
-                  appointmentId={appointment.id}
-                  defaultPlace={defaultAppointmentPlace}
-                  proposedSlots={appointment.requested_slots}
-                />
-              )}
-              {canReviewFormal && appointment.status === "confirmada" && (
-                <div className="space-y-3">
-                  <CompleteAppointmentButton proposalId={proposal.id} appointmentId={appointment.id} />
-                  <details className="rounded-lg border border-[#d6e4ed] bg-[#fafcfd] p-3">
-                    <summary className="cursor-pointer text-xs font-bold text-[#005580]">
-                      Reprogramar fecha, modalidad o lugar de esta reunión
-                    </summary>
-                    <div className="mt-3">
-                      <AppointmentReviewForm
-                        proposalId={proposal.id}
-                        appointmentId={appointment.id}
-                        defaultPlace={defaultAppointmentPlace}
-                        proposedSlots={appointment.requested_slots}
-                        currentScheduledAt={appointment.scheduled_at?.toISOString() ?? null}
-                        currentMode={appointment.meeting_mode}
-                        currentLocation={appointment.meeting_location}
-                      />
-                    </div>
-                  </details>
-                </div>
-              )}
-            </article>
-          ))}
+                    <p>
+                      <strong>Modalidad:</strong> {appointment.meeting_mode === "en_linea" ? "En línea" : "Presencial"}
+                    </p>
+                    {appointment.meeting_location && (
+                      <p>
+                        <strong>{appointment.meeting_mode === "en_linea" ? "Enlace:" : "Lugar:"}</strong>{" "}
+                        {/^https?:\/\//i.test(appointment.meeting_location) ? (
+                          <a href={appointment.meeting_location} target="_blank" rel="noreferrer" className="text-[#006699] underline break-all">
+                            {appointment.meeting_location}
+                          </a>
+                        ) : (
+                          appointment.meeting_location
+                        )}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {appointment.subdireccion_notes && (
+                  <p className="text-sm text-[#45616e]"><strong>Indicaciones:</strong> {appointment.subdireccion_notes}</p>
+                )}
+                {appointment.proposer_note && (
+                  <p className="text-sm text-[#2c4f63]"><strong>Nota del alumno presidente:</strong> {appointment.proposer_note}</p>
+                )}
+                {appointment.advisor_note && (
+                  <p className="text-sm text-[#2c4f63]"><strong>Nota del profesor coordinador:</strong> {appointment.advisor_note}</p>
+                )}
+
+                {appointment.status === "pendiente" && staffSlots.length > 0 && proposer && (
+                  <ParticipantSlotAvailabilityForm
+                    proposalId={proposal.id}
+                    roleLabel="Alumno presidente"
+                    staffSlots={staffSlots}
+                    mySelectedSlots={studentSlots}
+                    otherPartySelectedSlots={advisorSlots}
+                    otherPartyLabel="el profesor coordinador"
+                    existingNote={appointment.proposer_note}
+                  />
+                )}
+
+                {appointment.status === "pendiente" && staffSlots.length > 0 && isAssignedAdvisor && (
+                  <ParticipantSlotAvailabilityForm
+                    proposalId={proposal.id}
+                    roleLabel="Profesor coordinador"
+                    staffSlots={staffSlots}
+                    mySelectedSlots={advisorSlots}
+                    otherPartySelectedSlots={studentSlots}
+                    otherPartyLabel="el alumno presidente"
+                    existingNote={appointment.advisor_note}
+                  />
+                )}
+
+                {isAssignedAdvisor && appointment.status === "confirmada" && (
+                  <AdvisorMeetingResponseForm proposalId={proposal.id} existingNote={appointment.advisor_note} />
+                )}
+
+                {canReviewFormal && appointment.status === "pendiente" && (
+                  <div className="border-t border-[#e3edf2] pt-3">
+                    <p className="mb-2 text-xs font-extrabold uppercase tracking-wide text-[#005580]">
+                      Confirmar fecha definitiva de la junta
+                    </p>
+                    <AppointmentReviewForm
+                      proposalId={proposal.id}
+                      appointmentId={appointment.id}
+                      defaultPlace={defaultAppointmentPlace}
+                      proposedSlots={staffSlots.length > 0 ? staffSlots : appointment.requested_slots}
+                      matchingSlots={matchingSlots}
+                      currentMode={appointment.meeting_mode}
+                      currentLocation={appointment.meeting_location}
+                    />
+                  </div>
+                )}
+
+                {canReviewFormal && appointment.status === "confirmada" && (
+                  <div className="space-y-3">
+                    <CompleteAppointmentButton proposalId={proposal.id} appointmentId={appointment.id} />
+                    <details className="rounded-lg border border-[#d6e4ed] bg-[#fafcfd] p-3">
+                      <summary className="cursor-pointer text-xs font-bold text-[#005580]">
+                        Reprogramar fecha, modalidad o lugar de esta reunión
+                      </summary>
+                      <div className="mt-3">
+                        <AppointmentReviewForm
+                          proposalId={proposal.id}
+                          appointmentId={appointment.id}
+                          defaultPlace={defaultAppointmentPlace}
+                          proposedSlots={staffSlots.length > 0 ? staffSlots : appointment.requested_slots}
+                          matchingSlots={matchingSlots}
+                          currentScheduledAt={appointment.scheduled_at?.toISOString() ?? null}
+                          currentMode={appointment.meeting_mode}
+                          currentLocation={appointment.meeting_location}
+                        />
+                      </div>
+                    </details>
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </section>
       )}
 

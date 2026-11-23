@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Spinner } from "@/components/loading-ui";
 
 export function AttendButton({
   eventKind,
@@ -95,20 +96,22 @@ export function AttendButton({
       type="button"
       onClick={toggle}
       disabled={busy}
+      aria-busy={busy || undefined}
       className={
         compact
-          ? `inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-extrabold transition ${
+          ? `inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-extrabold transition disabled:opacity-75 ${
               attending
                 ? "border-[#004d73] bg-[#006699] text-white"
                 : "border-[#c7d6de] bg-white text-[#173c4f] hover:border-[#006699] hover:bg-[#eaf4f8]"
             }`
-          : `inline-flex items-center gap-2 rounded-lg border px-3.5 py-1.5 text-xs font-extrabold transition ${
+          : `inline-flex items-center gap-2 rounded-lg border px-3.5 py-1.5 text-xs font-extrabold transition disabled:opacity-75 ${
               attending
                 ? "border-[#004d73] bg-[#006699] text-white shadow-xs"
                 : "border-[#b8ced9] bg-white text-[#004d73] hover:border-[#006699] hover:bg-[#eaf4f8]"
             }`
       }
     >
+      {busy && <Spinner className="h-3.5 w-3.5" />}
       <span>{attending ? "✓ Asistiré" : "Asistiré"}</span>
       <span
         className={`rounded px-1.5 py-0.5 text-[11px] leading-none ${

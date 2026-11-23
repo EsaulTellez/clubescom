@@ -132,8 +132,10 @@ export async function addSpaceEvent(_prev: FormState, form: FormData): Promise<F
   }
 
   const isStaffPublisher = canManageSpaceByName(user, spaceName);
-  if (!isStaffPublisher && user.role === "moderador") {
-    return { error: "Tu área no gestiona eventos en este espacio." };
+  if (!isStaffPublisher) {
+    return {
+      error: "Solo Becas (Auditorio), Subdirección Académica (Sala 14) o moderadores de un club (desde eventos de club) pueden registrar eventos.",
+    };
   }
 
   const overlap = await pool.query<{ conflict_title: string | null }>(

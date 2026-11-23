@@ -1,7 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
+import { FormDialog } from "@/components/form-dialog";
+import { SubmitButton } from "@/components/loading-ui";
 import { crearAviso } from "@/app/avisos/actions";
 import { AvisoForm } from "@/app/avisos/aviso-form";
 import { createClubEvent, createClubPost } from "@/app/clubes/actions";
@@ -22,7 +24,7 @@ type PublishTab = "club_post" | "evento" | "aviso";
 
 export function QuickPublishModal({ context }: { context: QuickPublishContext }) {
   const canClub = context.managedClubs.length > 0;
-  const canEvent = context.canPublishSpaceEvents || canClub;
+  const canEvent = (context.canPublishSpaceEvents && context.spaces.length > 0) || canClub;
   const canAviso = context.canPublishAviso;
   const hasAnyPermission = context.isAuthenticated && (canClub || canEvent || canAviso);
 
@@ -37,6 +39,7 @@ export function QuickPublishModal({ context }: { context: QuickPublishContext })
     <>
       <button
         type="button"
+        aria-haspopup="dialog"
         onClick={() => {
           setModalKey((k) => k + 1);
           setOpen(true);
@@ -44,7 +47,7 @@ export function QuickPublishModal({ context }: { context: QuickPublishContext })
         className={btn}
       >
         <span aria-hidden="true" className="text-base leading-none">+</span>
-        <span>Crear publicación</span>
+        <span>Nueva publicación</span>
       </button>
 
       {open && (
@@ -66,13 +69,14 @@ function QuickPublishDialog({
   onClose: () => void;
 }) {
   const canClub = context.managedClubs.length > 0;
-  const canEvent = context.canPublishSpaceEvents || canClub;
+  const canSpaceEvent = context.canPublishSpaceEvents && context.spaces.length > 0;
+  const canEvent = canSpaceEvent || canClub;
   const canAviso = context.canPublishAviso;
   const initialTab: PublishTab = canClub ? "club_post" : canAviso ? "aviso" : "evento";
 
   const [tab, setTab] = useState<PublishTab>(initialTab);
   const [eventTarget, setEventTarget] = useState<"space" | "club">(
-    context.canPublishSpaceEvents ? "space" : "club",
+    canSpaceEvent ? "space" : "club",
   );
   const [selectedSpaceId, setSelectedSpaceId] = useState<string>(context.spaces[0]?.id ?? "");
   const [clubVenuePreset, setClubVenuePreset] = useState<string>("Auditorio");
@@ -115,93 +119,104 @@ function QuickPublishDialog({
   );
 
   const anyPending = clubPostPending || spaceEventPending || clubEventPending;
+  const tabCount = [canClub, canEvent, canAviso].filter(Boolean).length;
 
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && !anyPending) onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [anyPending, onClose]);
+  const dialogMeta: Record<PublishTab, { title: string; kicker: string; accent: "teal" | "amber" | "blue" }> = {
+    club_post: { title: "Publicación de club", kicker: "Comunidad de clubes", accent: "teal" },
+    evento: { title: "Publicar evento", kicker: "Cartelera ESCOM", accent: "amber" },
+    aviso: { title: "Nuevo aviso institucional", kicker: "Comunicación Social", accent: "blue" },
+  };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="quick-publish-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-xs"
-      onClick={() => {
-        if (!anyPending) onClose();
-      }}
+    <FormDialog
+      title={dialogMeta[tab].title}
+      kicker={dialogMeta[tab].kicker}
+      accent={dialogMeta[tab].accent}
+      size={tab === "aviso" ? "xl" : "lg"}
+      onClose={onClose}
+      disableClose={anyPending}
     >
-      <div
-        className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-sm border border-[#cfdbe2] bg-[#fffefa] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-[#e4ecee] bg-[#f4f1e7] px-5 py-4">
-          <h2 id="quick-publish-title" className="text-lg font-extrabold text-[#14374a]">
-            Nueva publicación
-          </h2>
-          <button
-            type="button"
-            aria-label="Cerrar ventana"
-            disabled={anyPending}
-            onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-lg border border-[#cbd9e0] bg-white text-sm font-bold text-[#35505e] hover:bg-[#eaf3f7] disabled:opacity-50"
+      <div className="space-y-5">
+        {tabCount > 1 && (
+          <div
+            role="tablist"
+            aria-label="Tipo de publicación"
+            className="grid gap-2 rounded-md border border-[#dedad0] bg-[#f4f2ea] p-1.5 sm:grid-cols-3"
           >
-            ✕
-          </button>
-        </div>
+            {canClub && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "club_post"}
+                onClick={() => setTab("club_post")}
+                className={`flex items-center justify-center gap-2 rounded px-3 py-2 text-xs font-extrabold transition ${
+                  tab === "club_post"
+                    ? "bg-[#165b47] text-white shadow-xs"
+                    : "text-[#2d4f46] hover:bg-white/80"
+                }`}
+              >
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <circle cx="7" cy="7.5" r="2.3" />
+                  <circle cx="13.5" cy="8" r="2" />
+                  <path d="M3 16c.5-2.6 2-4 4-4s3.5 1.4 4 4M11.5 16c.3-1.8 1.4-2.8 3-2.8 1.3 0 2.2.7 2.6 2" strokeLinecap="round" />
+                </svg>
+                <span>Publicación de club</span>
+              </button>
+            )}
+            {canEvent && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "evento"}
+                onClick={() => setTab("evento")}
+                className={`flex items-center justify-center gap-2 rounded px-3 py-2 text-xs font-extrabold transition ${
+                  tab === "evento"
+                    ? "bg-[#142c3c] text-white shadow-xs"
+                    : "text-[#284556] hover:bg-white/80"
+                }`}
+              >
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <rect x="3" y="4.5" width="14" height="12.5" rx="2" />
+                  <path d="M6.5 2.5v3.5M13.5 2.5v3.5M3 8.5h14" strokeLinecap="round" />
+                </svg>
+                <span>Evento</span>
+              </button>
+            )}
+            {canAviso && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "aviso"}
+                onClick={() => setTab("aviso")}
+                className={`flex items-center justify-center gap-2 rounded px-3 py-2 text-xs font-extrabold transition ${
+                  tab === "aviso"
+                    ? "bg-[#006699] text-white shadow-xs"
+                    : "text-[#144e6c] hover:bg-white/80"
+                }`}
+              >
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M3.5 10.5 15.5 5v10l-12-4.5Z" strokeLinejoin="round" />
+                  <path d="M6.5 11.7 7.8 16h2.1l-.8-3.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span>Aviso institucional</span>
+              </button>
+            )}
+          </div>
+        )}
 
-        {/* Selector principal según permisos del usuario */}
-        <div className="flex flex-wrap gap-2 border-b border-[#e8ecee] bg-[#fafcfd] px-5 py-3">
-          {canClub && (
-            <button
-              type="button"
-              onClick={() => setTab("club_post")}
-              className={`rounded-sm px-3.5 py-1.5 text-xs font-extrabold transition ${
-                tab === "club_post"
-                  ? "bg-[#165b47] text-white"
-                  : "border border-[#cddbd5] bg-white text-[#165b47] hover:bg-[#eaf6f1]"
-              }`}
-            >
-              Publicación de club
-            </button>
-          )}
-          {canEvent && (
-            <button
-              type="button"
-              onClick={() => setTab("evento")}
-              className={`rounded-sm px-3.5 py-1.5 text-xs font-extrabold transition ${
-                tab === "evento"
-                  ? "bg-[#075679] text-white"
-                  : "border border-[#c4d8e2] bg-white text-[#075679] hover:bg-[#eaf4f8]"
-              }`}
-            >
-              Evento
-            </button>
-          )}
-          {canAviso && (
-            <button
-              type="button"
-              onClick={() => setTab("aviso")}
-              className={`rounded-sm px-3.5 py-1.5 text-xs font-extrabold transition ${
-                tab === "aviso"
-                  ? "bg-[#006699] text-white"
-                  : "border border-[#b9d4e3] bg-white text-[#006699] hover:bg-[#eaf4f8]"
-              }`}
-            >
-              Aviso institucional
-            </button>
-          )}
-        </div>
-
-        <div className="overflow-y-auto p-5 sm:p-6">
-          {tab === "club_post" && canClub && (
-            <form action={clubPostAction} className="space-y-3.5">
-              <input type="hidden" name="stay_on_page" value="1" />
+        {tab === "club_post" && canClub && (
+          <form action={clubPostAction} className="space-y-4">
+            <input type="hidden" name="stay_on_page" value="1" />
+            {context.managedClubs.length === 1 ? (
+              <>
+                <input type="hidden" name="club_id" value={context.managedClubs[0].id} />
+                <div className="rounded-md border border-[#cde1d9] bg-[#f2f9f6] px-3.5 py-2 text-xs font-bold text-[#145542]">
+                  Publicando en: {context.managedClubs[0].name}
+                </div>
+              </>
+            ) : (
               <label className={label}>
-                Club
+                Tu club
                 <select
                   className={input}
                   name="club_id"
@@ -215,81 +230,85 @@ function QuickPublishDialog({
                   ))}
                 </select>
               </label>
-              <label className={label}>
-                Título
-                <input
-                  className={input}
-                  name="title"
-                  required
-                  minLength={4}
-                  maxLength={120}
-                  placeholder="Título de la publicación"
-                />
-              </label>
-              <label className={label}>
-                Contenido
-                <textarea
-                  className={`${input} min-h-28`}
-                  name="body"
-                  required
-                  minLength={10}
-                  maxLength={3000}
-                  placeholder="Comparte avances, convocatorias o actividades del club…"
-                />
-              </label>
-              <ImageUploadField name="image" label="Imagen de la publicación (JPG, PNG o WEBP)" />
-              {clubPostState.error && (
-                <p className="text-sm text-[#8C1D18]" role="alert">
-                  {clubPostState.error}
-                </p>
-              )}
-              {clubPostState.success && (
-                <p className="text-sm font-bold text-[#165b47]" role="status">
-                  {clubPostState.success}
-                </p>
-              )}
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={onClose} disabled={anyPending} className={btnGhost}>
-                  Cancelar
+            )}
+            <label className={label}>
+              Título
+              <input
+                className={input}
+                name="title"
+                required
+                minLength={4}
+                maxLength={120}
+                placeholder="Título de la publicación"
+              />
+            </label>
+            <label className={label}>
+              Contenido
+              <textarea
+                className={`${input} min-h-28`}
+                name="body"
+                required
+                minLength={10}
+                maxLength={3000}
+                placeholder="Comparte avances, convocatorias o actividades del club…"
+              />
+            </label>
+            <ImageUploadField name="image" label="Imagen (opcional · JPG, PNG o WEBP)" compact />
+            {clubPostState.error && (
+              <p className="rounded-md border border-[#e3b8b4] bg-[#fdf2f1] px-3 py-2 text-sm text-[#8C1D18]" role="alert">
+                {clubPostState.error}
+              </p>
+            )}
+            <div className="flex justify-end gap-2 border-t border-[#e5e1d4] pt-4">
+              <button type="button" onClick={onClose} disabled={anyPending} className={btnGhost}>
+                Cancelar
+              </button>
+              <SubmitButton className={btn} pending={clubPostPending} pendingText="Publicando…">
+                Publicar en club
+              </SubmitButton>
+            </div>
+          </form>
+        )}
+
+        {tab === "evento" && canEvent && (
+          <div className="space-y-4">
+            {canSpaceEvent && canClub && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEventTarget("space")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-extrabold ${
+                    eventTarget === "space"
+                      ? "bg-[#e3f1f8] text-[#004d73] ring-1 ring-[#9bc5dc]"
+                      : "bg-[#f3f4ef] text-[#556973]"
+                  }`}
+                >
+                  Espacio del campus
                 </button>
-                <button className={btn} disabled={clubPostPending}>
-                  {clubPostPending ? "Publicando…" : "Publicar en club"}
+                <button
+                  type="button"
+                  onClick={() => setEventTarget("club")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-extrabold ${
+                    eventTarget === "club"
+                      ? "bg-[#e3f3ed] text-[#11503d] ring-1 ring-[#99d1be]"
+                      : "bg-[#f3f4ef] text-[#556973]"
+                  }`}
+                >
+                  Evento de mi club
                 </button>
               </div>
-            </form>
-          )}
+            )}
 
-          {tab === "evento" && canEvent && (
-            <div className="space-y-4">
-              {context.canPublishSpaceEvents && canClub && (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEventTarget("space")}
-                    className={`rounded-md px-3 py-1 text-xs font-bold ${
-                      eventTarget === "space"
-                        ? "bg-[#e3f1f8] text-[#004d73] ring-1 ring-[#9bc5dc]"
-                        : "bg-[#f3f4ef] text-[#556973]"
-                    }`}
-                  >
-                    En espacio del campus
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEventTarget("club")}
-                    className={`rounded-md px-3 py-1 text-xs font-bold ${
-                      eventTarget === "club"
-                        ? "bg-[#e3f3ed] text-[#11503d] ring-1 ring-[#99d1be]"
-                        : "bg-[#f3f4ef] text-[#556973]"
-                    }`}
-                  >
-                    Evento de club
-                  </button>
-                </div>
-              )}
-
-              {(eventTarget === "club" || !context.canPublishSpaceEvents) && canClub ? (
-                <form action={clubEventAction} className="space-y-3.5">
+            {(eventTarget === "club" || !canSpaceEvent) && canClub ? (
+              <form action={clubEventAction} className="space-y-4">
+                {context.managedClubs.length === 1 ? (
+                  <>
+                    <input type="hidden" name="club_id" value={context.managedClubs[0].id} />
+                    <div className="rounded-md border border-[#cde1d9] bg-[#f2f9f6] px-3.5 py-2 text-xs font-bold text-[#145542]">
+                      Club organizador: {context.managedClubs[0].name}
+                    </div>
+                  </>
+                ) : (
                   <label className={label}>
                     Club organizador
                     <select
@@ -305,80 +324,77 @@ function QuickPublishDialog({
                       ))}
                     </select>
                   </label>
+                )}
+                <label className={label}>
+                  Título del evento
+                  <input className={input} name="title" required minLength={3} maxLength={140} />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
                   <label className={label}>
-                    Título del evento
-                    <input className={input} name="title" required minLength={3} maxLength={140} />
+                    Inicio
+                    <input className={input} name="starts_at" type="datetime-local" required />
                   </label>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <label className={label}>
+                    Fin (opcional)
+                    <input className={input} name="ends_at" type="datetime-local" />
+                  </label>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className={label}>
+                    Sede en el campus
+                    <select
+                      className={input}
+                      name="venue_preset"
+                      value={clubVenuePreset}
+                      onChange={(e) => setClubVenuePreset(e.target.value)}
+                    >
+                      <option value="Auditorio">Auditorio</option>
+                      <option value="Sala 14">Sala 14</option>
+                      <option value="El domo">El domo</option>
+                      <option value="Canchas">Canchas</option>
+                      <option value="Explanada">Explanada</option>
+                      <option value="Otro">Otro espacio autorizado</option>
+                    </select>
+                  </label>
+                  {clubVenuePreset === "Otro" ? (
                     <label className={label}>
-                      Inicio
-                      <input className={input} name="starts_at" type="datetime-local" required />
-                    </label>
-                    <label className={label}>
-                      Fin (opcional)
-                      <input className={input} name="ends_at" type="datetime-local" />
-                    </label>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={label}>
-                      Sede en el campus
-                      <select
+                      Especifica el espacio
+                      <input
                         className={input}
-                        name="venue_preset"
-                        value={clubVenuePreset}
-                        onChange={(e) => setClubVenuePreset(e.target.value)}
-                      >
-                        <option value="Auditorio">Auditorio</option>
-                        <option value="Sala 14">Sala 14</option>
-                        <option value="El domo">El domo</option>
-                        <option value="Canchas">Canchas</option>
-                        <option value="Explanada">Explanada</option>
-                        <option value="Otro">Otro espacio autorizado</option>
-                      </select>
+                        name="location"
+                        required
+                        minLength={2}
+                        maxLength={140}
+                        placeholder="Ej. Laboratorio 2103"
+                      />
                     </label>
-                    {clubVenuePreset === "Otro" ? (
-                      <label className={label}>
-                        Especifica el espacio
-                        <input
-                          className={input}
-                          name="location"
-                          required
-                          minLength={2}
-                          maxLength={140}
-                          placeholder="Ej. Laboratorio 2103"
-                        />
-                      </label>
-                    ) : (
-                      <input type="hidden" name="location" value={clubVenuePreset} />
-                    )}
-                  </div>
-                  <label className={label}>
-                    Descripción
-                    <textarea className={`${input} min-h-24`} name="description" maxLength={500} />
-                  </label>
-                  <ImageUploadField name="image" label="Cartel o imagen del evento (JPG, PNG o WEBP)" />
-                  {clubEventState.error && (
-                    <p className="text-sm text-[#8C1D18]" role="alert">
-                      {clubEventState.error}
-                    </p>
+                  ) : (
+                    <input type="hidden" name="location" value={clubVenuePreset} />
                   )}
-                  {clubEventState.success && (
-                    <p className="text-sm font-bold text-[#165b47]" role="status">
-                      {clubEventState.success}
-                    </p>
-                  )}
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button type="button" onClick={onClose} disabled={anyPending} className={btnGhost}>
-                      Cerrar
-                    </button>
-                    <button className={btn} disabled={clubEventPending}>
-                      {clubEventPending ? "Enviando…" : "Enviar a revisión"}
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <form action={spaceEventAction} className="space-y-3.5">
-                  <input type="hidden" name="is_public_field" value="1" />
+                </div>
+                <label className={label}>
+                  Descripción
+                  <textarea className={`${input} min-h-24`} name="description" maxLength={500} />
+                </label>
+                <ImageUploadField name="image" label="Cartel del evento (opcional · JPG, PNG o WEBP)" compact />
+                {clubEventState.error && (
+                  <p className="rounded-md border border-[#e3b8b4] bg-[#fdf2f1] px-3 py-2 text-sm text-[#8C1D18]" role="alert">
+                    {clubEventState.error}
+                  </p>
+                )}
+                <div className="flex justify-end gap-2 border-t border-[#e5e1d4] pt-4">
+                  <button type="button" onClick={onClose} disabled={anyPending} className={btnGhost}>
+                    Cancelar
+                  </button>
+                  <SubmitButton className={btn} pending={clubEventPending} pendingText="Enviando…">
+                    Enviar a revisión
+                  </SubmitButton>
+                </div>
+              </form>
+            ) : (
+              <form action={spaceEventAction} className="space-y-4">
+                <input type="hidden" name="is_public_field" value="1" />
+                <div className="grid gap-3 sm:grid-cols-2">
                   <label className={label}>
                     Espacio del campus
                     <select
@@ -396,104 +412,99 @@ function QuickPublishDialog({
                     </select>
                   </label>
                   <label className={label}>
-                    Título del evento
-                    <input
-                      className={input}
-                      name="title"
-                      required
-                      maxLength={160}
-                      placeholder="Nombre de la actividad o evento"
-                    />
-                  </label>
-                  <label className={label}>
                     {requiresSpeaker ? "Ponente (obligatorio)" : "Ponente (opcional)"}
                     <input
                       className={input}
                       name="speaker"
                       required={requiresSpeaker}
                       maxLength={160}
-                      placeholder="Nombre de la persona ponente o expositora"
+                      placeholder="Nombre de quien imparte"
                     />
                   </label>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={label}>
-                      Inicio
-                      <input className={input} name="starts_at" type="datetime-local" required />
-                    </label>
-                    <label className={label}>
-                      Fin (opcional)
-                      <input className={input} name="ends_at" type="datetime-local" />
-                    </label>
-                  </div>
+                </div>
+                <label className={label}>
+                  Título del evento
+                  <input
+                    className={input}
+                    name="title"
+                    required
+                    maxLength={160}
+                    placeholder="Nombre de la actividad o evento"
+                  />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
                   <label className={label}>
-                    Descripción
-                    <textarea
-                      className={`${input} min-h-24`}
-                      name="description"
-                      maxLength={2000}
-                      placeholder="Detalles que la comunidad necesita conocer"
-                    />
+                    Inicio
+                    <input className={input} name="starts_at" type="datetime-local" required />
                   </label>
-                  <label className="flex items-start gap-2.5 rounded-lg border border-[#d6d3c6] bg-[#faf8f0] px-3 py-2 text-sm text-[#2c4452]">
-                    <input type="checkbox" name="is_public" defaultChecked className="mt-1" />
-                    <span>
-                      <strong className="block font-bold">Abierto al público</strong>
-                      <span className="text-xs text-[#5d6f79]">Si se desmarca, no se mostrará en la cartelera ni en el feed público.</span>
-                    </span>
+                  <label className={label}>
+                    Fin (opcional)
+                    <input className={input} name="ends_at" type="datetime-local" />
                   </label>
-                  <ImageUploadField name="image" label="Cartel o imagen del evento (JPG, PNG o WEBP)" />
-                  {spaceEventState.error && (
-                    <p className="text-sm text-[#8C1D18]" role="alert">
-                      {spaceEventState.error}
-                    </p>
-                  )}
-                  {spaceEventState.ok && (
-                    <p className="text-sm font-bold text-[#165b47]" role="status">
-                      {spaceEventState.ok}
-                    </p>
-                  )}
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button type="button" onClick={onClose} disabled={anyPending} className={btnGhost}>
-                      Cerrar
-                    </button>
-                    <button className={btn} disabled={spaceEventPending}>
-                      {spaceEventPending ? "Guardando…" : "Publicar evento"}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          )}
+                </div>
+                <label className={label}>
+                  Descripción
+                  <textarea
+                    className={`${input} min-h-24`}
+                    name="description"
+                    maxLength={2000}
+                    placeholder="Detalles que la comunidad necesita conocer"
+                  />
+                </label>
+                <label className="flex items-start gap-2.5 rounded-md border border-[#d6d3c6] bg-[#faf8f0] px-3.5 py-2.5 text-sm text-[#2c4452]">
+                  <input type="checkbox" name="is_public" defaultChecked className="mt-1" />
+                  <span>
+                    <strong className="block font-bold">Abierto al público</strong>
+                    <span className="text-xs text-[#5d6f79]">Si se desmarca, no se mostrará en la cartelera pública.</span>
+                  </span>
+                </label>
+                <ImageUploadField name="image" label="Cartel del evento (opcional · JPG, PNG o WEBP)" compact />
+                {spaceEventState.error && (
+                  <p className="rounded-md border border-[#e3b8b4] bg-[#fdf2f1] px-3 py-2 text-sm text-[#8C1D18]" role="alert">
+                    {spaceEventState.error}
+                  </p>
+                )}
+                <div className="flex justify-end gap-2 border-t border-[#e5e1d4] pt-4">
+                  <button type="button" onClick={onClose} disabled={anyPending} className={btnGhost}>
+                    Cancelar
+                  </button>
+                  <SubmitButton className={btn} pending={spaceEventPending} pendingText="Guardando…">
+                    Publicar evento
+                  </SubmitButton>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
 
-          {tab === "aviso" && context.canPublishAviso && (
-            <AvisoForm
-              key="quick-create-aviso"
-              action={crearAviso}
-              submitLabel="Publicar comunicado"
-              stayOnPage
-              onCancel={onClose}
-              onSuccess={() => {
-                onClose();
-                router.refresh();
-              }}
-              initial={{
-                title: "",
-                body: "",
-                category: "academico",
-                sourceArea: "general",
-                featured: false,
-                isPublic: true,
-                publishAt: context.defaultPublishAt,
-                externalUrl: "",
-                socialCopy: "",
-                socialTwitter: "",
-                socialFacebook: "",
-                socialInstagram: "",
-              }}
-            />
-          )}
-        </div>
+        {tab === "aviso" && context.canPublishAviso && (
+          <AvisoForm
+            key="quick-create-aviso"
+            action={crearAviso}
+            submitLabel="Publicar comunicado"
+            stayOnPage
+            onCancel={onClose}
+            onSuccess={() => {
+              onClose();
+              router.refresh();
+            }}
+            initial={{
+              title: "",
+              body: "",
+              category: "academico",
+              sourceArea: "general",
+              featured: false,
+              isPublic: true,
+              publishAt: context.defaultPublishAt,
+              externalUrl: "",
+              socialCopy: "",
+              socialTwitter: "",
+              socialFacebook: "",
+              socialInstagram: "",
+            }}
+          />
+        )}
       </div>
-    </div>
+    </FormDialog>
   );
 }

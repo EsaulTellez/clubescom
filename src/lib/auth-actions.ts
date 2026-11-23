@@ -296,7 +296,12 @@ export async function requestReset(
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: new URL("/auth/callback?next=/recuperar?cambiar=1", siteUrl).toString(),
   });
-  if (error) return { error: "No pudimos enviar el enlace. Inténtalo de nuevo en un momento." };
+  if (error) {
+    if (/rate limit|security purposes|too many|429/i.test(error.message)) {
+      return { error: "Se enviaron varios intentos seguidos. Espera un minuto antes de volver a intentarlo." };
+    }
+    return { error: "No pudimos enviar el enlace. Inténtalo de nuevo en un momento." };
+  }
 
   return {
     ok: "Si la cuenta existe, enviamos un enlace de recuperación.",

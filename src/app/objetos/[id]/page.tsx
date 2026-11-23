@@ -2,6 +2,7 @@ import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { ReportNotice } from "../report-notice";
 import { FlowRail } from "@/components/flow-rail";
+import { SubmitButton } from "@/components/loading-ui";
 import { getSession } from "@/lib/auth";
 import { formatMxDateTime } from "@/lib/datetime";
 import { pool } from "@/lib/db";
@@ -295,10 +296,12 @@ export default async function ObjetoPage({
                               <textarea className={`${input} mt-1 min-h-16`} name="review_note" maxLength={500} />
                             </label>
                             <div className="flex flex-wrap gap-2">
-                              <button className={btn} name="approve" value="true">
+                              <SubmitButton className={btn} name="approve" value="true" pendingText="Aprobando…">
                                 {item.kind === "perdido" ? "Es mi objeto · generar QR" : "Aceptar como dueño"}
-                              </button>
-                              <button className={btnGhost} name="approve" value="false">Rechazar</button>
+                              </SubmitButton>
+                              <SubmitButton className={btnGhost} name="approve" value="false" pendingText="Rechazando…">
+                                Rechazar
+                              </SubmitButton>
                             </div>
                           </form>
                         )}
@@ -309,7 +312,9 @@ export default async function ObjetoPage({
               )}
               <form action={closeItem} className="border-t border-dashed border-[#dcd9ce] pt-3">
                 <input type="hidden" name="id" value={item.id} />
-                <button className={`${btnGhost} w-full`}>Cerrar reporte</button>
+                <SubmitButton className={`${btnGhost} w-full`} pendingText="Cerrando…">
+                  Cerrar reporte
+                </SubmitButton>
               </form>
             </section>
           )}
@@ -378,7 +383,9 @@ export default async function ObjetoPage({
               </div>
               <form action={renewHandoff}>
                 <input type="hidden" name="item_id" value={item.id} />
-                <button className={`${btnGhost} w-full`}>Renovar código QR (+24h)</button>
+                <SubmitButton className={`${btnGhost} w-full`} pendingText="Renovando QR…">
+                  Renovar código QR (+24h)
+                </SubmitButton>
               </form>
             </section>
           )}
@@ -412,7 +419,9 @@ export default async function ObjetoPage({
                       placeholder="Ej. Hoy a las 14:30 en las mesas frente a Biblioteca (Edificio de Gobierno)"
                     />
                   </label>
-                  <button className={`${btnGhost} w-full`}>Guardar nota de encuentro</button>
+                  <SubmitButton className={`${btnGhost} w-full`} pendingText="Guardando…">
+                    Guardar nota de encuentro
+                  </SubmitButton>
                 </form>
               )}
             </section>
@@ -439,7 +448,9 @@ export default async function ObjetoPage({
               {handoff.is_expired && (
                 <form action={renewHandoff} className="mt-2">
                   <input type="hidden" name="item_id" value={item.id} />
-                  <button className={`${btnGhost} w-full`}>Renovar código QR (+24h)</button>
+                  <SubmitButton className={`${btnGhost} w-full`} pendingText="Renovando QR…">
+                    Renovar código QR (+24h)
+                  </SubmitButton>
                 </form>
               )}
             </section>
@@ -455,7 +466,9 @@ export default async function ObjetoPage({
                   Motivo de cierre administrativo
                   <input className={input} name="reason" required minLength={5} maxLength={300} placeholder="Reporte duplicado, falso o inapropiado" />
                 </label>
-                <button className={`${btnGhost} w-full`}>Cerrar reporte como falso/spam</button>
+                <SubmitButton className={`${btnGhost} w-full`} pendingText="Cerrando reporte…">
+                  Cerrar reporte como falso/spam
+                </SubmitButton>
               </form>
             </section>
           )}

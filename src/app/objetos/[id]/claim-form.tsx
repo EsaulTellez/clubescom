@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { uploadFileDirectly } from "@/lib/direct-upload";
 import { btn, input, label } from "@/lib/ui";
 import { claimItem } from "../actions";
@@ -122,13 +123,9 @@ export function ClaimForm({
       {uploadError && <p className="text-xs text-[#8C1D18]">{uploadError}</p>}
       {state.error && <p className="text-sm text-[#8C1D18]">{state.error}</p>}
       {state.ok && <p className="rounded-xl bg-[#e8f2e8] p-3 text-sm text-[#28452d]">{state.ok}</p>}
-      <button className={btn} disabled={pending || uploading}>
-        {pending
-          ? "Enviando…"
-          : mode === "perdido"
-            ? "Avisar que lo encontré"
-            : "Enviar reclamo"}
-      </button>
+      <SubmitButton className={btn} pending={pending} disabled={uploading} pendingText="Enviando…">
+        {mode === "perdido" ? "Avisar que lo encontré" : "Enviar reclamo"}
+      </SubmitButton>
     </form>
   );
 }

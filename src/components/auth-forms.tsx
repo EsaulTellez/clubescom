@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { Spinner, SubmitButton } from "@/components/loading-ui";
 import type { AuthState } from "@/lib/auth-actions";
 import { btn, btnGhost, input, label } from "@/lib/ui";
 
@@ -49,6 +50,65 @@ function PasswordInput({
   );
 }
 
+export function ConfirmTokenForm({
+  action,
+  tokenHash,
+  type,
+  isRecovery,
+  isInvite,
+}: {
+  action: (form: FormData) => Promise<void>;
+  tokenHash: string;
+  type: string;
+  isRecovery: boolean;
+  isInvite: boolean;
+}) {
+  const lockedRef = useRef(false);
+  const [locked, setLocked] = useState(false);
+
+  const buttonLabel = isRecovery
+    ? "Continuar a nueva contraseña"
+    : isInvite
+      ? "Confirmar invitación"
+      : "Confirmar y activar cuenta";
+
+  const pendingLabel = isRecovery
+    ? "Verificando enlace…"
+    : isInvite
+      ? "Activando invitación…"
+      : "Confirmando cuenta…";
+
+  return (
+    <form
+      action={action}
+      onSubmit={(event) => {
+        if (lockedRef.current) {
+          event.preventDefault();
+          return;
+        }
+        lockedRef.current = true;
+        setLocked(true);
+      }}
+      className="space-y-3"
+    >
+      <input type="hidden" name="token_hash" value={tokenHash} />
+      <input type="hidden" name="type" value={type} />
+      <SubmitButton
+        className={btn}
+        pending={locked}
+        pendingText={pendingLabel}
+      >
+        {buttonLabel}
+      </SubmitButton>
+      {locked && (
+        <p role="status" aria-live="polite" className="text-xs font-medium text-[#526974]">
+          Procesando tu solicitud, espera un momento…
+        </p>
+      )}
+    </form>
+  );
+}
+
 export function RegisterForm({
   action,
   resendAction,
@@ -89,16 +149,16 @@ export function RegisterForm({
           >
             <input type="hidden" name="email" value={state.email} />
             <Note state={resendState} />
-            <button
+            <SubmitButton
               className={btnGhost}
-              disabled={resendPending || cooldown > 0}
+              pending={resendPending}
+              disabled={cooldown > 0}
+              pendingText="Reenviando…"
             >
               {cooldown > 0
                 ? `Reenviar enlace (${cooldown} s)`
-                : resendPending
-                  ? "Reenviando…"
-                  : "Reenviar enlace de confirmación"}
-            </button>
+                : "Reenviar enlace de confirmación"}
+            </SubmitButton>
           </form>
         )}
         <div className="flex flex-wrap items-center gap-3 border-t border-[#dcd9ce] pt-3 text-sm">
@@ -129,7 +189,7 @@ export function RegisterForm({
       </label>
       <label className={label}>
         Correo institucional
-        <input className={input} name="email" type="email" autoComplete="email" required placeholder="boleta@alumno.ipn.mx" />
+        <input className={input} name="email" type="email" autoComplete="email" required placeholder="usuario@alumno.ipn.mx o nombre@ipn.mx" />
       </label>
       <label className={label}>
         Boleta o número de empleado (opcional al inicio)
@@ -151,6 +211,7 @@ export function RegisterForm({
             <button
               type="button"
               disabled={resendPending || cooldown > 0}
+              aria-busy={resendPending || undefined}
               onClick={() => {
                 const fd = new FormData();
                 fd.set("email", state.email!);
@@ -159,7 +220,14 @@ export function RegisterForm({
               }}
               className={btnGhost}
             >
-              {cooldown > 0 ? `Reenviar enlace (${cooldown} s)` : resendPending ? "Reenviando…" : "Reenviar enlace de activación"}
+              {resendPending && <Spinner />}
+              <span>
+                {resendPending
+                  ? "Reenviando…"
+                  : cooldown > 0
+                    ? `Reenviar enlace (${cooldown} s)`
+                    : "Reenviar enlace de activación"}
+              </span>
             </button>
             <Link href="/entrar" className="font-bold text-[#006699] underline">
               Ir a iniciar sesión →
@@ -169,9 +237,9 @@ export function RegisterForm({
         </div>
       )}
       <p className="text-xs text-[#667085]">Te enviaremos un enlace de confirmación a tu correo institucional.</p>
-      <button className={btn} disabled={pending}>
-        {pending ? "Creando…" : "Crear cuenta"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Creando cuenta…">
+        Crear cuenta
+      </SubmitButton>
     </form>
   );
 }
@@ -208,17 +276,18 @@ export function ResendLinkForm({
           type="email"
           required
           defaultValue={defaultEmail}
-          placeholder="boleta@alumno.ipn.mx"
+          placeholder="usuario@alumno.ipn.mx o nombre@ipn.mx"
         />
       </label>
       <Note state={state} />
-      <button className={btnGhost} disabled={pending || cooldown > 0}>
-        {cooldown > 0
-          ? `Espera ${cooldown} s`
-          : pending
-            ? "Reenviando…"
-            : "Reenviar enlace de activación"}
-      </button>
+      <SubmitButton
+        className={btnGhost}
+        pending={pending}
+        disabled={cooldown > 0}
+        pendingText="Reenviando…"
+      >
+        {cooldown > 0 ? `Espera ${cooldown} s` : "Reenviar enlace de activación"}
+      </SubmitButton>
     </form>
   );
 }
@@ -233,16 +302,16 @@ export function LoginForm({
     <form action={formAction} className="space-y-3">
       <label className={label}>
         Correo institucional
-        <input className={input} name="email" type="email" autoComplete="email" required />
+        <input className={input} name="email" type="email" autoComplete="email" required placeholder="usuario@alumno.ipn.mx o nombre@ipn.mx" />
       </label>
       <label className={label}>
         Contraseña
         <PasswordInput name="password" autoComplete="current-password" required />
       </label>
       <Note state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Entrando…" : "Entrar"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Entrando…">
+        Entrar
+      </SubmitButton>
     </form>
   );
 }
@@ -257,12 +326,12 @@ export function ResetRequestForm({
     <form action={formAction} className="space-y-3">
       <label className={label}>
         Correo institucional
-        <input className={input} name="email" type="email" required placeholder="boleta@alumno.ipn.mx" />
+        <input className={input} name="email" type="email" required placeholder="usuario@alumno.ipn.mx o nombre@ipn.mx" />
       </label>
       <Note state={state} />
-      <button className={btn} disabled={pending}>
+      <SubmitButton className={btn} pending={pending} pendingText="Enviando enlace…">
         Enviar enlace
-      </button>
+      </SubmitButton>
     </form>
   );
 }
@@ -284,9 +353,9 @@ export function ResetForm({
         <PasswordInput name="passwordConfirm" autoComplete="new-password" minLength={8} required />
       </label>
       <Note state={state} />
-      <button className={btn} disabled={pending}>
-        Guardar
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Guardando contraseña…">
+        Guardar contraseña
+      </SubmitButton>
     </form>
   );
 }

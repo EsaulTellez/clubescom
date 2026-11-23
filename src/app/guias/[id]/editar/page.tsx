@@ -29,12 +29,12 @@ export default async function EditGuidePage({ params }: { params: Promise<{ id: 
   const guide = result.rows[0];
   if (!guide || !canEditGuideArea(user, guide.area)) notFound();
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <Link href={`/guias/${id}`} className="text-sm text-[#006699] hover:underline">
-        Volver a la guía
+    <div className="mx-auto max-w-[1640px] space-y-4">
+      <Link href={`/guias/${id}`} className="inline-flex items-center gap-1.5 text-sm font-bold text-[#006699] hover:underline">
+        ← Volver a la guía
       </Link>
-      <section className={`${card} space-y-4`}>
-        <h1 className="text-2xl font-semibold">Editar guía</h1>
+      <section className={`${card} space-y-5`}>
+        <h1 className="text-2xl font-extrabold tracking-tight text-[#142c3c]">Editor visual de guía</h1>
         <EditGuideForm
           id={guide.id}
           area={guide.area}

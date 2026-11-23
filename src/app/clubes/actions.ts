@@ -13,6 +13,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   canManageAnyClubs,
   canModerateClubKind,
+  isSseisTitular,
   isUuid,
   KINDS,
   kindLabel,
@@ -57,27 +58,54 @@ export async function createClubDirectly(_prev: ClubState, form: FormData): Prom
   }
   const name = String(form.get("name") ?? "").trim();
   const kind = String(form.get("kind") ?? "");
-  const description = String(form.get("description") ?? "").trim();
-  const schedule = String(form.get("schedule") ?? "").trim().slice(0, 160);
+  const objectives = String(form.get("objectives") ?? "").trim();
+  const description = String(form.get("description") ?? objectives).trim();
+  const schedulePlan = String(form.get("schedule_plan") ?? "").trim();
+  const activitiesDetail = String(form.get("activities_detail") ?? "").trim();
+  const requestedSpaces = String(form.get("requested_spaces") ?? "").trim();
+  const communityImpact = String(form.get("community_impact") ?? "").trim();
+  const schedule = String(form.get("schedule") ?? requestedSpaces).trim().slice(0, 160);
   const contactEmail = String(form.get("contact_email") ?? "").trim().slice(0, 160);
   const contactInfo = String(form.get("contact_info") ?? "").trim().slice(0, 400);
   const leaderId = String(form.get("leader_id") ?? "");
   const advisorId = String(form.get("advisor_id") ?? "");
+  const foundingMembersCount = Number(form.get("founding_members_count") ?? 0);
+  const presidentSemester = Number(form.get("president_semester") ?? 0);
+  const presidentIsRegular = form.get("president_is_regular") === "on";
 
   if (
     name.length < 3 ||
     name.length > 120 ||
-    description.length < 10 ||
-    description.length > 2000 ||
     !KINDS.includes(kind as ClubKind)
   ) {
-    return { error: "Completa el nombre, tipo y descripción del club." };
+    return { error: "Completa el nombre y tipo del club." };
   }
   if (!canModerateClubKind(user, kind)) {
     return { error: "Tu área solo puede registrar clubes del tipo que administra." };
   }
+  if (objectives.length < 10 || objectives.length > 2000) {
+    return { error: "Captura el objetivo del club (mínimo 10 caracteres)." };
+  }
+  if (schedulePlan.length < 10 || schedulePlan.length > 2000) {
+    return { error: "Captura el cronograma anual de actividades (mínimo 10 caracteres)." };
+  }
+  if (activitiesDetail.length < 10 || activitiesDetail.length > 2000) {
+    return { error: "Detalla las actividades a realizar (mínimo 10 caracteres)." };
+  }
+  if (requestedSpaces.length < 3 || requestedSpaces.length > 600) {
+    return { error: "Indica los espacios y tiempos solicitados (lunes a viernes de 08:30 a 20:00)." };
+  }
+  if (communityImpact.length < 10 || communityImpact.length > 2000) {
+    return { error: "Describe el impacto académico, cultural o deportivo (mínimo 10 caracteres)." };
+  }
+  if (!Number.isInteger(foundingMembersCount) || foundingMembersCount < 20) {
+    return { error: "Conforme al procedimiento de clubes, el registro requiere al menos 20 estudiantes." };
+  }
+  if (!Number.isInteger(presidentSemester) || presidentSemester < 3 || presidentSemester > 7 || !presidentIsRegular) {
+    return { error: "El alumno presidente debe ser alumno regular entre 3º y 7º semestre." };
+  }
   if (!isUuid(leaderId) || !isUuid(advisorId)) {
-    return { error: "Selecciona un alumno responsable y un profesor coordinador." };
+    return { error: "Selecciona un alumno presidente y un profesor coordinador." };
   }
 
   const people = await pool.query<{ id: string; role: string }>(
@@ -89,6 +117,57 @@ export async function createClubDirectly(_prev: ClubState, form: FormData): Prom
     !people.rows.some((p) => p.id === advisorId && p.role === "profesor")
   ) {
     return { error: "Selecciona un alumno y un profesor activos." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  let executiveProjectPath = resolvePreuploadedPrivatePath(
+    form,
+    "executive_project",
+    `direct/${user.id}/`,
+  );
+  const execFile = form.get("executive_project");
+  if (!executiveProjectPath && execFile instanceof File && execFile.size > 0) {
+    if (execFile.type !== "application/pdf") {
+      return { error: "La solicitud y proyecto ejecutivo deben subirse en formato PDF." };
+    }
+    if (execFile.size > 10 * 1024 * 1024) {
+      return { error: "El PDF del proyecto ejecutivo debe pesar 10 MB o menos." };
+    }
+    const path = `direct/${user.id}/proyecto-${randomBytes(6).toString("hex")}.pdf`;
+    const uploaded = await supabase.storage.from("club-documents").upload(path, execFile, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+    if (uploaded.error) return { error: "No se pudo subir el PDF del proyecto ejecutivo." };
+    executiveProjectPath = path;
+  }
+  if (!executiveProjectPath) {
+    return { error: "Adjunta el PDF de la solicitud por escrito y proyecto ejecutivo." };
+  }
+
+  let foundingRosterPath = resolvePreuploadedPrivatePath(
+    form,
+    "founding_roster",
+    `direct/${user.id}/`,
+  );
+  const rosterFile = form.get("founding_roster");
+  if (!foundingRosterPath && rosterFile instanceof File && rosterFile.size > 0) {
+    if (rosterFile.type !== "application/pdf") {
+      return { error: "El expediente de los 20+ estudiantes (lista, IMSS, credenciales y firmas) debe estar en PDF." };
+    }
+    if (rosterFile.size > 10 * 1024 * 1024) {
+      return { error: "El PDF del expediente estudiantil debe pesar 10 MB o menos." };
+    }
+    const path = `direct/${user.id}/padron-${randomBytes(6).toString("hex")}.pdf`;
+    const uploaded = await supabase.storage.from("club-documents").upload(path, rosterFile, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+    if (uploaded.error) return { error: "No se pudo subir el PDF del padrón y documentos de integrantes." };
+    foundingRosterPath = path;
+  }
+  if (!foundingRosterPath) {
+    return { error: "Adjunta el PDF con la lista de mínimo 20 estudiantes, constancias IMSS, credenciales IPN y firmas." };
   }
 
   const parsedQuestions = form.has("join_questions_json")
@@ -106,12 +185,19 @@ export async function createClubDirectly(_prev: ClubState, form: FormData): Prom
   const joinRequirements = String(form.get("join_requirements") ?? "").trim().slice(0, 800);
 
   const inserted = await pool.query<{ id: string }>(
-    `insert into clubs (name, kind, description, schedule, contact_email, contact_info, leader_id, advisor_id, logo_url, join_requirements, join_questions)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb) returning id`,
+    `insert into clubs (
+       name, kind, description, schedule, contact_email, contact_info,
+       leader_id, advisor_id, logo_url, join_requirements, join_questions,
+       objectives, schedule_plan, activities_detail, requested_spaces, community_impact,
+       executive_project_path, founding_roster_path, founding_members_count,
+       president_semester, president_is_regular
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+     returning id`,
     [
       name,
       kind,
-      description,
+      description || objectives,
       schedule || null,
       contactEmail || null,
       contactInfo || null,
@@ -120,6 +206,16 @@ export async function createClubDirectly(_prev: ClubState, form: FormData): Prom
       uploadedLogo.url,
       joinRequirements || null,
       JSON.stringify(parsedQuestions.questions),
+      objectives,
+      schedulePlan,
+      activitiesDetail,
+      requestedSpaces,
+      communityImpact,
+      executiveProjectPath,
+      foundingRosterPath,
+      foundingMembersCount,
+      presidentSemester,
+      presidentIsRegular,
     ],
   );
   const id = inserted.rows[0].id;
@@ -707,6 +803,8 @@ export async function submitFormalClubRequest(_prev: ClubState, form: FormData):
   const communityImpact = String(form.get("community_impact") ?? "").trim();
   const planRaw = String(form.get("plan_url") ?? "").trim();
   const planFile = form.get("plan_file");
+  const presidentSemesterRaw = Number(form.get("president_semester") ?? 0);
+  const presidentIsRegular = form.get("president_is_regular") === "on";
   const slots = [String(form.get("slot1") ?? ""), String(form.get("slot2") ?? "")]
     .map((value) => parseMxLocalDate(value))
     .filter((value): value is Date => Boolean(value && value.getTime() > Date.now()));
@@ -716,18 +814,23 @@ export async function submitFormalClubRequest(_prev: ClubState, form: FormData):
     return { error: "Indica los objetivos del club (10 a 2000 caracteres)." };
   }
   if (schedulePlan.length < 10 || schedulePlan.length > 2000) {
-    return { error: "Describe el cronograma de actividades del club (mínimo 10 caracteres)." };
+    return { error: "Describe el cronograma anual de actividades del club (mínimo 10 caracteres)." };
   }
   if (activitiesDetail.length < 10 || activitiesDetail.length > 2000) {
-    return { error: "Detalla las actividades a desarrollar en el semestre (mínimo 10 caracteres)." };
+    return { error: "Detalla las actividades a desarrollar en el año (mínimo 10 caracteres)." };
   }
   if (requestedSpaces.length < 3 || requestedSpaces.length > 600) {
-    return { error: "Indica los espacios y horarios de ESCOM que ocupará el club." };
+    return { error: "Indica los espacios y horarios de ESCOM que ocupará el club (lunes a viernes 08:30–20:00)." };
   }
   if (communityImpact.length < 10 || communityImpact.length > 2000) {
-    return { error: "Describe la contribución y los beneficios para la comunidad ESCOM (mínimo 10 caracteres)." };
+    return { error: "Describe el impacto académico, cultural o deportivo para la comunidad ESCOM (mínimo 10 caracteres)." };
   }
-  if (slots.length < 1) return { error: "Elige al menos una fecha y hora futura (hora CDMX) para coordinar la junta." };
+  if (!Number.isInteger(presidentSemesterRaw) || presidentSemesterRaw < 3 || presidentSemesterRaw > 7) {
+    return { error: "Conforme al procedimiento de clubes, el alumno presidente debe cursar entre 3º y 7º semestre." };
+  }
+  if (!presidentIsRegular) {
+    return { error: "Debes confirmar que el alumno presidente es alumno regular." };
+  }
 
   let planUrl: string | null = null;
   if (planRaw) {
@@ -770,12 +873,14 @@ export async function submitFormalClubRequest(_prev: ClubState, form: FormData):
     p_requested_spaces: requestedSpaces,
     p_plan_url: planUrl,
     p_plan_file_path: uploadedPlanPath,
+    p_president_semester: presidentSemesterRaw,
+    p_president_is_regular: presidentIsRegular,
   });
   if (error) {
     return {
       error:
         error.message ||
-        "La propuesta aún necesita integrantes con datos y 4 documentos completos, profesor coordinador confirmado, proyecto ejecutivo y cronograma.",
+        "La propuesta aún necesita al menos 20 estudiantes con datos y 4 documentos completos (incluyendo al presidente), profesor coordinador confirmado y proyecto ejecutivo.",
     };
   }
 
@@ -784,7 +889,87 @@ export async function submitFormalClubRequest(_prev: ClubState, form: FormData):
   revalidatePath("/notificaciones");
   return {
     success:
-      "Registro formal enviado. Subdirección / coordinación de clubes ya puede revisar el expediente y agendar la junta contigo y tu profesor coordinador.",
+      "Registro formal enviado. El área de clubes revisará los documentos y propondrá fechas disponibles para coordinar la junta contigo y tu profesor coordinador.",
+  };
+}
+
+export async function proposeClubAppointmentSlots(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user) return { error: "Inicia sesión para proponer fechas de junta." };
+  const proposalId = String(form.get("proposal_id") ?? "");
+  const meetingModeRaw = String(form.get("meeting_mode") ?? "presencial").trim();
+  const meetingMode = meetingModeRaw === "en_linea" ? "en_linea" : "presencial";
+  const meetingLocation = String(form.get("meeting_location") ?? "").trim().slice(0, 300);
+  const notes = String(form.get("subdireccion_notes") ?? "").trim().slice(0, 400);
+
+  if (!isUuid(proposalId)) return { error: "No encontramos esa propuesta." };
+  if (meetingMode === "en_linea" && meetingLocation && !safeHttpUrl(meetingLocation)) {
+    return { error: "Para reunión en línea, proporciona un enlace válido (https://...)." };
+  }
+
+  const rawSlots = form.getAll("proposed_slot").map((v) => String(v ?? "").trim()).filter(Boolean);
+  const validDates = rawSlots
+    .map((v) => parseMxLocalDate(v))
+    .filter((d): d is Date => Boolean(d && d.getTime() > Date.now()));
+  const uniqueIso = Array.from(new Set(validDates.map((d) => d.toISOString()))).sort();
+
+  if (uniqueIso.length < 1) {
+    return { error: "Agrega al menos una fecha y hora futura (CDMX) para que alumno y profesor elijan." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("propose_club_appointment_slots", {
+    p_proposal_id: proposalId,
+    p_slots: uniqueIso,
+    p_meeting_mode: meetingMode,
+    p_meeting_location: meetingLocation,
+    p_notes: notes,
+  });
+  if (error) {
+    return { error: error.message || "No se pudieron enviar las opciones de horario." };
+  }
+
+  await audit(user.id, "proponer_horarios_cita_club", "club_appointments", proposalId, `${uniqueIso.length} opciones`);
+  refresh(proposalId);
+  revalidatePath("/notificaciones");
+  return {
+    success: `Se enviaron ${uniqueIso.length} opciones de horario al alumno presidente y al profesor coordinador para acordar fecha.`,
+  };
+}
+
+export async function respondClubAppointmentSlots(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user) return { error: "Inicia sesión para responder disponibilidad." };
+  const proposalId = String(form.get("proposal_id") ?? "");
+  const selectedSlots = form
+    .getAll("selected_slots")
+    .map((v) => String(v ?? "").trim())
+    .filter((v) => !Number.isNaN(Date.parse(v)));
+  const note = String(form.get("availability_note") ?? "").trim().slice(0, 400);
+
+  if (!isUuid(proposalId)) return { error: "No encontramos esa propuesta." };
+  if (selectedSlots.length < 1 && note.length < 4) {
+    return { error: "Selecciona al menos un horario en el que puedas asistir o escribe una nota con tu disponibilidad." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("respond_club_appointment_slots", {
+    p_proposal_id: proposalId,
+    p_selected_slots: selectedSlots,
+    p_note: note || null,
+  });
+  if (error) {
+    return { error: error.message || "No se pudo guardar tu disponibilidad." };
+  }
+
+  await audit(user.id, "responder_horarios_cita_club", "club_appointments", proposalId, `${selectedSlots.length} opciones`);
+  refresh(proposalId);
+  revalidatePath("/notificaciones");
+  return {
+    success:
+      selectedSlots.length > 0
+        ? "Disponibilidad registrada. Cuando coincidan los horarios de ambos, coordinación confirmará la fecha definitiva."
+        : "Nota de disponibilidad enviada a coordinación de clubes.",
   };
 }
 
@@ -1056,12 +1241,20 @@ export async function approveProposal(_prev: ClubState, form: FormData): Promise
       description: string;
       objectives: string;
       schedule_plan: string;
+      activities_detail: string;
       requested_spaces: string;
+      community_impact: string;
+      plan_file_path: string | null;
+      president_semester: number | null;
+      president_is_regular: boolean;
+      interested_count: number;
       proposer_id: string;
       advisor_id: string | null;
       status: string;
     }>(
-      `select name, kind, description, objectives, schedule_plan, requested_spaces, proposer_id, advisor_id, status
+      `select name, kind, description, objectives, schedule_plan, activities_detail, requested_spaces,
+              community_impact, plan_file_path, president_semester, president_is_regular, interested_count,
+              proposer_id, advisor_id, status
        from club_proposals where id = $1 for update`,
       [proposalId],
     );
@@ -1096,12 +1289,34 @@ export async function approveProposal(_prev: ClubState, form: FormData): Promise
     if (!clubId) {
       const clubDescription = (proposal.objectives || proposal.description).trim().slice(0, 2000);
       const scheduleSummary =
-        (proposal.schedule_plan.trim() || proposal.requested_spaces.trim()).slice(0, 160) || null;
+        (proposal.requested_spaces.trim() || proposal.schedule_plan.trim()).slice(0, 160) || null;
+      const foundingCount = Math.max(20, Number(proposal.interested_count) + 1);
       const inserted = await client.query<{ id: string }>(
-        `insert into clubs (proposal_id, name, kind, description, schedule, leader_id, advisor_id)
-         values ($1, $2, $3, $4, $5, $6, $7)
+        `insert into clubs (
+           proposal_id, name, kind, description, schedule, leader_id, advisor_id,
+           objectives, schedule_plan, activities_detail, requested_spaces, community_impact,
+           executive_project_path, founding_members_count, president_semester, president_is_regular
+         )
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          returning id`,
-        [proposalId, proposal.name, proposal.kind, clubDescription, scheduleSummary, proposal.proposer_id, proposal.advisor_id],
+        [
+          proposalId,
+          proposal.name,
+          proposal.kind,
+          clubDescription,
+          scheduleSummary,
+          proposal.proposer_id,
+          proposal.advisor_id,
+          proposal.objectives,
+          proposal.schedule_plan,
+          proposal.activities_detail,
+          proposal.requested_spaces,
+          proposal.community_impact,
+          proposal.plan_file_path,
+          foundingCount,
+          proposal.president_semester,
+          proposal.president_is_regular,
+        ],
       );
       clubId = inserted.rows[0]?.id ?? "";
     }
@@ -1281,12 +1496,11 @@ export async function createClubEvent(_prev: ClubState, form: FormData): Promise
   const club = clubRes.rows[0];
   if (!club) return { error: "Ese club no está activo." };
 
-  const isStaff = canModerateClubKind(user, club.kind);
   const isManager =
     (user.role === "alumno" && user.id === club.leader_id) ||
     (user.role === "profesor" && user.id === club.advisor_id);
-  if (!isStaff && !isManager) {
-    return { error: "Solo el equipo del club o el área de clubes puede registrar eventos." };
+  if (!isManager) {
+    return { error: "Solo el alumno responsable o profesor coordinador de este club puede registrar eventos." };
   }
 
   // Verificar traslape contra espacios oficiales del campus (Auditorio, Sala 14, El domo, Canchas, Explanada...)
@@ -1308,10 +1522,8 @@ export async function createClubEvent(_prev: ClubState, form: FormData): Promise
   const uploaded = await resolveUploadedPublicImage(form, "image", user.id, "club-events");
   if ("error" in uploaded) return { error: uploaded.error };
 
-  const venueArea = clubEventVenueArea(location);
-  const canApprove = isStaff && (!venueArea || user.role === "admin" || user.area === venueArea);
-  const status = canApprove ? "aprobado" : "pendiente";
-  const approvedBy = canApprove ? user.id : null;
+  const status = "pendiente";
+  const approvedBy = null;
 
   await pool.query(
     `insert into club_events (club_id, created_by, title, description, starts_at, ends_at, location, approval_status, approved_by, image_url)
@@ -1333,9 +1545,7 @@ export async function createClubEvent(_prev: ClubState, form: FormData): Promise
   await audit(user.id, "crear_evento_club", "club_events", clubId, title);
   refresh(undefined, clubId);
   return {
-    success: canApprove
-      ? "Evento del club publicado y aprobado en la cartelera."
-      : "Evento enviado. Quedará visible en la cartelera cuando el área responsable lo apruebe.",
+    success: "Evento enviado. Quedará visible en la cartelera cuando el área responsable lo apruebe.",
   };
 }
 
@@ -1623,15 +1833,14 @@ export async function createClubPost(_prev: ClubState, form: FormData): Promise<
     advisor_id: string | null;
   }>(`select kind, active, leader_id, advisor_id from clubs where id = $1`, [clubId]);
   const club = access.rows[0];
-  const isStaff = Boolean(club && canModerateClubKind(user, club.kind));
   const isManager = Boolean(
     club &&
       club.active &&
       ((user.role === "alumno" && club.leader_id === user.id) ||
         (user.role === "profesor" && club.advisor_id === user.id)),
   );
-  if (!isStaff && !isManager) {
-    return { error: "Solo el alumno responsable, el profesor coordinador o el área de clubes pueden publicar." };
+  if (!isManager) {
+    return { error: "Solo el alumno moderador o profesor coordinador de su propio club puede publicar aquí." };
   }
 
   const uploaded = await resolveUploadedPublicImage(form, "image", user.id, "club-posts");
@@ -1678,4 +1887,116 @@ export async function deleteClubPost(_prev: ClubState, form: FormData): Promise<
   revalidatePath("/");
   revalidatePath(`/clubes/${clubId}`);
   return { success: "Publicación eliminada." };
+}
+
+export async function updateClubLogo(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user) return { error: "Inicia sesión para cambiar el logo." };
+  const clubId = String(form.get("club_id") ?? "");
+  if (!isUuid(clubId)) return { error: "No encontramos ese club." };
+
+  const currentRes = await pool.query<{
+    kind: string;
+    leader_id: string | null;
+    advisor_id: string | null;
+    active: boolean;
+  }>("select kind, leader_id, advisor_id, active from clubs where id = $1", [clubId]);
+  const club = currentRes.rows[0];
+  if (!club) return { error: "No encontramos ese club." };
+
+  const isStaff = canModerateClubKind(user, club.kind);
+  const isManager =
+    club.active &&
+    ((user.role === "alumno" && user.id === club.leader_id) ||
+      (user.role === "profesor" && user.id === club.advisor_id));
+  if (!isStaff && !isManager) {
+    return { error: "Sin permiso para cambiar el logo de este club." };
+  }
+
+  const uploaded = await resolveUploadedPublicImage(form, "logo", user.id, "clubs");
+  if ("error" in uploaded) return { error: uploaded.error };
+  if (!uploaded.url) return { error: "Selecciona una imagen JPG, PNG o WEBP para el logo." };
+
+  await pool.query("update clubs set logo_url = $1 where id = $2", [uploaded.url, clubId]);
+  await audit(user.id, "actualizar_logo_club", "clubs", clubId);
+  refresh(undefined, clubId);
+  return { success: "Logo actualizado." };
+}
+
+export async function assignSseisDelegate(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user || !isSseisTitular(user)) {
+    return { error: "Solo la titularidad de SSEIS o Administración puede designar responsables de clubes culturales y deportivos." };
+  }
+  const targetId = String(form.get("user_id") ?? "");
+  const note = String(form.get("note") ?? "").trim().slice(0, 300);
+  if (!isUuid(targetId)) return { error: "Selecciona una profesora o miembro del personal activo." };
+
+  const targetRes = await pool.query<{ id: string; name: string; role: string }>(
+    "select id, name, role from users where id = $1 and is_active and role in ('profesor', 'moderador')",
+    [targetId],
+  );
+  const target = targetRes.rows[0];
+  if (!target) {
+    return { error: "La persona designada debe ser una cuenta activa de profesor o personal." };
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("sseis_set_club_delegate", {
+      p_user_id: targetId,
+      p_active: true,
+      p_note: note || null,
+    });
+    if (error) {
+      await pool.query(
+        `insert into public.club_area_delegates (user_id, assigned_by, scope, active, note, updated_at)
+         values ($1, $2, 'cultural_deportivo', true, $3, now())
+         on conflict (user_id, scope) do update
+           set assigned_by = excluded.assigned_by,
+               active = true,
+               note = excluded.note,
+               updated_at = now()`,
+        [targetId, user.id, note || null],
+      );
+    }
+  } catch {
+    return { error: "Aplica la migración pendiente para habilitar la designación SSEIS en base de datos." };
+  }
+
+  await audit(user.id, "designar_responsable_sseis", "club_area_delegates", targetId, target.name);
+  refresh();
+  return { success: `${target.name} quedó designada(o) para gestionar clubes culturales y deportivos.` };
+}
+
+export async function revokeSseisDelegate(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user || !isSseisTitular(user)) {
+    return { error: "Solo SSEIS o Administración puede revocar esta designación." };
+  }
+  const targetId = String(form.get("user_id") ?? "");
+  if (!isUuid(targetId)) return { error: "Cuenta inválida." };
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("sseis_set_club_delegate", {
+      p_user_id: targetId,
+      p_active: false,
+      p_note: null,
+    });
+    if (error) {
+      await pool.query(
+        `update public.club_area_delegates
+            set active = false, updated_at = now()
+          where user_id = $1 and scope = 'cultural_deportivo'`,
+        [targetId],
+      );
+    }
+  } catch {
+    return { error: "No se pudo actualizar la designación SSEIS." };
+  }
+
+  await audit(user.id, "revocar_responsable_sseis", "club_area_delegates", targetId);
+  refresh();
+  return { success: "Designación retirada." };
 }

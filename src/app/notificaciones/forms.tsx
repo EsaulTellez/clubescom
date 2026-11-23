@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { btn, label } from "@/lib/ui";
 import { savePrefs } from "./actions";
 
@@ -44,9 +45,9 @@ export function PrefsForm({
       </p>
       {state.error && <p className="text-sm text-[#8C1D18]">{state.error}</p>}
       {state.ok && <p className="text-sm text-[#123044]">{state.ok}</p>}
-      <button className={btn} disabled={pending}>
+      <SubmitButton className={btn} pending={pending} pendingText="Guardando…">
         Guardar preferencias
-      </button>
+      </SubmitButton>
     </form>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SubmitButton } from "@/components/loading-ui";
 import { PageIntro } from "@/components/page-intro";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
@@ -73,7 +74,9 @@ export default async function NotificacionesPage() {
         />
         {unread > 0 && (
           <form action={markAllRead}>
-            <button className={btnGhost}>Marcar todas como leídas</button>
+            <SubmitButton className={btnGhost} pendingText="Marcando…">
+              Marcar todas como leídas
+            </SubmitButton>
           </form>
         )}
       </div>
@@ -105,7 +108,9 @@ export default async function NotificacionesPage() {
                 ) : (
                   <form action={markRead}>
                     <input type="hidden" name="id" value={notice.id} />
-                    <button className={btnGhost}>Marcar como leída</button>
+                    <SubmitButton className={btnGhost} pendingText="Marcando…">
+                      Marcar como leída
+                    </SubmitButton>
                   </form>
                 )}
               </div>

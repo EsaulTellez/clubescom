@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { STAFF_AREAS, STAFF_AREA_LABELS } from "@/lib/areas";
 import type { Role } from "@/lib/auth";
 import { btn, btnGhost, input, label } from "@/lib/ui";
@@ -56,9 +57,9 @@ export function UserControls({
               placeholder="Mínimo 10 caracteres para auditoría"
             />
           </label>
-          <button className={btnGhost} disabled={banPending}>
+          <SubmitButton className={btnGhost} pending={banPending} pendingText={banned ? "Retirando veto…" : "Vetando…"}>
             {banned ? "Quitar veto" : "Vetar y cerrar sesión"}
-          </button>
+          </SubmitButton>
           <Feedback state={banState} />
         </form>
       )}
@@ -86,9 +87,9 @@ export function UserControls({
           </select>
         </label>
         <Feedback state={roleState} />
-        <button className={btn} disabled={rolePending}>
+        <SubmitButton className={btn} pending={rolePending} pendingText="Guardando rol…">
           Guardar rol
-        </button>
+        </SubmitButton>
       </form>}
     </div>
   );

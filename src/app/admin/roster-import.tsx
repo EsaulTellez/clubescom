@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { importRoster, type RosterImportState } from "./actions";
 import { btn, btnGhost, input } from "@/lib/ui";
 
@@ -108,9 +109,9 @@ function ConfirmImport({ rows, disabled }: { rows: Row[]; disabled: boolean }) {
     <div className="space-y-3">
       <form action={action}>
         <input type="hidden" name="rows" value={JSON.stringify(rows)} />
-        <button className={btn} disabled={disabled || pending}>
-          {pending ? "Creando invitaciones…" : `Confirmar importación (${rows.length})`}
-        </button>
+        <SubmitButton className={btn} pending={pending} disabled={disabled} pendingText="Creando invitaciones…">
+          {`Confirmar importación (${rows.length})`}
+        </SubmitButton>
       </form>
       {state.error && <p role="alert" className="text-sm text-[#8C1D18]">{state.error}</p>}
       {typeof state.created === "number" && (

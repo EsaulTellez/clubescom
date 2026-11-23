@@ -3,10 +3,12 @@
 import { officeModules, procedureOffice } from "@/lib/areas";
 import { CatalogSearch } from "@/components/catalog-search";
 import { FormDialog } from "@/components/form-dialog";
+import { Spinner } from "@/components/loading-ui";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { GuideRoute } from "@/app/guias/guide-route";
+import { MiniFlowStrip } from "@/app/guias/guide-flowchart";
 import { saveGuideProgress } from "@/app/guias/actions";
 import type { GuideFaq, GuideStep } from "@/app/guias/shared";
 import { btn, btnGhost, input } from "@/lib/ui";
@@ -69,6 +71,12 @@ export type ForumQuestionItem = {
   targetGuideId: string | null;
   targetStepId: number | null;
   targetGuideTitle: string | null;
+  clubProposal?: {
+    id: string;
+    kind: string;
+    status: string;
+    interests: number;
+  } | null;
   title: string;
   body: string;
   imageUrl: string | null;
@@ -752,55 +760,61 @@ export function ForoGuiasBoard({
                       <article
                         id={`guia-${guide.id}`}
                         key={guide.id}
-                        className={`flex flex-col overflow-hidden rounded-sm border border-[#d6d3c6] border-t-4 ${st.borderTop} bg-[#fffdf7] shadow-[0_2px_0_rgba(23,49,66,0.04)] transition ${
+                        className={`flex flex-col overflow-hidden rounded-md border border-[#b9ced9] bg-[#fffdf7] shadow-[0_3px_10px_rgba(20,44,60,0.05)] transition hover:border-[#006699] ${
                           isOpen ? "md:col-span-2" : ""
                         }`}
                       >
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ded7c3] bg-[#f3eedf] px-4 py-2.5">
+                        <div className={`flex flex-wrap items-center justify-between gap-2 border-b border-[#cfe0e9] border-t-4 ${st.borderTop} bg-[#edf5f8] px-4 py-2.5`}>
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span
                               className={`inline-flex items-center rounded border px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide ${st.badgeBorder} ${st.badgeBg} ${st.badgeText}`}
                             >
                               {areaLabel(guide.area)}
                             </span>
-                            <span className="font-mono text-[11px] text-[#58635e]">
+                            <span className="font-mono text-[11px] font-bold text-[#4a6573]">
                               v{guide.version}
                             </span>
                             {guide.attachmentUrl && (
-                              <span className="rounded border border-[#bcd6e3] bg-[#eaf4f8] px-2 py-0.5 text-[11px] font-extrabold text-[#004d73]">
+                              <span className="rounded border border-[#bcd6e3] bg-white px-2 py-0.5 font-mono text-[10px] font-extrabold text-[#004d73]">
                                 PDF
                               </span>
                             )}
                           </div>
-                          <span className="text-[11px] font-bold text-[#5e717a] tabular-nums">
+                          <span className="font-mono text-[11px] font-bold text-[#4a6573] tabular-nums">
                             {guide.steps.length} {guide.steps.length === 1 ? "paso" : "pasos"}
                             {guide.faqs.length > 0 ? ` · ${guide.faqs.length} FAQ` : ""}
                           </span>
                         </div>
 
-                        <div className="flex flex-1 flex-col p-4 sm:p-5">
-                          <h3 className="text-lg font-extrabold leading-snug text-[#14374a] sm:text-xl">
-                            {guide.title}
-                          </h3>
-                          <p className="mt-2 text-sm leading-relaxed text-[#485d68]">{guide.summary}</p>
+                        <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5">
+                          <div>
+                            <h3 className="text-lg font-extrabold leading-snug text-[#142c3c] sm:text-xl">
+                              <Link href={`/guias/${guide.id}`} className="hover:text-[#006699] hover:underline">
+                                {guide.title}
+                              </Link>
+                            </h3>
+                            <p className="mt-1.5 text-sm leading-relaxed text-[#485d68]">{guide.summary}</p>
+                          </div>
+
+                          {!isOpen && <MiniFlowStrip steps={guide.steps} />}
 
                           {doneList.length > 0 && (
-                            <div className="mt-3 flex items-center gap-2.5 text-xs font-bold text-[#004d73]">
+                            <div className="flex items-center gap-2.5 text-xs font-bold text-[#004d73]">
                               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e6e2d6]">
                                 <div
                                   className="h-full rounded-full bg-[#006699] transition-[width] duration-300"
                                   style={{ width: `${pct}%` }}
                                 />
                               </div>
-                              <span className="shrink-0 tabular-nums">
+                              <span className="shrink-0 font-mono tabular-nums">
                                 {doneList.length}/{guide.steps.length}
                               </span>
                             </div>
                           )}
 
-                          {/* Desplegable inline de pasos y FAQ */}
+                          {/* Desplegable inline de diagrama, pasos y FAQ */}
                           {isOpen && (
-                            <div className="mt-5 space-y-5 border-t border-[#e4e0d3] pt-5">
+                            <div className="mt-2 space-y-5 border-t border-[#d8e4ea] pt-4">
                               {guide.attachmentUrl && (
                                 <div>
                                   <a
@@ -808,20 +822,48 @@ export function ForoGuiasBoard({
                                     target="_blank"
                                     rel="noreferrer"
                                     download={guide.attachmentName ?? "formato-tramite.pdf"}
-                                    className="inline-flex items-center gap-2 rounded-lg border border-[#006699] bg-[#eaf4f8] px-3 py-2 text-xs font-extrabold text-[#004d73] hover:bg-[#d7eaf3]"
+                                    className="inline-flex items-center gap-2 rounded-md border border-[#006699] bg-[#eaf4f8] px-3 py-2 text-xs font-extrabold text-[#004d73] hover:bg-[#d7eaf3]"
                                   >
                                     Descargar formato PDF ({guide.attachmentName ?? "Documento oficial"})
                                   </a>
                                 </div>
                               )}
 
-                              <GuideRoute steps={guide.steps} guideId={guide.id} area={guide.area} signedIn={!!viewer}
-                                done={doneList} toggle={id => toggleGuideStep(guide.id, id)}
-                                threads={questions.flatMap(q => q.targetGuideId === guide.id && q.targetStepId !== null ? [{ id: q.id, title: q.title, status: q.status, stepId: q.targetStepId }] : [])}
+                              <GuideRoute
+                                steps={guide.steps}
+                                guideId={guide.id}
+                                area={guide.area}
+                                signedIn={!!viewer}
+                                done={doneList}
+                                toggle={(id) => toggleGuideStep(guide.id, id)}
+                                compact
+                                threads={questions.flatMap((q) =>
+                                  q.targetGuideId === guide.id && q.targetStepId !== null
+                                    ? [
+                                        {
+                                          id: q.id,
+                                          title: q.title,
+                                          body: q.body,
+                                          status: q.status,
+                                          stepId: q.targetStepId,
+                                          authorName: q.authorName,
+                                          createdLabel: formatShortDate(q.createdAtIso),
+                                          answers: q.answers.map((a) => ({
+                                            id: a.id,
+                                            body: a.body,
+                                            official: a.official,
+                                            authorName: a.authorName,
+                                            authorRole: a.authorRole,
+                                            createdLabel: formatShortDate(a.createdAtIso),
+                                          })),
+                                        },
+                                      ]
+                                    : [],
+                                )}
                               />
 
                               {guide.faqs.length > 0 && (
-                                <div className="rounded-lg border border-[#e0dccf] bg-[#f8f6ee] p-4">
+                                <div className="rounded-md border border-[#e0dccf] bg-[#f8f6ee] p-4">
                                   <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#47616d]">
                                     Preguntas frecuentes
                                   </p>
@@ -838,20 +880,20 @@ export function ForoGuiasBoard({
                             </div>
                           )}
 
-                          <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-[#e4e0d3] pt-3.5 text-xs">
+                          <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-[#d8e2e7] pt-3 text-xs">
                             <button
                               type="button"
                               aria-expanded={isOpen}
                               onClick={() => toggleGuideOpen(guide.id)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-[#bcd6e3] bg-[#eaf4f8] px-3 py-1.5 font-extrabold text-[#004d73] transition hover:bg-[#d6eaf3]"
+                              className="inline-flex items-center gap-1.5 rounded border border-[#bcd6e3] bg-[#eaf4f8] px-3 py-1.5 font-extrabold text-[#004d73] transition hover:bg-[#d6eaf3]"
                             >
-                              {isOpen ? "Ocultar pasos" : "Leer pasos y FAQ"}
+                              {isOpen ? "Ocultar diagrama y pasos" : "Vista rápida del flujo"}
                             </button>
                             <Link
                               href={`/guias/${guide.id}`}
-                              className="font-bold text-[#3c5966] hover:text-[#006699] hover:underline"
+                              className="font-extrabold text-[#005580] hover:underline"
                             >
-                              Expediente completo →
+                              Abrir guía y mini-foro →
                             </Link>
                           </div>
                         </div>
@@ -1028,6 +1070,26 @@ export function ForoGuiasBoard({
                               <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-[#384d57]">
                                 {q.body}
                               </p>
+
+                              {q.clubProposal && (
+                                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#b4dce0] bg-[#eef8f9] px-3 py-2.5 text-xs text-[#114952]">
+                                  <div className="space-y-0.5">
+                                    <p className="font-extrabold">
+                                      Propuesta oficial de club ({q.clubProposal.kind === "academico" ? "Académico · Subdirección Académica" : `${q.clubProposal.kind === "cultural" ? "Cultural" : "Deportivo"} · SSEIS`})
+                                    </p>
+                                    <p className="text-[#2c626b]">
+                                      Respaldo: <strong>{q.clubProposal.interests}/20 votos</strong> · Estado:{" "}
+                                      <strong className="uppercase">{q.clubProposal.status.replace(/_/g, " ")}</strong>
+                                    </p>
+                                  </div>
+                                  <Link
+                                    href={`/clubes/propuestas/${q.clubProposal.id}`}
+                                    className="shrink-0 rounded-md bg-[#006699] px-3 py-1.5 font-extrabold text-white hover:bg-[#00527d]"
+                                  >
+                                    Ver trámite del club →
+                                  </Link>
+                                </div>
+                              )}
 
                               {q.targetGuideId && (
                                 <p className="mt-2 text-xs font-bold text-[#004d73]">
@@ -1324,9 +1386,11 @@ export function ForoGuiasBoard({
                                     <button
                                       type="submit"
                                       disabled={Boolean(replyPending[q.id])}
+                                      aria-busy={Boolean(replyPending[q.id]) || undefined}
                                       className={`${btn} rounded-lg px-4 py-2 text-xs`}
                                     >
-                                      {replyPending[q.id] ? "Publicando…" : "Publicar respuesta"}
+                                      {replyPending[q.id] && <Spinner className="h-3.5 w-3.5" />}
+                                      <span>{replyPending[q.id] ? "Publicando…" : "Publicar respuesta"}</span>
                                     </button>
                                   </div>
                                 </form>

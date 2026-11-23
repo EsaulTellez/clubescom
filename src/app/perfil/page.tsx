@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { SubmitButton } from "@/components/loading-ui";
 import { staffAreaLabel } from "@/lib/areas";
 import { deleteAccount, switchOperatingProfile } from "@/lib/auth-actions";
 import { getSession } from "@/lib/auth";
@@ -52,7 +53,9 @@ export default async function PerfilPage() {
                 <option value="profesor">Profesor</option>
               </select>
             </label>
-            <button className={btnGhost}>Cambiar perfil</button>
+            <SubmitButton className={btnGhost} pendingText="Cambiando…">
+              Cambiar perfil
+            </SubmitButton>
           </form>
         )}
         <div className="space-y-2 pt-2">
@@ -96,7 +99,9 @@ export default async function PerfilPage() {
             Descargar mis datos (CSV)
           </a>
           <form action={deleteAccount}>
-            <button className={btnGhost}>Eliminar mi cuenta (Cancelación directa)</button>
+            <SubmitButton className={btnGhost} pendingText="Eliminando cuenta…">
+              Eliminar mi cuenta (Cancelación directa)
+            </SubmitButton>
           </form>
         </div>
 

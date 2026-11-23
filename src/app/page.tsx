@@ -83,7 +83,7 @@ export default async function HomePage() {
         ? pool.query<{ id: string; name: string }>(
             `select id, name from public.clubs
              where active = true
-               and ($2 = 'admin' or ($2 = 'alumno' and leader_id = $1) or ($2 = 'profesor' and advisor_id = $1))
+               and (($2 = 'alumno' and leader_id = $1) or ($2 = 'profesor' and advisor_id = $1))
              order by name`,
             [user.id, user.role],
           )

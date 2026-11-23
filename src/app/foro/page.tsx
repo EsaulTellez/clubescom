@@ -31,6 +31,10 @@ type RawQuestionRow = {
   target_guide_id: string | null;
   target_step_index: number | null;
   target_guide_title: string | null;
+  club_proposal_id: string | null;
+  proposal_kind: string | null;
+  proposal_status: string | null;
+  proposal_interests: number | null;
   title: string;
   body: string;
   image_url: string | null;
@@ -105,7 +109,12 @@ export default async function ForoPage({
         : Promise.resolve({ rows: [] as { guide_id: string; completed_steps: unknown }[] }),
       pool.query<RawQuestionRow>(
         `select q.id, q.author_id, q.area, q.request_kind, q.target_guide_id, q.target_step_index,
-                tg.title as target_guide_title, q.title, q.body, q.image_url, q.is_pinned, q.status,
+                tg.title as target_guide_title,
+                q.club_proposal_id,
+                cp.kind as proposal_kind,
+                cp.status::text as proposal_status,
+                cp.interested_count as proposal_interests,
+                q.title, q.body, q.image_url, q.is_pinned, q.status,
                 q.created_at, u.name as author_name,
                 (select count(*)::int from public.question_votes qv where qv.question_id = q.id) as votes,
                 exists (
@@ -115,6 +124,7 @@ export default async function ForoPage({
          from public.questions q
          join public.users u on u.id = q.author_id
          left join public.guides tg on tg.id = q.target_guide_id
+         left join public.club_proposals cp on cp.id = q.club_proposal_id
          order by q.is_pinned desc, votes desc, q.created_at desc`,
         [user?.id ?? null],
       ),
@@ -192,6 +202,14 @@ export default async function ForoPage({
       targetGuideId: q.target_guide_id,
       targetStepId: q.target_step_index,
       targetGuideTitle: q.target_guide_title,
+      clubProposal: q.club_proposal_id
+        ? {
+            id: q.club_proposal_id,
+            kind: q.proposal_kind ?? "academico",
+            status: q.proposal_status ?? "abierta",
+            interests: Number(q.proposal_interests ?? 0),
+          }
+        : null,
       title: q.title,
       body: q.body,
       imageUrl: q.image_url,

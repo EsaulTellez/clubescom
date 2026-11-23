@@ -14,6 +14,7 @@ export type SessionUser = {
   isSuperadmin: boolean;
   canSwitchProfile: boolean;
   area: string | null;
+  delegatedClubKinds: ("cultural" | "deportivo")[];
 };
 
 export function roleFromEmail(email: string): "alumno" | "profesor" | null {
@@ -43,22 +44,28 @@ export async function getSession(): Promise<SessionUser | null> {
   const authUser = authData.user;
   if (authError || !authUser || authUser.id !== userId || !authUser.email) return null;
 
-  const [{ data: profile, error: profileError }, { data: privateRows, error: privateError }, { data: statusRows, error: statusError }, { data: suspensions, error: suspensionError }] =
-    await Promise.all([
-      supabase
-        .from("users")
-        .select("id, name, role, area, is_superadmin, can_switch_profile")
-        .eq("id", userId)
-        .maybeSingle(),
-      supabase.rpc("get_my_private_data"),
-      supabase.rpc("get_my_account_status"),
-      supabase
-        .from("moderation_suspensions")
-        .select("ends_at, is_permanent")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(20),
-    ]);
+  const [
+    { data: profile, error: profileError },
+    { data: privateRows, error: privateError },
+    { data: statusRows, error: statusError },
+    { data: suspensions, error: suspensionError },
+    delegatedRes,
+  ] = await Promise.all([
+    supabase
+      .from("users")
+      .select("id, name, role, area, is_superadmin, can_switch_profile")
+      .eq("id", userId)
+      .maybeSingle(),
+    supabase.rpc("get_my_private_data"),
+    supabase.rpc("get_my_account_status"),
+    supabase
+      .from("moderation_suspensions")
+      .select("ends_at, is_permanent")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(20),
+    Promise.resolve(supabase.rpc("get_my_delegated_club_kinds")).catch(() => ({ data: null, error: null })),
+  ]);
 
   const account = statusRows?.[0];
   if (profileError || privateError || statusError || suspensionError || !account?.is_active || account.banned || !profile) return null;
@@ -70,6 +77,10 @@ export async function getSession(): Promise<SessionUser | null> {
   if (suspended) return null;
 
   if (!isRole(profile.role)) return null;
+  const rawDelegated = !delegatedRes.error && Array.isArray(delegatedRes.data) ? delegatedRes.data : [];
+  const delegatedClubKinds = rawDelegated.filter(
+    (k): k is "cultural" | "deportivo" => k === "cultural" || k === "deportivo",
+  );
   return {
     id: profile.id,
     email: authUser.email.toLowerCase(),
@@ -79,6 +90,7 @@ export async function getSession(): Promise<SessionUser | null> {
     canSwitchProfile: profile.can_switch_profile === true,
     isSuperadmin: profile.is_superadmin === true,
     area: profile.area,
+    delegatedClubKinds,
   };
 }
 

@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { demoClubArt } from "@/lib/demo-art";
+import type { DirectoryUserOption } from "@/components/searchable-user-picker";
 import { card } from "@/lib/ui";
 import {
   ClubesExplorer,
@@ -8,8 +9,14 @@ import {
   type ClubKpiRow,
   type PendingMembershipRow,
   type ProposalDirectoryItem,
+  type SseisDelegateRow,
 } from "./clubs-explorer";
-import { allowedClubKinds, canManageAnyClubs } from "./format";
+import {
+  allowedClubKinds,
+  canManageAnyClubs,
+  isSseisDelegated,
+  isSseisTitular,
+} from "./format";
 
 export const dynamic = "force-dynamic";
 
@@ -47,11 +54,17 @@ export default async function ClubesPage() {
   const allowedKinds = allowedClubKinds(user);
   const canCreateDirect = allowedKinds.length > 0;
   const isAreaStaff = canManageAnyClubs(user);
+  const sseisTitular = isSseisTitular(user);
+  const sseisDelegated = isSseisDelegated(user);
   const isAcademicOnly =
-    user?.role === "moderador" && (user.area === "subdireccion_academica" || user.area === "clubes_academicos");
-  const isCulturalOnly = user?.role === "moderador" && user.area === "clubes_culturales";
+    user?.role === "moderador" &&
+    (user.area === "subdireccion_academica" || user.area === "clubes_academicos");
+  const isCulturalOrSseis =
+    (user?.role === "moderador" &&
+      (user.area === "clubes_culturales" || user.area === "sseis")) ||
+    sseisDelegated;
   const isSubdireccion = isAcademicOnly;
-  const isCulturales = isCulturalOnly;
+  const isCulturales = isCulturalOrSseis;
 
   let clubs: ClubDirectoryItem[] = [];
   let proposals: ProposalDirectoryItem[] = [];
@@ -60,7 +73,8 @@ export default async function ClubesPage() {
   let pendingMemberships: PendingMembershipRow[] = [];
   const proposalStageCounts = { en_documentacion: 0, en_validacion: 0, cita_pendiente: 0, registrado: 0 };
   let sala14EventsCount = 0;
-  let people: { id: string; name: string; role: string }[] = [];
+  let people: DirectoryUserOption[] = [];
+  let sseisDelegates: SseisDelegateRow[] = [];
   let threshold = 20;
   let inactivityDays = 5;
   let dbDown = false;
@@ -195,9 +209,14 @@ export default async function ClubesPage() {
     proposals = allMappedProposals.filter((p) => p.status !== "registrado" && p.status !== "rechazada");
 
     if (canCreateDirect) {
-      const [peopleResult, kpiResult, stageResult, pendingReqResult] = await Promise.all([
-        pool.query<{ id: string; name: string; role: string }>(
-          "select id, name, role from users where is_active and role in ('alumno', 'profesor') order by name",
+      const [peopleResult, kpiResult, stageResult, pendingReqResult, delegatesResult] = await Promise.all([
+        pool.query<DirectoryUserOption>(
+          `select u.id::text as id, u.name, u.role::text as role, u.area, p.boleta, p.email
+           from public.users u
+           left join private.user_private p on p.user_id = u.id
+           where u.is_active and u.role in ('alumno', 'profesor', 'moderador')
+           order by u.name
+           limit 120`,
         ),
         pool.query<ClubKpiRow>(
           `select c.id,
@@ -237,11 +256,29 @@ export default async function ClubesPage() {
            limit 12`,
           [allowedKinds],
         ),
+        sseisTitular
+          ? pool
+              .query<SseisDelegateRow>(
+                `select d.user_id::text as user_id,
+                        u.name,
+                        u.role::text as role,
+                        p.boleta,
+                        p.email,
+                        d.note
+                 from public.club_area_delegates d
+                 join public.users u on u.id = d.user_id
+                 left join private.user_private p on p.user_id = u.id
+                 where d.active = true and d.scope = 'cultural_deportivo'
+                 order by u.name`,
+              )
+              .catch(() => ({ rows: [] as SseisDelegateRow[] }))
+          : Promise.resolve({ rows: [] as SseisDelegateRow[] }),
       ]);
 
       people = peopleResult.rows;
       clubKpis = kpiResult.rows;
       pendingMemberships = pendingReqResult.rows;
+      sseisDelegates = delegatesResult.rows;
       formalRequests = allMappedProposals.filter(
         (p) =>
           (p.formal_submitted_at !== null || ["cita_pendiente", "cita_confirmada", "incompleta"].includes(p.status)) &&
@@ -269,7 +306,6 @@ export default async function ClubesPage() {
 
   return (
     <div className="board-page">
-
       {dbDown && (
         <p className={card} role="status">
           No se pudieron cargar los datos. Vuelve a intentarlo en un momento.
@@ -285,10 +321,13 @@ export default async function ClubesPage() {
         proposalStageCounts={proposalStageCounts}
         sala14EventsCount={sala14EventsCount}
         people={people}
+        sseisDelegates={sseisDelegates}
         allowedKinds={allowedKinds}
         isAreaStaff={isAreaStaff}
         isSubdireccion={isSubdireccion}
         isCulturales={isCulturales}
+        isSseisTitular={sseisTitular}
+        isSseisDelegated={sseisDelegated}
         canCreateDirect={canCreateDirect}
         viewer={user ? { id: user.id, name: user.name, role: user.role } : null}
         dbDown={dbDown}

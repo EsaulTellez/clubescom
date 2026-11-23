@@ -45,7 +45,7 @@ export function editableGuideAreas(
   if (area === "gestion_escolar" || area === "becas" || area === "catt") {
     return AREAS.filter((item) => item.id === area);
   }
-  if (area === "clubes_academicos" || area === "clubes_culturales") {
+  if (area === "clubes_academicos" || area === "clubes_culturales" || area === "sseis" || area === "subdireccion_academica") {
     return AREAS.filter((item) => item.id === "clubes");
   }
   if (area === "prefectura") {

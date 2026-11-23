@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { uploadFileDirectly } from "@/lib/direct-upload";
 import { btn, btnGhost, input, label } from "@/lib/ui";
 import type { GuideState } from "../actions";
@@ -207,9 +208,9 @@ export function GuideForm({
       </div>
 
       {state.error && <p role="alert" className="text-sm font-medium text-[#8C1D18]">{state.error}</p>}
-      <button className={btn} disabled={pending || uploadingPdf}>
-        {pending ? "Publicando…" : "Publicar guía"}
-      </button>
+      <SubmitButton className={btn} pending={pending} disabled={uploadingPdf} pendingText="Publicando…">
+        Publicar guía
+      </SubmitButton>
     </form>
   );
 }

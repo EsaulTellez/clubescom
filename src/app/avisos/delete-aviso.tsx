@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { btnGhost } from "@/lib/ui";
 import { eliminarAviso, eliminarAvisoInline } from "./actions";
 
@@ -33,9 +34,9 @@ export function DeleteAviso({
         }}
       >
         <input type="hidden" name="id" value={id} />
-        <button className={btnGhost} disabled={pending}>
-          {pending ? "Eliminando…" : "Eliminar"}
-        </button>
+        <SubmitButton className={btnGhost} pending={pending} pendingText="Eliminando…">
+          Eliminar
+        </SubmitButton>
         {state.error && (
           <p className="mt-1 text-xs text-[#8C1D18]" role="alert">
             {state.error}
@@ -55,7 +56,9 @@ export function DeleteAviso({
       }}
     >
       <input type="hidden" name="id" value={id} />
-      <button className={btnGhost}>Eliminar</button>
+      <SubmitButton className={btnGhost} pendingText="Eliminando…">
+        Eliminar
+      </SubmitButton>
     </form>
   );
 }

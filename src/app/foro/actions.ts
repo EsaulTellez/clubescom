@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { asSteps } from "../guias/shared";
+import { KINDS, type ClubKind } from "../clubes/format";
 import { procedureOffice } from "@/lib/areas";
 import { audit, getSession } from "@/lib/auth";
 import { pool, type SecureClient } from "@/lib/db";
@@ -85,6 +86,8 @@ export async function publishQuestion(
   if (rawStep !== null && (!targetGuideId || requestKind !== "pregunta" || !/^\d+$/.test(String(rawStep)) || !Number.isSafeInteger(stepId))) return { error: "El paso seleccionado no es válido." };
   const title = String(form.get("title") ?? "").trim();
   const body = String(form.get("body") ?? "").trim();
+  const clubKindRaw = String(form.get("club_kind") ?? "academico").trim();
+  const clubKind: ClubKind = KINDS.includes(clubKindRaw as ClubKind) ? (clubKindRaw as ClubKind) : "academico";
 
   const office = procedureOffice(user);
   if (office && (office !== area || !["pregunta", "actualizar_guia"].includes(requestKind))) {
@@ -143,13 +146,26 @@ export async function publishQuestion(
     const duplicate = similar.rows[0];
     if (duplicate) return { duplicate };
 
+    let clubProposalId: string | null = null;
+    if (requestKind === "nuevo_club" && user.role === "alumno") {
+      const proposalName = title.slice(0, 120);
+      const proposalObj = body.slice(0, 2000);
+      const createdProp = await client.query<{ id: string }>(
+        `insert into club_proposals (proposer_id, name, kind, description, objectives, last_proposer_activity_at)
+         values ($1, $2, $3, $4, $5, now())
+         returning id`,
+        [user.id, proposalName, clubKind, proposalObj, proposalObj],
+      );
+      clubProposalId = createdProp.rows[0]?.id ?? null;
+    }
+
     const inserted = await client.query<{ id: string }>(
-      `insert into questions (author_id, area, title, body, image_url, request_kind, target_guide_id, target_step_index)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
+      `insert into questions (author_id, area, title, body, image_url, request_kind, target_guide_id, target_step_index, club_proposal_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        returning id`,
-      [user.id, effectiveArea, title, body, uploaded.url, requestKind, targetGuideId, stepId],
+      [user.id, effectiveArea, title, body, uploaded.url, requestKind, targetGuideId, stepId, clubProposalId],
     );
-    return { id: inserted.rows[0].id };
+    return { id: inserted.rows[0].id, clubProposalId };
   });
 
   if ("error" in outcome) return { error: outcome.error };
@@ -162,6 +178,16 @@ export async function publishQuestion(
   await audit(user.id, "question.create", "questions", outcome.id, title);
   revalidatePath("/");
   revalidatePath("/foro");
+  if (targetGuideId) {
+    revalidatePath(`/guias/${targetGuideId}`);
+  }
+  if (outcome.clubProposalId) {
+    revalidatePath("/clubes");
+    revalidatePath(`/clubes/propuestas/${outcome.clubProposalId}`);
+  }
+  if (String(form.get("stay_in_guide") ?? "") === "1" && targetGuideId && stepId !== null) {
+    redirect(`/guias/${targetGuideId}?paso=${stepId}#mini-foro`);
+  }
   redirect(`/foro?duda=${outcome.id}#duda-${outcome.id}`);
 }
 
@@ -251,8 +277,12 @@ export async function toggleQuestionVote(
   if (!user) return { error: "Entra con tu correo institucional para votar." };
   if (!isUuid(questionId)) return { error: "Pregunta inválida." };
 
-  const found = await pool.query("select id from questions where id = $1", [questionId]);
-  if (!found.rowCount) return { error: "No encontramos esa pregunta." };
+  const found = await pool.query<{ id: string; club_proposal_id: string | null }>(
+    "select id, club_proposal_id from questions where id = $1",
+    [questionId],
+  );
+  const questionRow = found.rows[0];
+  if (!questionRow) return { error: "No encontramos esa pregunta." };
 
   const result = await pool.query<{ voted: boolean }>(
     `with deleted as (
@@ -270,12 +300,45 @@ export async function toggleQuestionVote(
     [questionId, user.id],
   );
 
+  const voted = result.rows[0]?.voted ?? false;
+
+  // Si la publicación está vinculada a una propuesta de club y el usuario es alumno, sincronizar voto en club_interests
+  if (questionRow.club_proposal_id && user.role === "alumno") {
+    try {
+      if (voted) {
+        await pool.query(
+          `insert into club_interests (proposal_id, user_id)
+           select p.id, $2::uuid
+             from club_proposals p
+            where p.id = $1
+              and p.status = 'abierta'
+              and p.proposer_id <> $2::uuid
+           on conflict do nothing`,
+          [questionRow.club_proposal_id, user.id],
+        );
+      } else {
+        await pool.query(
+          `delete from club_interests ci
+            using club_proposals p
+           where ci.proposal_id = $1
+             and ci.user_id = $2
+             and p.id = ci.proposal_id
+             and p.status in ('abierta', 'en_documentacion', 'en_validacion', 'incompleta')`,
+          [questionRow.club_proposal_id, user.id],
+        );
+      }
+      revalidatePath("/clubes");
+      revalidatePath(`/clubes/propuestas/${questionRow.club_proposal_id}`);
+    } catch {
+      /* Si la propuesta ya avanzó o cerró votación, el voto del foro se conserva sin error */
+    }
+  }
+
   const countRes = await pool.query<{ votes: number }>(
     "select count(*)::int as votes from question_votes where question_id = $1",
     [questionId],
   );
 
-  const voted = result.rows[0]?.voted ?? false;
   const votes = countRes.rows[0]?.votes ?? 0;
   await audit(
     user.id,

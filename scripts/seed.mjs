@@ -42,6 +42,7 @@ const people = [
   ["catt@ipn.mx", "Comisión de TT", "EMP-204", "moderador", "catt"],
   ["prefectura@ipn.mx", "Prefectura ESCOM", "EMP-205", "moderador", "prefectura"],
   ["culturales@ipn.mx", "Martha Angélica Gasca", "EMP-206", "moderador", "clubes_culturales"],
+  ["sseis@ipn.mx", "Titular SSEIS ESCOM", "EMP-208", "moderador", "sseis"],
 ];
 
 async function findOrCreateUser(email, name, boleta) {
@@ -878,5 +879,18 @@ await pool.query(`
   insert into public.badges (user_id, code, label) values ($1, 'pionero', 'Cuenta de demostración')
   on conflict (user_id, code) do nothing
 `, [student]);
+try {
+  const sseisUser = ids.get("sseis@ipn.mx");
+  if (sseisUser && culturalesMod) {
+    await pool.query(
+      `insert into public.club_area_delegates (user_id, assigned_by, scope, active, note)
+       values ($1, $2, 'cultural_deportivo', true, 'Coordinación de clubes culturales y deportivos designada por SSEIS')
+       on conflict (user_id, scope) do nothing`,
+      [culturalesMod, sseisUser],
+    );
+  }
+} catch {
+  // La tabla club_area_delegates existe tras aplicar migración 20261122000100
+}
 await pool.end();
 console.log(`Seed listo: ${people.length} cuentas · contraseña compartida: ${password}`);

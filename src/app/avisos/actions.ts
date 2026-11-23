@@ -683,11 +683,16 @@ export async function generateSocialCopy(input: {
     };
   }
 
-  const models = [
-    process.env.GOOGLE_AVISO_MODEL?.trim(),
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-  ].filter((m): m is string => Boolean(m));
+  const models = Array.from(
+    new Set(
+      [
+        process.env.GOOGLE_AVISO_MODEL?.trim(),
+        "gemini-3.5-flash-lite",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash",
+      ].filter((m): m is string => Boolean(m)),
+    ),
+  );
 
   const ai = new GoogleGenAI({ apiKey });
   let lastAiErr = "";
@@ -775,12 +780,16 @@ export async function generateAvisoFromRawText(rawTextInput: string): Promise<{
     };
   }
 
-  const models = [
-    process.env.GOOGLE_AVISO_MODEL?.trim(),
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash",
-  ].filter((m): m is string => Boolean(m));
+  const models = Array.from(
+    new Set(
+      [
+        process.env.GOOGLE_AVISO_MODEL?.trim(),
+        "gemini-3.5-flash-lite",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash",
+      ].filter((m): m is string => Boolean(m)),
+    ),
+  );
 
   const ai = new GoogleGenAI({ apiKey });
   let lastAiErr = "";

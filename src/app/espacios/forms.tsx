@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState, useState } from "react";
+import { SubmitButton } from "@/components/loading-ui";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { btn, input, label } from "@/lib/ui";
 import { addSpaceEvent, saveCubicle } from "./actions";
@@ -73,9 +74,9 @@ export function CubicleForm({
         </label>
       </div>
       <Feedback state={state} />
-      <button className={btn} disabled={pending}>
+      <SubmitButton className={btn} pending={pending} pendingText="Guardando…">
         {cubicle ? "Actualizar mi cubículo" : "Crear mi cubículo"}
-      </button>
+      </SubmitButton>
     </form>
   );
 }
@@ -165,9 +166,9 @@ export function SpaceEventForm({
       <ImageUploadField name="image" label="Cartel o imagen del evento (opcional · JPG, PNG o WEBP)" />
       <p className="text-sm text-[#667085]">Publica solo actividades que ya fueron autorizadas fuera de la plataforma. Este registro no reserva ni autoriza el espacio.</p>
       <Feedback state={state} />
-      <button className={btn} disabled={pending}>
-        {pending ? "Guardando…" : isDirectPublisher ? "Publicar evento autorizado" : "Enviar evento a revisión"}
-      </button>
+      <SubmitButton className={btn} pending={pending} pendingText="Guardando…">
+        {isDirectPublisher ? "Publicar evento autorizado" : "Enviar evento a revisión"}
+      </SubmitButton>
     </form>
   );
 }

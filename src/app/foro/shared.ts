@@ -149,7 +149,7 @@ export function canModerateForumQuestion(
   if (user.area === area) return true;
   if (
     (area === "clubes" || requestKind === "nuevo_club") &&
-    ["clubes_academicos", "clubes_culturales"].includes(user.area ?? "")
+    ["subdireccion_academica", "clubes_academicos", "clubes_culturales", "sseis"].includes(user.area ?? "")
   ) {
     return true;
   }
