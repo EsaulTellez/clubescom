@@ -251,7 +251,7 @@ export async function suggestProfessorInRoom(
           [
             code,
             professorId,
-            professorId ? null : professorNameInput,
+            professorId ? "" : professorNameInput,
             scheduleText,
             subjectsText,
             user.id,

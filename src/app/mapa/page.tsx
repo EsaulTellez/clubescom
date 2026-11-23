@@ -21,7 +21,7 @@ type RawSuggestionRow = {
 
 export default async function MapaPage() {
   const user = await getSession();
-  const [rooms, assignments, suggestionsRaw, allProfessors, cubicles, mine] = await Promise.all([
+  const [rooms, assignments, suggestionsRaw, allProfessorsRaw, profDirectoryMeta, cubicles, mine] = await Promise.all([
     pool.query<{ code: string; kind: string; name: string; description: string }>(
       "select code, kind, name, description from map_rooms",
     ),
@@ -33,7 +33,7 @@ export default async function MapaPage() {
         `select s.id,
                 s.room_code,
                 s.professor_id::text as professor_id,
-                coalesce(up.name, s.professor_name_input, 'Profesor') as professor_name,
+                coalesce(up.name, nullif(s.professor_name_input, ''), 'Profesor') as professor_name,
                 s.suggested_by,
                 us.name as suggested_by_name,
                 coalesce(s.schedule_text, '') as schedule_text,
@@ -75,15 +75,21 @@ export default async function MapaPage() {
           [user?.id ?? null],
         ),
       ),
+    // `anon` only has column-level SELECT on (id, name, role, area, created_at);
+    // RLS `users_public_profile_read` already enforces `is_active` for anon.
+    // Never join `private.user_private` directly under `authenticated`: use the SECURITY DEFINER RPC below.
+    pool.query<Professor>(
+      user
+        ? "select id::text as id, name from public.users where role = 'profesor' and is_active order by name"
+        : "select id::text as id, name from public.users where role = 'profesor' order by name",
+    ),
     user
-      ? pool.query<Professor>(
-          `select u.id::text as id, u.name, p.boleta, p.email
-             from public.users u
-             left join private.user_private p on p.user_id = u.id
-            where u.role = 'profesor' and u.is_active
-            order by u.name`,
-        )
-      : pool.query<Professor>("select id::text as id, name from public.users where role = 'profesor' order by name"),
+      ? pool
+          .query<{ id: string; boleta: string | null; email: string | null }>(
+            "select id::text as id, boleta, email from public.search_directory_users('', array['profesor'], 50)",
+          )
+          .catch(() => ({ rows: [] as { id: string; boleta: string | null; email: string | null }[] }))
+      : Promise.resolve({ rows: [] as { id: string; boleta: string | null; email: string | null }[] }),
     pool.query<{
       id: string;
       professor_id: string | null;
@@ -145,8 +151,19 @@ export default async function MapaPage() {
     entry.suggestions.push(sug as RoomSuggestion);
   }
 
+  const profMetaById = new Map(profDirectoryMeta.rows.map((item) => [item.id, item]));
+  const allProfessors: Professor[] = allProfessorsRaw.rows.map((prof) => {
+    const meta = profMetaById.get(prof.id);
+    return {
+      id: prof.id,
+      name: prof.name,
+      boleta: meta?.boleta ?? null,
+      email: meta?.email ?? null,
+    };
+  });
+
   const roomInfo: RoomInfo[] = Array.from(roomMap.values());
-  const professorDirectories = allProfessors.rows.map((prof) => {
+  const professorDirectories = allProfessors.map((prof) => {
     const cub = cubicles.rows.find((c) => c.professor_id === prof.id);
     const assignedRoom = assignments.rows.find((a) => a.id === prof.id);
     const topSuggestion = suggestionsRaw.rows.find(
@@ -177,7 +194,7 @@ export default async function MapaPage() {
   return (
     <CampusMap
       roomInfo={roomInfo}
-      professors={allProfessors.rows}
+      professors={allProfessors}
       professorDirectories={professorDirectories}
       canEdit={canManageRooms}
       myCubicle={mine.rows[0] ?? null}
