@@ -127,6 +127,19 @@ $$;
 revoke all on function public.sseis_set_club_delegate(uuid, boolean, text) from public, anon;
 grant execute on function public.sseis_set_club_delegate(uuid, boolean, text) to authenticated;
 
+alter table public.users drop constraint if exists users_moderator_area_valid;
+alter table public.users add constraint users_moderator_area_valid check (
+  (role <> 'moderador'::public.user_role and area is null)
+  or (
+    role = 'moderador'::public.user_role
+    and area in (
+      'gestion_escolar', 'becas', 'catt', 'comunicacion',
+      'clubes_academicos', 'clubes_culturales', 'sseis',
+      'prefectura', 'subdireccion_academica'
+    )
+  )
+);
+
 create or replace function public.admin_set_user_role(
   p_user_id uuid,
   p_role public.user_role,

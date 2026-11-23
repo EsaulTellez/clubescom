@@ -1949,16 +1949,19 @@ export async function assignSseisDelegate(_prev: ClubState, form: FormData): Pro
       p_note: note || null,
     });
     if (error) {
-      await pool.query(
-        `insert into public.club_area_delegates (user_id, assigned_by, scope, active, note, updated_at)
-         values ($1, $2, 'cultural_deportivo', true, $3, now())
-         on conflict (user_id, scope) do update
-           set assigned_by = excluded.assigned_by,
-               active = true,
-               note = excluded.note,
-               updated_at = now()`,
-        [targetId, user.id, note || null],
+      const updated = await pool.query(
+        `update public.club_area_delegates
+            set assigned_by = $2, active = true, note = $3, updated_at = now()
+          where user_id = $1 and area_group = 'cultural_deportivo'`,
+        [targetId, user.id, note || ""],
       );
+      if (!updated.rowCount) {
+        await pool.query(
+          `insert into public.club_area_delegates (area_group, user_id, assigned_by, active, note)
+           values ('cultural_deportivo', $1, $2, true, $3)`,
+          [targetId, user.id, note || ""],
+        );
+      }
     }
   } catch {
     return { error: "Aplica la migración pendiente para habilitar la designación SSEIS en base de datos." };
@@ -1988,7 +1991,7 @@ export async function revokeSseisDelegate(_prev: ClubState, form: FormData): Pro
       await pool.query(
         `update public.club_area_delegates
             set active = false, updated_at = now()
-          where user_id = $1 and scope = 'cultural_deportivo'`,
+          where user_id = $1 and area_group = 'cultural_deportivo'`,
         [targetId],
       );
     }

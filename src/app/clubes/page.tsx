@@ -268,7 +268,7 @@ export default async function ClubesPage() {
                  from public.club_area_delegates d
                  join public.users u on u.id = d.user_id
                  left join private.user_private p on p.user_id = u.id
-                 where d.active = true and d.scope = 'cultural_deportivo'
+                 where d.active = true and d.area_group = 'cultural_deportivo'
                  order by u.name`,
               )
               .catch(() => ({ rows: [] as SseisDelegateRow[] }))

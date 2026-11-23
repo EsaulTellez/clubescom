@@ -883,9 +883,12 @@ try {
   const sseisUser = ids.get("sseis@ipn.mx");
   if (sseisUser && culturalesMod) {
     await pool.query(
-      `insert into public.club_area_delegates (user_id, assigned_by, scope, active, note)
-       values ($1, $2, 'cultural_deportivo', true, 'Coordinación de clubes culturales y deportivos designada por SSEIS')
-       on conflict (user_id, scope) do nothing`,
+      `insert into public.club_area_delegates (area_group, user_id, assigned_by, active, note)
+       select 'cultural_deportivo', $1, $2, true, 'Coordinación de clubes culturales y deportivos designada por SSEIS'
+       where not exists (
+         select 1 from public.club_area_delegates
+         where area_group = 'cultural_deportivo' and user_id = $1 and active = true
+       )`,
       [culturalesMod, sseisUser],
     );
   }

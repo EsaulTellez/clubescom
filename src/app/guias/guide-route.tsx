@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useTransition, type ReactNode } from "react";
+import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
+import { FormDialog } from "@/components/form-dialog";
 import { Spinner } from "@/components/loading-ui";
 import { publishAnswerInline, publishQuestion, type InlineAnswerItem } from "../foro/actions";
 import { QuestionForm } from "../foro/question-form";
@@ -32,6 +33,7 @@ export type StepThread = {
 };
 
 type MiniForumTab = "dudas" | "cambios";
+type DisplayMode = "diagrama" | "recorrido";
 
 function MiniForumThreadCard({
   thread,
@@ -93,9 +95,7 @@ function MiniForumThreadCard({
         </div>
         <span
           className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${
-            isAnswered
-              ? "bg-[#e5f5ed] text-[#14593e]"
-              : "bg-[#fef4db] text-[#7c560d]"
+            isAnswered ? "bg-[#e5f5ed] text-[#14593e]" : "bg-[#fef4db] text-[#7c560d]"
           }`}
         >
           {isAnswered ? "✓ Respondida" : "Abierta"}
@@ -103,9 +103,7 @@ function MiniForumThreadCard({
       </div>
 
       {thread.body && (
-        <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#425864]">
-          {thread.body}
-        </p>
+        <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#425864]">{thread.body}</p>
       )}
 
       {answers.length > 0 && (
@@ -128,9 +126,7 @@ function MiniForumThreadCard({
                 )}
                 <span className="text-[10px] text-[#667984]">{ans.createdLabel}</span>
               </div>
-              <p className="mt-1 whitespace-pre-wrap leading-relaxed text-[#2e4856]">
-                {ans.body}
-              </p>
+              <p className="mt-1 whitespace-pre-wrap leading-relaxed text-[#2e4856]">{ans.body}</p>
             </li>
           ))}
         </ul>
@@ -193,6 +189,154 @@ function MiniForumThreadCard({
   );
 }
 
+function StepMiniForum({
+  step,
+  stepNumber,
+  guideId,
+  area,
+  signedIn,
+  compact,
+  relatedThreads,
+  stepSuggestionsCount,
+  stepExtra,
+  forumTab,
+  onTabChange,
+  composerOpen,
+  onComposerChange,
+}: {
+  step: GuideStep;
+  stepNumber: number;
+  guideId: string;
+  area: string;
+  signedIn: boolean;
+  compact: boolean;
+  relatedThreads: StepThread[];
+  stepSuggestionsCount: number;
+  stepExtra?: ReactNode;
+  forumTab: MiniForumTab;
+  onTabChange: (tab: MiniForumTab) => void;
+  composerOpen: "preguntar" | "editar" | null;
+  onComposerChange: (next: "preguntar" | "editar" | null) => void;
+}) {
+  return (
+    <div id="mini-foro" className="space-y-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#dde5ea] pb-3">
+        <div
+          className="inline-flex rounded-md border border-[#cdd8de] bg-[#f4f6f7] p-0.5 text-xs font-extrabold"
+          role="tablist"
+          aria-label="Participación en este paso"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={forumTab === "dudas"}
+            onClick={() => {
+              onTabChange("dudas");
+              onComposerChange(null);
+            }}
+            className={`rounded px-3 py-1.5 transition ${
+              forumTab === "dudas"
+                ? "bg-[#142c3c] text-white"
+                : "text-[#425d6b] hover:text-[#142c3c]"
+            }`}
+          >
+            Dudas del paso ({relatedThreads.length})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={forumTab === "cambios"}
+            onClick={() => {
+              onTabChange("cambios");
+              onComposerChange(null);
+            }}
+            className={`rounded px-3 py-1.5 transition ${
+              forumTab === "cambios"
+                ? "bg-[#142c3c] text-white"
+                : "text-[#425d6b] hover:text-[#142c3c]"
+            }`}
+          >
+            Pedir cambio ({stepSuggestionsCount})
+          </button>
+        </div>
+
+        {forumTab === "dudas" ? (
+          signedIn ? (
+            <button
+              type="button"
+              onClick={() =>
+                onComposerChange(composerOpen === "preguntar" ? null : "preguntar")
+              }
+              className={composerOpen === "preguntar" ? btnGhost : btn}
+            >
+              {composerOpen === "preguntar" ? "Cerrar formulario" : "+ Preguntar en este paso"}
+            </button>
+          ) : (
+            <Link href="/entrar" className={btn}>
+              Entra para preguntar
+            </Link>
+          )
+        ) : signedIn ? (
+          <button
+            type="button"
+            onClick={() => onComposerChange(composerOpen === "editar" ? null : "editar")}
+            className={composerOpen === "editar" ? btnGhost : btn}
+          >
+            {composerOpen === "editar" ? "Cerrar sugerencia" : "+ Proponer cambio"}
+          </button>
+        ) : (
+          <Link href="/entrar" className={btn}>
+            Entra para proponer cambio
+          </Link>
+        )}
+      </div>
+
+      {forumTab === "dudas" ? (
+        <div className="space-y-3">
+          {composerOpen === "preguntar" && signedIn && (
+            <div className="rounded-md border border-[#bcd6e3] bg-[#f7fbfd] p-3.5">
+              <QuestionForm
+                action={publishQuestion}
+                defaultArea={area}
+                step={{ guideId, id: step.id }}
+                stayInGuide={!compact}
+              />
+            </div>
+          )}
+
+          {relatedThreads.length === 0 ? (
+            <p className="rounded-md border border-dashed border-[#cfdbe0] bg-[#fafbfa] px-4 py-5 text-center text-xs text-[#5d707a]">
+              Aún no hay preguntas en el Paso {stepNumber}.
+            </p>
+          ) : (
+            <div className="space-y-2.5">
+              {relatedThreads.map((thread) => (
+                <MiniForumThreadCard key={thread.id} thread={thread} signedIn={signedIn} />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {composerOpen === "editar" && signedIn && (
+            <div className="rounded-md border border-[#e3d2a4] bg-[#fffcf2] p-3.5">
+              <SuggestForm action={suggestImprovement} guideId={guideId} stepIndex={step.id} />
+            </div>
+          )}
+
+          {stepExtra ? (
+            stepExtra
+          ) : (
+            <p className="rounded-md border border-dashed border-[#d8d3c4] bg-[#faf9f4] px-4 py-5 text-center text-xs text-[#5d707a]">
+              Sin cambios propuestos en el Paso {stepNumber}.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function GuideRoute({
   steps,
   guideId,
@@ -223,7 +367,13 @@ export function GuideRoute({
   compact?: boolean;
 }) {
   const [path, setPath] = useState(() => pathToStep(steps, initialStep));
-  const [viewMode, setViewMode] = useState<"paso" | "lista">("paso");
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("diagrama");
+  const [stepDialogOpen, setStepDialogOpen] = useState(
+    Boolean(initialStep !== undefined || initialPanel !== undefined),
+  );
+  const [guidedForumOpen, setGuidedForumOpen] = useState(
+    Boolean(initialPanel !== undefined),
+  );
   const [forumTab, setForumTab] = useState<MiniForumTab>(
     initialPanel === "editar" ? "cambios" : "dudas",
   );
@@ -231,6 +381,11 @@ export function GuideRoute({
     initialPanel ?? null,
   );
   const heading = useRef<HTMLHeadingElement>(null);
+
+  const hasBranches = useMemo(
+    () => steps.some((_, i) => routesFrom(steps, i).length > 1),
+    [steps],
+  );
 
   const index = Math.max(0, steps.findIndex((s) => s.id === path.at(-1)));
   const step = steps[index];
@@ -248,30 +403,117 @@ export function GuideRoute({
     (s) => (doubtsByStep[s.id] ?? 0) > 0 || (pendingByStep[s.id] ?? 0) > 0,
   );
 
-  function navigate(nextPath: number[]) {
+  const completionPct = steps.length ? Math.round((done.length / steps.length) * 100) : 0;
+
+  function navigateToPath(nextPath: number[], focusHeading = false) {
     setPath(nextPath);
-    setViewMode("paso");
     setComposerOpen(null);
-    requestAnimationFrame(() => heading.current?.focus({ preventScroll: true }));
+    if (focusHeading) {
+      requestAnimationFrame(() => heading.current?.focus({ preventScroll: true }));
+    }
   }
 
-  return (
-    <div className="space-y-5">
-      {/* 1. DIAGRAMA DE FLUJO INTERACTIVO (PROTAGONISTA) */}
-      <GuideFlowchart
-        steps={steps}
-        currentStepId={step.id}
-        activePath={path}
-        completedSteps={done}
-        doubtsByStep={doubtsByStep}
-        pendingByStep={pendingByStep}
-        onSelect={(id) => navigate(pathToStep(steps, id))}
-        compact={compact}
-      />
+  function openStepFromDiagram(stepId: number, tab?: MiniForumTab) {
+    setPath(pathToStep(steps, stepId));
+    if (tab) {
+      setForumTab(tab);
+    } else {
+      const hasDudas = (doubtsByStep[stepId] ?? 0) > 0;
+      const hasPending = (pendingByStep[stepId] ?? 0) > 0;
+      setForumTab(!hasDudas && hasPending ? "cambios" : "dudas");
+    }
+    setComposerOpen(null);
+    setStepDialogOpen(true);
+  }
 
-      {/* Tira rápida de pasos con dudas o sugerencias activas */}
+  function handleGuidedTabToggle(tab: MiniForumTab) {
+    if (guidedForumOpen && forumTab === tab) {
+      setGuidedForumOpen(false);
+      setComposerOpen(null);
+      return;
+    }
+    setForumTab(tab);
+    setComposerOpen(null);
+    setGuidedForumOpen(true);
+  }
+
+  const prevStepPath =
+    path.length > 1
+      ? path.slice(0, -1)
+      : !hasBranches && index > 0
+        ? pathToStep(steps, steps[index - 1].id)
+        : null;
+
+  const singleNextTarget =
+    choices.length === 1 ? steps.find((s) => s.id === choices[0].to) ?? null : null;
+  const singleNextIdx =
+    singleNextTarget ? steps.findIndex((s) => s.id === singleNextTarget.id) : -1;
+
+  return (
+    <div className="space-y-4">
+      {/* BARRA SUPERIOR: SELECTOR DE VISTA + PROGRESO */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div
+          className="inline-flex rounded-md border border-[#c6d5de] bg-[#eff4f7] p-0.5 text-xs font-extrabold"
+          role="tablist"
+          aria-label="Modo de visualización de la guía"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={displayMode === "diagrama"}
+            onClick={() => setDisplayMode("diagrama")}
+            className={`inline-flex items-center gap-1.5 rounded px-3.5 py-2 transition ${
+              displayMode === "diagrama"
+                ? "bg-[#142c3c] text-white shadow-xs"
+                : "text-[#3d5968] hover:text-[#142c3c]"
+            }`}
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <rect x="4.5" y="1.5" width="7" height="3.5" rx="1.5" />
+              <rect x="3" y="7" width="10" height="3.5" rx="1" />
+              <path d="M8 5v2m0 3.5v2.5" strokeLinecap="round" />
+              <rect x="4.5" y="12.5" width="7" height="2" rx="1" />
+            </svg>
+            <span>Diagrama visual</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={displayMode === "recorrido"}
+            onClick={() => {
+              setDisplayMode("recorrido");
+              setStepDialogOpen(false);
+            }}
+            className={`inline-flex items-center gap-1.5 rounded px-3.5 py-2 transition ${
+              displayMode === "recorrido"
+                ? "bg-[#142c3c] text-white shadow-xs"
+                : "text-[#3d5968] hover:text-[#142c3c]"
+            }`}
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M3 4h10M3 8h7M3 12h10" strokeLinecap="round" />
+            </svg>
+            <span>Recorrido guiado</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <div className="hidden h-2 w-24 overflow-hidden rounded-full bg-[#e3eaee] sm:block">
+            <div
+              className="h-full rounded-full bg-[#165b47] transition-[width] duration-300"
+              style={{ width: `${completionPct}%` }}
+            />
+          </div>
+          <span className="font-mono text-xs font-bold text-[#4a6573] tabular-nums">
+            {done.length}/{steps.length} completados
+          </span>
+        </div>
+      </div>
+
+      {/* ACCESOS DIRECTOS A PASOS CON DUDAS O CAMBIOS */}
       {activeActivitySteps.length > 0 && !compact && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-[#d6e2e8] bg-[#f6fafc] px-4 py-2.5 text-xs">
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-[#d6e2e8] bg-[#f6fafc] px-4 py-2 text-xs">
           <span className="font-extrabold text-[#2a4b5c]">Actividad en pasos:</span>
           {activeActivitySteps.map((s) => {
             const idx = steps.findIndex((st) => st.id === s.id);
@@ -281,9 +523,17 @@ export function GuideRoute({
               <button
                 key={s.id}
                 type="button"
-                onClick={() => navigate(pathToStep(steps, s.id))}
+                onClick={() => {
+                  if (displayMode === "diagrama") {
+                    openStepFromDiagram(s.id, dCount === 0 && pCount > 0 ? "cambios" : "dudas");
+                  } else {
+                    navigateToPath(pathToStep(steps, s.id), true);
+                    setForumTab(dCount === 0 && pCount > 0 ? "cambios" : "dudas");
+                    setGuidedForumOpen(true);
+                  }
+                }}
                 className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1 font-bold transition ${
-                  s.id === step.id
+                  s.id === step.id && (stepDialogOpen || displayMode === "recorrido")
                     ? "border-[#006699] bg-[#006699] text-white"
                     : "border-[#c7d9e3] bg-white text-[#19445b] hover:border-[#006699]"
                 }`}
@@ -297,169 +547,83 @@ export function GuideRoute({
         </div>
       )}
 
-      {/* 2. PASO A PASO + MINI-FORO ANCLADO AL PASO */}
-      <div className={compact ? "space-y-4" : "grid items-start gap-5 lg:grid-cols-12"}>
-        {/* COLUMNA IZQUIERDA: PASO A PASO */}
-        <div className={compact ? "space-y-3" : "space-y-4 lg:col-span-7"}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="inline-flex rounded-md border border-[#cdd8de] bg-[#f4f6f7] p-0.5 text-xs font-extrabold">
-              <button
-                type="button"
-                onClick={() => setViewMode("paso")}
-                className={`rounded px-3 py-1.5 transition ${
-                  viewMode === "paso" ? "bg-[#142c3c] text-white" : "text-[#425d6b] hover:text-[#142c3c]"
-                }`}
-              >
-                Recorrido guiado
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("lista")}
-                className={`rounded px-3 py-1.5 transition ${
-                  viewMode === "lista" ? "bg-[#142c3c] text-white" : "text-[#425d6b] hover:text-[#142c3c]"
-                }`}
-              >
-                Todos los pasos ({steps.length})
-              </button>
-            </div>
-            <span className="font-mono text-xs font-bold text-[#4a6573]">
-              {done.length}/{steps.length} completados
-            </span>
-          </div>
+      {/* VISTA 1: DIAGRAMA VERTICAL INTERACTIVO (AL HACER CLIC ABRE EL PASO Y SU MINI-FORO) */}
+      {displayMode === "diagrama" ? (
+        <>
+          <GuideFlowchart
+            steps={steps}
+            currentStepId={stepDialogOpen ? step.id : undefined}
+            activePath={stepDialogOpen ? path : []}
+            completedSteps={done}
+            doubtsByStep={doubtsByStep}
+            pendingByStep={pendingByStep}
+            onSelect={(id) => openStepFromDiagram(id)}
+            compact={compact}
+          />
 
-          {viewMode === "lista" ? (
-            <ol className="space-y-3">
-              {steps.map((s, idx) => {
-                const sDone = done.includes(s.id);
-                const sRoutes = routesFrom(steps, idx);
-                const sDoubts = doubtsByStep[s.id] ?? 0;
-                return (
-                  <li
-                    key={s.id}
-                    className={`rounded-md border p-4 transition ${
-                      s.id === step.id
-                        ? "border-[#006699] bg-[#f2f9fc]"
-                        : "border-[#d4dce0] bg-[#fffdf7]"
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`grid h-6 min-w-6 place-items-center rounded px-1.5 font-mono text-xs font-black ${
-                            sDone ? "bg-[#165b47] text-white" : "bg-[#e6f1f6] text-[#0c5170]"
-                          }`}
-                        >
-                          {sDone ? "✓" : idx + 1}
-                        </span>
-                        <h3 className="text-base font-extrabold text-[#142c3c]">{s.title}</h3>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {sDoubts > 0 && (
-                          <span className="rounded bg-[#e6f3fa] px-2 py-0.5 font-mono text-[11px] font-bold text-[#005580]">
-                            💬 {sDoubts}
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => navigate(pathToStep(steps, s.id))}
-                          className="text-xs font-extrabold text-[#006699] hover:underline"
-                        >
-                          Abrir paso y foro →
-                        </button>
-                      </div>
-                    </div>
-                    {s.body !== s.title && (
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-[#425967]">
-                        {s.body}
-                      </p>
-                    )}
-                    {sRoutes.length > 1 && (
-                      <div className="mt-2.5 flex flex-wrap gap-1.5 text-xs">
-                        {sRoutes.map((c, ci) => (
-                          <button
-                            key={ci}
-                            type="button"
-                            onClick={() => navigate(pathToStep(steps, c.to))}
-                            className="rounded border border-[#dfc88e] bg-[#fff9e8] px-2.5 py-1 font-bold text-[#755109] hover:bg-[#faecc3]"
-                          >
-                            ⑂ {c.label} →
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
-          ) : (
-            <div className="space-y-3">
-              {path.length > 1 && (
-                <nav
-                  aria-label="Ruta recorrida"
-                  className="flex flex-wrap items-center gap-1 rounded border border-[#dce4e8] bg-[#fafbf9] px-3 py-2 text-xs text-[#466271]"
-                >
-                  {path.map((id, i) => {
-                    const node = steps.find((s) => s.id === id);
-                    if (!node) return null;
-                    return (
-                      <span key={id} className="inline-flex items-center gap-1">
-                        {i > 0 && <span aria-hidden="true" className="text-[#8ba2ae]">›</span>}
-                        {i === path.length - 1 ? (
-                          <strong aria-current="step" className="text-[#142c3c]">
-                            {node.title}
-                          </strong>
-                        ) : (
-                          <button
-                            type="button"
-                            className="font-semibold text-[#006699] hover:underline"
-                            onClick={() => navigate(path.slice(0, i + 1))}
-                          >
-                            {node.title}
-                          </button>
-                        )}
-                      </span>
-                    );
-                  })}
-                </nav>
-              )}
-
-              <article className="overflow-hidden rounded-md border border-[#b7cdd6] border-t-4 border-t-[#006699] bg-[#fffdf7] shadow-[0_3px_12px_rgba(20,44,60,0.05)]">
-                <div className="space-y-4 p-5 sm:p-6">
+          {stepDialogOpen && (
+            <FormDialog
+              key={`dialog-step-${step.id}`}
+              kicker={
+                choices.length > 1
+                  ? `Punto de decisión · Paso ${index + 1} de ${steps.length}`
+                  : `Paso ${index + 1} de ${steps.length}`
+              }
+              title={step.title || `Paso ${index + 1}`}
+              accent={choices.length > 1 ? "amber" : checked ? "teal" : "blue"}
+              size="xl"
+              onClose={() => {
+                setStepDialogOpen(false);
+                setComposerOpen(null);
+              }}
+            >
+              <div className="space-y-5">
+                {/* DETALLE DEL PASO */}
+                <div className="space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded bg-[#006699] px-2.5 py-1 font-mono text-xs font-black text-white">
-                        PASO {index + 1}
-                      </span>
-                      {choices.length > 1 && (
-                        <span className="rounded bg-[#fdf1d0] px-2 py-1 text-[11px] font-extrabold text-[#785106]">
-                          ⑂ Punto de decisión
-                        </span>
-                      )}
-                    </div>
                     <button
                       type="button"
                       aria-pressed={checked}
                       onClick={() => toggle(step.id)}
-                      className={`rounded-md border px-3 py-1.5 text-xs font-extrabold transition ${
+                      className={`rounded-md border px-3.5 py-1.5 text-xs font-extrabold transition ${
                         checked
                           ? "border-[#165b47] bg-[#165b47] text-white"
                           : "border-[#b4ccd8] bg-white text-[#0c5170] hover:bg-[#edf6fa]"
                       }`}
                     >
-                      {checked ? "✓ Completado" : "Marcar como completado"}
+                      {checked ? "✓ Paso completado" : "Marcar como completado"}
                     </button>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {prevStepPath && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPath(prevStepPath);
+                            setComposerOpen(null);
+                          }}
+                          className="rounded border border-[#cdd8de] bg-white px-2.5 py-1 text-xs font-bold text-[#3c5766] hover:border-[#006699] hover:text-[#006699]"
+                        >
+                          ← Anterior
+                        </button>
+                      )}
+                      {singleNextTarget && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPath([...path, singleNextTarget.id]);
+                            setComposerOpen(null);
+                          }}
+                          className="rounded border border-[#a9c7d5] bg-[#eef7fb] px-2.5 py-1 text-xs font-extrabold text-[#004d73] hover:border-[#006699] hover:bg-[#dfeff7]"
+                        >
+                          Siguiente: Paso {singleNextIdx + 1} →
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <h3
-                    ref={heading}
-                    tabIndex={-1}
-                    className="text-xl font-extrabold tracking-tight text-[#142c3c] sm:text-2xl"
-                  >
-                    {step.title}
-                  </h3>
-
-                  {step.body !== step.title && (
-                    <p className="whitespace-pre-wrap text-sm leading-7 text-[#374f5c]">
+                  {step.body && step.body.trim() !== step.title.trim() && (
+                    <p className="whitespace-pre-wrap text-sm leading-7 text-[#2f4957]">
                       {step.body}
                     </p>
                   )}
@@ -468,228 +632,371 @@ export function GuideRoute({
                     <img
                       src={step.imageUrl}
                       alt={`Referencia visual: ${step.title}`}
-                      className="max-h-80 w-auto rounded-md border border-[#d5e4ee] bg-[#fafcfd] object-contain"
+                      className="max-h-72 w-auto rounded-md border border-[#d5e4ee] bg-[#fafcfd] object-contain"
                     />
                   )}
 
-                  {/* Siguiente paso o decisiones */}
-                  <div className="border-t border-[#e5ecee] pt-4">
-                    {choices.length ? (
-                      <div className="space-y-2.5">
-                        {choices.length > 1 && (
-                          <p className="text-xs font-extrabold uppercase tracking-wider text-[#785106]">
-                            Elige la opción que aplica a tu caso
-                          </p>
-                        )}
-                        <div className="grid gap-2">
-                          {choices.map((choice, i) => {
-                            const target = steps.find((s) => s.id === choice.to);
-                            const targetIdx = steps.findIndex((s) => s.id === choice.to);
-                            return (
-                              target && (
-                                <button
-                                  type="button"
-                                  key={i}
-                                  onClick={() => navigate([...path, target.id])}
-                                  className={`group flex items-center justify-between gap-3 rounded-md border px-4 py-3 text-left transition ${
-                                    choices.length > 1
-                                      ? "border-[#dfc88e] bg-[#fffaf0] text-[#142c3c] hover:border-[#b38216] hover:bg-[#fef3d6]"
-                                      : "border-[#a9c7d5] bg-[#eef7fb] text-[#004d73] hover:border-[#006699] hover:bg-[#dfeff7]"
-                                  }`}
-                                >
-                                  <div className="min-w-0">
-                                    <span className="block text-sm font-extrabold">
-                                      {choice.label}
-                                    </span>
-                                    {choice.label !== target.title && (
-                                      <span className="mt-0.5 block text-xs text-[#4f6774]">
-                                        Paso {targetIdx + 1}: {target.title}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <span
-                                    aria-hidden="true"
-                                    className="shrink-0 font-bold transition group-hover:translate-x-0.5"
-                                  >
-                                    →
-                                  </span>
-                                </button>
-                              )
-                            );
-                          })}
-                        </div>
+                  {choices.length > 1 && (
+                    <div className="space-y-2 rounded-md border border-[#e3d2a4] bg-[#fffcf2] p-3.5">
+                      <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#785106]">
+                        Opciones desde este paso
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {choices.map((choice, ci) => {
+                          const target = steps.find((s) => s.id === choice.to);
+                          const targetIdx = steps.findIndex((s) => s.id === choice.to);
+                          if (!target) return null;
+                          return (
+                            <button
+                              key={ci}
+                              type="button"
+                              onClick={() => {
+                                setPath([...path, target.id]);
+                                setComposerOpen(null);
+                              }}
+                              className="flex items-center justify-between gap-2 rounded border border-[#dfc88e] bg-white px-3 py-2 text-left text-xs font-bold text-[#142c3c] hover:border-[#b38216] hover:bg-[#fef6dc]"
+                            >
+                              <span className="min-w-0 truncate">
+                                {choice.label} · Paso {targetIdx + 1}
+                              </span>
+                              <span aria-hidden="true">→</span>
+                            </button>
+                          );
+                        })}
                       </div>
-                    ) : (
-                      <div className="rounded-md border border-[#b7dccb] bg-[#eef8f3] px-4 py-3 text-sm font-extrabold text-[#165b47]">
-                        {path.every((id) => done.includes(id))
-                          ? "✓ Completaste todos los pasos de esta ruta"
-                          : "Fin de esta ruta del trámite"}
-                      </div>
-                    )}
+                    </div>
+                  )}
+                </div>
 
-                    {path.length > 1 && (
+                {/* MINI-FORO DEL PASO */}
+                <div className="border-t border-[#d8e2e8] pt-4">
+                  <StepMiniForum
+                    step={step}
+                    stepNumber={index + 1}
+                    guideId={guideId}
+                    area={area}
+                    signedIn={signedIn}
+                    compact={compact}
+                    relatedThreads={relatedThreads}
+                    stepSuggestionsCount={stepSuggestionsCount}
+                    stepExtra={stepExtras?.[step.id]}
+                    forumTab={forumTab}
+                    onTabChange={setForumTab}
+                    composerOpen={composerOpen}
+                    onComposerChange={setComposerOpen}
+                  />
+                </div>
+              </div>
+            </FormDialog>
+          )}
+        </>
+      ) : (
+        /* VISTA 2: RECORRIDO GUIADO PASO A PASO */
+        <div className="space-y-4">
+          {/* STEPPER / BARRA DE PASOS */}
+          {!hasBranches ? (
+            <nav
+              aria-label="Pasos del trámite"
+              className="overflow-x-auto rounded-md border border-[#d4dfe5] bg-[#f7fafb] p-3"
+            >
+              <ol className="flex min-w-max items-center gap-1.5">
+                {steps.map((s, idx) => {
+                  const isCurrent = s.id === step.id;
+                  const isDone = done.includes(s.id);
+                  const hasActivity = (doubtsByStep[s.id] ?? 0) > 0 || (pendingByStep[s.id] ?? 0) > 0;
+                  return (
+                    <li key={s.id} className="flex items-center gap-1.5">
+                      {idx > 0 && (
+                        <span
+                          aria-hidden="true"
+                          className={`h-0.5 w-5 rounded-full ${
+                            idx <= index ? "bg-[#006699]" : "bg-[#cdd9e0]"
+                          }`}
+                        />
+                      )}
                       <button
                         type="button"
-                        className="mt-3 text-xs font-extrabold text-[#006699] hover:underline"
-                        onClick={() => navigate(path.slice(0, -1))}
+                        onClick={() => navigateToPath(pathToStep(steps, s.id), true)}
+                        aria-current={isCurrent ? "step" : undefined}
+                        className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-bold transition ${
+                          isCurrent
+                            ? "border-[#006699] bg-[#006699] text-white shadow-xs"
+                            : isDone
+                              ? "border-[#9bcab6] bg-[#ebf7f1] text-[#145542] hover:border-[#165b47]"
+                              : "border-[#cfdce3] bg-white text-[#2a4757] hover:border-[#006699]"
+                        }`}
+                      >
+                        <span
+                          className={`grid h-5 w-5 place-items-center rounded font-mono text-[11px] font-black ${
+                            isCurrent
+                              ? "bg-white/20 text-white"
+                              : isDone
+                                ? "bg-[#165b47] text-white"
+                                : "bg-[#e7f0f5] text-[#14435a]"
+                          }`}
+                        >
+                          {isDone ? "✓" : idx + 1}
+                        </span>
+                        <span className="max-w-[160px] truncate">{s.title}</span>
+                        {hasActivity && (
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              isCurrent ? "bg-[#ffe28a]" : "bg-[#006699]"
+                            }`}
+                            aria-hidden="true"
+                          />
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </nav>
+          ) : (
+            path.length > 1 && (
+              <nav
+                aria-label="Ruta recorrida"
+                className="flex flex-wrap items-center gap-1.5 rounded-md border border-[#d4dfe5] bg-[#f7fafb] px-3.5 py-2.5 text-xs text-[#466271]"
+              >
+                {path.map((id, i) => {
+                  const node = steps.find((s) => s.id === id);
+                  const nodeIdx = steps.findIndex((s) => s.id === id);
+                  if (!node) return null;
+                  return (
+                    <span key={`${id}-${i}`} className="inline-flex items-center gap-1.5">
+                      {i > 0 && (
+                        <span aria-hidden="true" className="text-[#8ba2ae]">
+                          →
+                        </span>
+                      )}
+                      {i === path.length - 1 ? (
+                        <strong aria-current="step" className="text-[#142c3c]">
+                          {nodeIdx + 1}. {node.title}
+                        </strong>
+                      ) : (
+                        <button
+                          type="button"
+                          className="font-semibold text-[#006699] hover:underline"
+                          onClick={() => navigateToPath(path.slice(0, i + 1), true)}
+                        >
+                          {nodeIdx + 1}. {node.title}
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
+              </nav>
+            )
+          )}
+
+          {/* TARJETA PRINCIPAL DEL PASO ACTUAL */}
+          <article className="overflow-hidden rounded-md border border-[#b7cdd6] border-t-4 border-t-[#006699] bg-[#fffdf7] shadow-[0_3px_12px_rgba(20,44,60,0.05)]">
+            <div className="space-y-4 p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="rounded bg-[#006699] px-2.5 py-1 font-mono text-xs font-black text-white">
+                    PASO {index + 1} DE {steps.length}
+                  </span>
+                  {choices.length > 1 && (
+                    <span className="rounded bg-[#fdf1d0] px-2 py-1 text-[11px] font-extrabold text-[#785106]">
+                      ⑂ Punto de decisión
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  aria-pressed={checked}
+                  onClick={() => toggle(step.id)}
+                  className={`rounded-md border px-3.5 py-1.5 text-xs font-extrabold transition ${
+                    checked
+                      ? "border-[#165b47] bg-[#165b47] text-white"
+                      : "border-[#b4ccd8] bg-white text-[#0c5170] hover:bg-[#edf6fa]"
+                  }`}
+                >
+                  {checked ? "✓ Completado" : "Marcar como completado"}
+                </button>
+              </div>
+
+              <h3
+                ref={heading}
+                tabIndex={-1}
+                className="text-xl font-extrabold tracking-tight text-[#142c3c] sm:text-2xl"
+              >
+                {step.title}
+              </h3>
+
+              {step.body && step.body.trim() !== step.title.trim() && (
+                <p className="whitespace-pre-wrap text-sm leading-7 text-[#374f5c]">{step.body}</p>
+              )}
+
+              {step.imageUrl && (
+                <img
+                  src={step.imageUrl}
+                  alt={`Referencia visual: ${step.title}`}
+                  className="max-h-80 w-auto rounded-md border border-[#d5e4ee] bg-[#fafcfd] object-contain"
+                />
+              )}
+
+              {/* CONTROLES DE NAVEGACIÓN ENTRE PASOS */}
+              <div className="space-y-3 border-t border-[#e5ecee] pt-4">
+                {choices.length > 1 ? (
+                  <div className="space-y-2.5">
+                    <p className="text-xs font-extrabold uppercase tracking-wider text-[#785106]">
+                      Elige la opción que aplica a tu caso
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {choices.map((choice, i) => {
+                        const target = steps.find((s) => s.id === choice.to);
+                        const targetIdx = steps.findIndex((s) => s.id === choice.to);
+                        if (!target) return null;
+                        return (
+                          <button
+                            type="button"
+                            key={i}
+                            onClick={() => navigateToPath([...path, target.id], true)}
+                            className="group flex items-center justify-between gap-3 rounded-md border border-[#dfc88e] bg-[#fffaf0] px-4 py-3 text-left text-[#142c3c] transition hover:border-[#b38216] hover:bg-[#fef3d6]"
+                          >
+                            <div className="min-w-0">
+                              <span className="block text-sm font-extrabold">{choice.label}</span>
+                              {choice.label !== target.title && (
+                                <span className="mt-0.5 block text-xs text-[#4f6774]">
+                                  Paso {targetIdx + 1}: {target.title}
+                                </span>
+                              )}
+                            </div>
+                            <span
+                              aria-hidden="true"
+                              className="shrink-0 font-bold transition group-hover:translate-x-0.5"
+                            >
+                              →
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {prevStepPath && (
+                      <button
+                        type="button"
+                        className="text-xs font-extrabold text-[#006699] hover:underline"
+                        onClick={() => navigateToPath(prevStepPath, true)}
                       >
                         ← Regresar al paso anterior
                       </button>
                     )}
                   </div>
-                </div>
-              </article>
-            </div>
-          )}
-        </div>
-
-        {/* COLUMNA DERECHA: MINI-FORO ANCLADO AL PASO SELECCIONADO */}
-        <aside
-          id="mini-foro"
-          key={`mini-foro-${step.id}`}
-          className={`overflow-hidden rounded-md border border-[#c5d4dc] bg-[#fffdf7] ${
-            compact ? "" : "lg:col-span-5 lg:sticky lg:top-28"
-          }`}
-        >
-          <div className="border-b border-[#d9e4ea] bg-[#f1f7fa] px-4 py-3.5">
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#0c5170]">
-              Mini-foro anclado · Paso {index + 1}
-            </p>
-            <h4 className="mt-0.5 truncate text-sm font-extrabold text-[#142c3c]">
-              {step.title}
-            </h4>
-
-            {/* Sub-pestañas del mini-foro */}
-            <div className="mt-3 flex gap-1" role="tablist" aria-label="Participación en este paso">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={forumTab === "dudas"}
-                onClick={() => {
-                  setForumTab("dudas");
-                  setComposerOpen(null);
-                }}
-                className={`rounded px-3 py-1.5 text-xs font-extrabold transition ${
-                  forumTab === "dudas"
-                    ? "bg-[#142c3c] text-white"
-                    : "bg-white/80 text-[#3e5866] hover:bg-white"
-                }`}
-              >
-                Dudas del paso ({relatedThreads.length})
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={forumTab === "cambios"}
-                onClick={() => {
-                  setForumTab("cambios");
-                  setComposerOpen(null);
-                }}
-                className={`rounded px-3 py-1.5 text-xs font-extrabold transition ${
-                  forumTab === "cambios"
-                    ? "bg-[#142c3c] text-white"
-                    : "bg-white/80 text-[#3e5866] hover:bg-white"
-                }`}
-              >
-                Cambios ({stepSuggestionsCount})
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-3.5 p-4">
-            {forumTab === "dudas" ? (
-              <>
-                <div className="flex items-center justify-between gap-2">
-                  {signedIn ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setComposerOpen((c) => (c === "preguntar" ? null : "preguntar"))
-                      }
-                      className={composerOpen === "preguntar" ? btnGhost : btn}
-                    >
-                      {composerOpen === "preguntar"
-                        ? "Cerrar formulario"
-                        : "+ Preguntar sobre este paso"}
-                    </button>
-                  ) : (
-                    <Link href="/entrar" className={btn}>
-                      Entra para preguntar en este paso
-                    </Link>
-                  )}
-                </div>
-
-                {composerOpen === "preguntar" && signedIn && (
-                  <div className="rounded-md border border-[#bcd6e3] bg-[#f7fbfd] p-3.5">
-                    <QuestionForm
-                      action={publishQuestion}
-                      defaultArea={area}
-                      step={{ guideId, id: step.id }}
-                      stayInGuide={!compact}
-                    />
-                  </div>
-                )}
-
-                {relatedThreads.length === 0 ? (
-                  <p className="rounded border border-dashed border-[#cfdbe0] bg-[#fafbfa] px-3.5 py-5 text-center text-xs text-[#5d707a]">
-                    Aún no hay preguntas ancladas al Paso {index + 1}. Si algo no queda claro, publícala aquí y también aparecerá en el Foro.
-                  </p>
                 ) : (
-                  <div className="space-y-3">
-                    {relatedThreads.map((thread) => (
-                      <MiniForumThreadCard
-                        key={thread.id}
-                        thread={thread}
-                        signedIn={signedIn}
-                      />
-                    ))}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      {prevStepPath ? (
+                        <button
+                          type="button"
+                          onClick={() => navigateToPath(prevStepPath, true)}
+                          className={btnGhost}
+                        >
+                          ← Paso anterior
+                        </button>
+                      ) : (
+                        <span className="text-xs font-semibold text-[#607582]">
+                          Inicio del trámite
+                        </span>
+                      )}
+                    </div>
+
+                    {singleNextTarget ? (
+                      <button
+                        type="button"
+                        onClick={() => navigateToPath([...path, singleNextTarget.id], true)}
+                        className="group inline-flex items-center gap-2 rounded-md bg-[#006699] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#004d73]"
+                      >
+                        <span>
+                          Siguiente: Paso {singleNextIdx + 1}
+                          {singleNextTarget.title ? ` · ${singleNextTarget.title}` : ""}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="transition group-hover:translate-x-0.5"
+                        >
+                          →
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className="rounded-md border border-[#b7dccb] bg-[#eef8f3] px-3.5 py-2 text-xs font-extrabold text-[#165b47]">
+                          {path.every((id) => done.includes(id))
+                            ? "✓ Completaste todos los pasos"
+                            : "Último paso del trámite"}
+                        </span>
+                        {steps.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => navigateToPath([steps[0].id], true)}
+                            className={btnGhost}
+                          >
+                            Volver al Paso 1
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
-              </>
-            ) : (
-              <>
-                <div className="flex items-center justify-between gap-2">
-                  {signedIn ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setComposerOpen((c) => (c === "editar" ? null : "editar"))
-                      }
-                      className={composerOpen === "editar" ? btnGhost : btn}
-                    >
-                      {composerOpen === "editar"
-                        ? "Cerrar sugerencia"
-                        : "+ Proponer cambio en este paso"}
-                    </button>
-                  ) : (
-                    <Link href="/entrar" className={btn}>
-                      Entra para proponer un cambio
-                    </Link>
-                  )}
-                </div>
+              </div>
+            </div>
 
-                {composerOpen === "editar" && signedIn && (
-                  <div className="rounded-md border border-[#e3d2a4] bg-[#fffcf2] p-3.5">
-                    <SuggestForm
-                      action={suggestImprovement}
-                      guideId={guideId}
-                      stepIndex={step.id}
-                    />
-                  </div>
-                )}
+            {/* BARRA DEL MINI-FORO DEL PASO ACTUAL */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#d8e3e9] bg-[#f3f8fa] px-5 py-3">
+              <span className="text-xs font-extrabold text-[#2b4c5e]">
+                Mini-foro · Paso {index + 1}
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  aria-expanded={guidedForumOpen && forumTab === "dudas"}
+                  onClick={() => handleGuidedTabToggle("dudas")}
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-extrabold transition ${
+                    guidedForumOpen && forumTab === "dudas"
+                      ? "border-[#142c3c] bg-[#142c3c] text-white"
+                      : "border-[#c2d4de] bg-white text-[#143a4d] hover:border-[#006699]"
+                  }`}
+                >
+                  <span>💬 Dudas ({relatedThreads.length})</span>
+                </button>
+                <button
+                  type="button"
+                  aria-expanded={guidedForumOpen && forumTab === "cambios"}
+                  onClick={() => handleGuidedTabToggle("cambios")}
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-extrabold transition ${
+                    guidedForumOpen && forumTab === "cambios"
+                      ? "border-[#142c3c] bg-[#142c3c] text-white"
+                      : "border-[#c2d4de] bg-white text-[#143a4d] hover:border-[#006699]"
+                  }`}
+                >
+                  <span>✎ Pedir cambio ({stepSuggestionsCount})</span>
+                </button>
+              </div>
+            </div>
 
-                {stepExtras?.[step.id] ? (
-                  stepExtras[step.id]
-                ) : (
-                  <p className="rounded border border-dashed border-[#d8d3c4] bg-[#faf9f4] px-3.5 py-5 text-center text-xs text-[#5d707a]">
-                    Sin cambios propuestos para este paso.
-                  </p>
-                )}
-              </>
+            {guidedForumOpen && (
+              <div className="border-t border-[#d8e3e9] bg-[#fffdf7] p-5">
+                <StepMiniForum
+                  step={step}
+                  stepNumber={index + 1}
+                  guideId={guideId}
+                  area={area}
+                  signedIn={signedIn}
+                  compact={compact}
+                  relatedThreads={relatedThreads}
+                  stepSuggestionsCount={stepSuggestionsCount}
+                  stepExtra={stepExtras?.[step.id]}
+                  forumTab={forumTab}
+                  onTabChange={setForumTab}
+                  composerOpen={composerOpen}
+                  onComposerChange={setComposerOpen}
+                />
+              </div>
             )}
-          </div>
-        </aside>
-      </div>
+          </article>
+        </div>
+      )}
     </div>
   );
 }

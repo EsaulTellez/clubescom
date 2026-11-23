@@ -196,7 +196,39 @@ export function asSteps(value: unknown): GuideStep[] {
     }
   }
   if (!Array.isArray(parsed)) return [];
-  return parsed.filter((item): item is GuideStep => typeof item === "object" && item !== null);
+
+  const rawItems = parsed.filter(
+    (item): item is Record<string, unknown> => typeof item === "object" && item !== null,
+  );
+  const usedIds = new Set<number>();
+
+  return rawItems.map((item, idx) => {
+    const rawId = Number(item.id);
+    let id = Number.isInteger(rawId) && rawId > 0 && !usedIds.has(rawId) ? rawId : idx + 1;
+    while (usedIds.has(id)) {
+      id += 1;
+    }
+    usedIds.add(id);
+
+    const title = typeof item.title === "string" ? item.title : "";
+    const body = typeof item.body === "string" ? item.body : "";
+    const step: GuideStep = { id, title, body };
+
+    if (Array.isArray(item.choices)) {
+      step.choices = item.choices
+        .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null)
+        .map((c) => ({
+          label: typeof c.label === "string" ? c.label : "",
+          to: Number(c.to),
+        }))
+        .filter((c) => Number.isInteger(c.to) && c.to > 0);
+    }
+
+    const imageUrl = normalizeStepImageUrl(item.imageUrl);
+    if (imageUrl) step.imageUrl = imageUrl;
+
+    return step;
+  });
 }
 
 export function asFaqs(value: unknown): GuideFaq[] {

@@ -194,18 +194,27 @@ export function QrDeliveryVerifyForm({
     <form action={action} className="mt-4 space-y-3 border-t border-dashed border-[#dcd9ce] pt-3">
       <input type="hidden" name="id" value={itemId} />
       <input type="hidden" name="handoff_id" value={handoffId} />
-      <div className="flex flex-wrap gap-2">
+      <div className="grid gap-2 sm:grid-cols-2">
         {!scanning ? (
-          <button type="button" onClick={startCameraScan} className={btnGhost}>
-            📷 Escanear QR con cámara
+          <button type="button" onClick={startCameraScan} className={`${btnGhost} w-full`}>
+            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" strokeLinecap="round" />
+              <rect x="8" y="8" width="8" height="8" rx="1" />
+            </svg>
+            Escanear con cámara
           </button>
         ) : (
-          <button type="button" onClick={stopCameraScan} className={btnGhost}>
+          <button type="button" onClick={stopCameraScan} className={`${btnGhost} w-full`}>
             Detener cámara
           </button>
         )}
-        <label className={`${btnGhost} cursor-pointer`}>
-          🖼 Leer QR desde foto / captura
+        <label className={`${btnGhost} w-full cursor-pointer`}>
+          <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <circle cx="8.5" cy="9.5" r="1.5" />
+            <path d="m21 15-4.5-4.5a1.5 1.5 0 0 0-2.1 0L6 19" strokeLinecap="round" />
+          </svg>
+          Leer desde foto
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
@@ -215,7 +224,7 @@ export function QrDeliveryVerifyForm({
         </label>
       </div>
       {scanning && (
-        <div className="overflow-hidden rounded-xl border border-[#b7d4e4] bg-black">
+        <div className="overflow-hidden rounded-sm border border-[#b7d4e4] bg-black">
           <video ref={videoRef} className="h-48 w-full object-cover" muted playsInline />
         </div>
       )}

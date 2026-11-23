@@ -97,6 +97,7 @@ grant execute on function private.club_proposal_docs_ready(uuid) to authenticate
 -- ============================================================================
 -- 5. Envío formal del registro (proyecto ejecutivo sin exigir horarios del alumno; el área propondrá horarios)
 -- ============================================================================
+drop function if exists public.submit_formal_club_request(uuid, text, text, text, jsonb, text, text, text, text);
 create or replace function public.submit_formal_club_request(
   p_proposal_id uuid,
   p_objectives text,
