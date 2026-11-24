@@ -27,17 +27,7 @@ export async function saveCubicle(_prev: FormState, form: FormData): Promise<For
     return { error: "Solo un profesor puede registrar su cubículo." };
   }
 
-  const label = text(form, "label");
-  const building = text(form, "building");
-  const floor = text(form, "floor");
   const roomCodeRaw = text(form, "room_code").toUpperCase();
-  const x = coord(text(form, "x"));
-  const y = coord(text(form, "y"));
-
-  if (label.length < 2 || label.length > 80 || building.length < 2 || building.length > 80) {
-    return { error: "Escribe la etiqueta y el edificio (entre 2 y 80 caracteres)." };
-  }
-  if (floor.length > 20) return { error: "El piso es demasiado largo." };
   if (
     roomCodeRaw &&
     !/^G[01]0[0-9]$/.test(roomCodeRaw) &&
@@ -47,6 +37,30 @@ export async function saveCubicle(_prev: FormState, form: FormData): Promise<For
     return { error: "El código de espacio en el mapa no es válido." };
   }
   const roomCode = roomCodeRaw || null;
+
+  const derivedBuilding = roomCode
+    ? roomCode.startsWith("G")
+      ? "Edificio de Gobierno"
+      : `Edificio ${roomCode[0]}`
+    : "";
+  const derivedFloor = roomCode
+    ? roomCode[1] === "0"
+      ? "Planta baja"
+      : `Piso ${roomCode[1]}`
+    : "";
+
+  const label = text(form, "label") || (roomCode ? `Cubículo ${roomCode}` : "");
+  const building = text(form, "building") || derivedBuilding;
+  const floor = text(form, "floor") || derivedFloor;
+  const xRaw = text(form, "x");
+  const yRaw = text(form, "y");
+  const x = xRaw ? coord(xRaw) : 50;
+  const y = yRaw ? coord(yRaw) : 50;
+
+  if (label.length < 2 || label.length > 80 || building.length < 2 || building.length > 80) {
+    return { error: "Escribe la etiqueta y el edificio (entre 2 y 80 caracteres)." };
+  }
+  if (floor.length > 20) return { error: "El piso es demasiado largo." };
   if (x === null || y === null) {
     return { error: "X y Y deben ser números entre 0 y 100." };
   }
@@ -54,35 +68,33 @@ export async function saveCubicle(_prev: FormState, form: FormData): Promise<For
   const client = await pool.connect();
   try {
     await client.query("begin");
-    const updated = await client.query(
-      `update cubicles
-       set label = $2, building = $3, floor = $4, x = $5, y = $6, room_code = $7
-       where professor_id = $1`,
-      [user.id, label, building, floor || null, x, y, roomCode],
-    );
-    if (!updated.rowCount) {
+    if (roomCode) {
+      // Usa la RPC SECURITY DEFINER para crear/vincular map_rooms y map_room_professors sin violar RLS
+      await client.query("select public.assign_my_map_room($1, $2)", [roomCode, label]);
       await client.query(
-        `insert into cubicles (professor_id, label, building, floor, x, y, room_code)
-         values ($1, $2, $3, $4, $5, $6, $7)`,
+        `update cubicles
+            set label = $2, building = $3, floor = $4, x = $5, y = $6, room_code = $7
+          where professor_id = $1`,
         [user.id, label, building, floor || null, x, y, roomCode],
       );
-    }
-    if (roomCode) {
       await client.query(
-        `insert into map_rooms (code, kind, name, description)
-         values ($1, 'cubiculo', $2, '')
-         on conflict (code) do nothing`,
-        [roomCode, label],
-      );
-      await client.query(
-        `delete from map_room_professors where professor_id = $1 and room_code <> $2`,
-        [user.id, roomCode],
-      );
-      await client.query(
-        `insert into map_room_professors (room_code, professor_id) values ($1, $2) on conflict do nothing`,
+        "delete from map_room_suggestions where room_code = $1 and professor_id = $2",
         [roomCode, user.id],
       );
     } else {
+      const updated = await client.query(
+        `update cubicles
+            set label = $2, building = $3, floor = $4, x = $5, y = $6, room_code = null
+          where professor_id = $1`,
+        [user.id, label, building, floor || null, x, y],
+      );
+      if (!updated.rowCount) {
+        await client.query(
+          `insert into cubicles (professor_id, label, building, floor, x, y, room_code)
+           values ($1, $2, $3, $4, $5, $6, null)`,
+          [user.id, label, building, floor || null, x, y],
+        );
+      }
       await client.query(`delete from map_room_professors where professor_id = $1`, [user.id]);
     }
     await client.query("commit");
@@ -90,7 +102,7 @@ export async function saveCubicle(_prev: FormState, form: FormData): Promise<For
     await client.query("rollback");
     const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
     if (code === "23505") return { error: "Ese cubículo ya está registrado para otra persona." };
-    throw error;
+    return { error: "No se pudo guardar tu cubículo. Inténtalo de nuevo." };
   } finally {
     client.release();
   }

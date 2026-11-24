@@ -163,29 +163,62 @@ export default async function MapaPage() {
   });
 
   const roomInfo: RoomInfo[] = Array.from(roomMap.values());
-  const professorDirectories = allProfessors.map((prof) => {
+  const registeredDirectories = allProfessors.map((prof) => {
     const cub = cubicles.rows.find((c) => c.professor_id === prof.id);
     const assignedRoom = assignments.rows.find((a) => a.id === prof.id);
     const topSuggestion = suggestionsRaw.rows.find(
       (s) => s.professor_id === prof.id && s.upvotes - s.downvotes >= 0,
     );
-    const isConfirmed = Boolean(cub || assignedRoom);
+    const confirmedRoomCode = assignedRoom?.room_code ?? cub?.room_code ?? null;
+    const isConfirmed = Boolean(confirmedRoomCode);
+    const roomCode = confirmedRoomCode ?? topSuggestion?.room_code ?? null;
     const status = isConfirmed ? ("confirmado" as const) : topSuggestion ? ("sugerido" as const) : ("sin_ubicacion" as const);
+    const roomMeta = roomCode ? roomMap.get(roomCode) : undefined;
     return {
       id: prof.id,
+      professor_id: prof.id,
       name: prof.name,
-      room_code: cub?.room_code ?? assignedRoom?.room_code ?? topSuggestion?.room_code ?? null,
+      room_code: roomCode,
+      room_name: roomMeta?.name || cub?.label || null,
       status,
       schedule_text: topSuggestion?.schedule_text || null,
       subjects_text: topSuggestion?.subjects_text || null,
-      location: cub
-        ? `${cub.label} · ${cub.building}${cub.floor ? ` · piso ${cub.floor}` : ""}`
-        : assignedRoom
-          ? `Confirmado en ${assignedRoom.room_code}`
-          : topSuggestion
-            ? `Sugerido en ${topSuggestion.room_code} (${topSuggestion.upvotes} a favor · ${topSuggestion.downvotes} en contra)`
-            : null,
+      location:
+        isConfirmed && cub?.room_code
+          ? `${cub.label} · ${cub.building}${cub.floor ? ` · ${cub.floor}` : ""}`
+          : assignedRoom
+            ? `Confirmado en ${assignedRoom.room_code}`
+            : topSuggestion
+              ? `Sugerido en ${topSuggestion.room_code} (${topSuggestion.upvotes} a favor · ${topSuggestion.downvotes} en contra)`
+              : null,
     };
+  });
+
+  const manualDirectories = suggestionsRaw.rows
+    .filter((s) => !s.professor_id && s.upvotes - s.downvotes >= 0)
+    .map((sug) => {
+      const roomMeta = roomMap.get(sug.room_code);
+      return {
+        id: `manual:${sug.id}`,
+        professor_id: null,
+        name: sug.professor_name,
+        room_code: sug.room_code,
+        room_name: roomMeta?.name || null,
+        status: "sugerido" as const,
+        schedule_text: sug.schedule_text || null,
+        subjects_text: sug.subjects_text || null,
+        location: `Sugerido en ${sug.room_code} (${sug.upvotes} a favor · ${sug.downvotes} en contra)`,
+      };
+    });
+
+  const statusOrder = { confirmado: 0, sugerido: 1, sin_ubicacion: 2 } as const;
+  const professorDirectories = [...registeredDirectories, ...manualDirectories].sort((a, b) => {
+    const byStatus = statusOrder[a.status] - statusOrder[b.status];
+    if (byStatus !== 0) return byStatus;
+    if (a.room_code && b.room_code && a.room_code !== b.room_code) {
+      return a.room_code.localeCompare(b.room_code);
+    }
+    return a.name.localeCompare(b.name, "es-MX");
   });
 
   const canManageRooms =

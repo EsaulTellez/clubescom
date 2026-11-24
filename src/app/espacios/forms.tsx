@@ -15,18 +15,36 @@ function Feedback({ state }: { state: FormState }) {
   return null;
 }
 
-const VALID_ROOMS = [
-  "G000", "G001", "G002", "G003", "G004",
-  "G100", "G101", "G102", "G103", "G104",
-  ...[1, 2, 3, 4].flatMap((b) =>
-    [0, 1, 2].flatMap((lvl) =>
-      Array.from({ length: b < 3 ? 13 : 10 }, (_, i) => `${b}${lvl}${String(i + (b < 3 ? 1 : 4)).padStart(2, "0")}`),
-    ),
-  ),
+const GOBIERNO_ROOM_OPTIONS = [
+  { code: "G000", label: "G000 · Edificio de Gobierno · Planta baja (Escaleras / BBVA)" },
+  { code: "G001", label: "G001 · Edificio de Gobierno · Planta baja (Biblioteca)" },
+  { code: "G002", label: "G002 · Edificio de Gobierno · Planta baja (Gestión Escolar)" },
+  { code: "G003", label: "G003 · Edificio de Gobierno · Planta baja (Pasillo Auditorio)" },
+  { code: "G004", label: "G004 · Edificio de Gobierno · Planta baja (Mesas y sillas)" },
+  { code: "G005", label: "G005 · Edificio de Gobierno · Planta baja (Enfermería / Dentista / Psicólogo)" },
+  { code: "G006", label: "G006 · Edificio de Gobierno · Planta baja (Auditorio)" },
+  { code: "G101", label: "G101 · Edificio de Gobierno · Piso 1 (Subdirección Académica / Sala 14)" },
+  { code: "G102", label: "G102 · Edificio de Gobierno · Piso 1 (Dirección y Consejo)" },
+  { code: "G103", label: "G103 · Edificio de Gobierno · Piso 1 (Becas / SSEIS / CATT)" },
+  { code: "G104", label: "G104 · Edificio de Gobierno · Piso 1 (Subdirección Administrativa)" },
 ];
+
+const BUILDING_ROOM_GROUPS = [1, 2, 3, 4].map((b) => ({
+  label: `Edificio ${b}`,
+  rooms: [0, 1, 2].flatMap((lvl) =>
+    Array.from({ length: b < 3 ? 13 : 10 }, (_, i) => {
+      const code = `${b}${lvl}${String(i + (b < 3 ? 1 : 4)).padStart(2, "0")}`;
+      return {
+        code,
+        label: `${code} · Edificio ${b} · ${lvl === 0 ? "Planta baja" : `Piso ${lvl}`}`,
+      };
+    }),
+  ),
+}));
 
 export function CubicleForm({
   cubicle,
+  onSuccess,
 }: {
   cubicle: {
     label: string;
@@ -36,46 +54,110 @@ export function CubicleForm({
     x: number;
     y: number;
   } | null;
+  onSuccess?: () => void;
 }) {
-  const [state, action, pending] = useActionState(saveCubicle, {});
+  const router = useRouter();
+  const [roomCode, setRoomCode] = useState(cubicle?.room_code ?? "");
+  const [labelText, setLabelText] = useState(cubicle?.label ?? "");
+  const [building, setBuilding] = useState(cubicle?.building ?? "");
+  const [floor, setFloor] = useState(cubicle?.floor ?? "");
+
+  const [state, action, pending] = useActionState(
+    async (prev: FormState, formData: FormData) => {
+      const res = await saveCubicle(prev, formData);
+      if (res.ok) {
+        router.refresh();
+        onSuccess?.();
+      }
+      return res;
+    },
+    {},
+  );
+
+  function handleRoomChange(nextCode: string) {
+    setRoomCode(nextCode);
+    if (!nextCode) return;
+    setBuilding(nextCode.startsWith("G") ? "Edificio de Gobierno" : `Edificio ${nextCode[0]}`);
+    setFloor(nextCode[1] === "0" ? "Planta baja" : `Piso ${nextCode[1]}`);
+    if (!labelText.trim() || /^Cubículo\s+[G1-4]\d{3}$/i.test(labelText.trim())) {
+      setLabelText(`Cubículo ${nextCode}`);
+    }
+  }
+
   return (
     <form action={action} className="space-y-3">
+      <input type="hidden" name="x" value={String(cubicle?.x ?? 50)} />
+      <input type="hidden" name="y" value={String(cubicle?.y ?? 50)} />
       <label className={label}>
-        Espacio en el mapa 3D (opcional)
-        <select className={input} name="room_code" defaultValue={cubicle?.room_code ?? ""}>
-          <option value="">Sin vincular a un salón/cubículo del mapa</option>
-          {VALID_ROOMS.map((code) => (
-            <option key={code} value={code}>
-              Espacio {code} (Edificio {code[0]} · {code[1] === "0" ? "Planta baja" : `Piso ${code[1]}`})
-            </option>
+        Cubículo o salón en el mapa 3D
+        <select
+          className={input}
+          name="room_code"
+          required
+          value={roomCode}
+          onChange={(e) => handleRoomChange(e.target.value)}
+        >
+          <option value="" disabled>
+            Selecciona tu cubículo o salón…
+          </option>
+          <optgroup label="Edificio de Gobierno">
+            {GOBIERNO_ROOM_OPTIONS.map((room) => (
+              <option key={room.code} value={room.code}>
+                {room.label}
+              </option>
+            ))}
+          </optgroup>
+          {BUILDING_ROOM_GROUPS.map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              {group.rooms.map((room) => (
+                <option key={room.code} value={room.code}>
+                  {room.label}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </label>
       <label className={label}>
-        Etiqueta
-        <input className={input} name="label" required defaultValue={cubicle?.label ?? ""} maxLength={80} placeholder="Ej. Cubículo 12" />
-      </label>
-      <label className={label}>
-        Edificio
-        <input className={input} name="building" required defaultValue={cubicle?.building ?? ""} maxLength={80} placeholder="Ej. Edificio 2" />
-      </label>
-      <label className={label}>
-        Piso
-        <input className={input} name="floor" defaultValue={cubicle?.floor ?? ""} maxLength={20} placeholder="Ej. 1" />
+        Etiqueta o referencia
+        <input
+          className={input}
+          name="label"
+          required
+          value={labelText}
+          onChange={(e) => setLabelText(e.target.value)}
+          maxLength={80}
+          placeholder="Ej. Cubículo 2105 · Academia de Redes"
+        />
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className={label}>
-          X (0 a 100)
-          <input className={input} name="x" type="number" min={0} max={100} step="0.1" required defaultValue={cubicle?.x ?? 20} />
+          Edificio
+          <input
+            className={input}
+            name="building"
+            required
+            value={building}
+            onChange={(e) => setBuilding(e.target.value)}
+            maxLength={80}
+            placeholder="Ej. Edificio 2"
+          />
         </label>
         <label className={label}>
-          Y (0 a 100)
-          <input className={input} name="y" type="number" min={0} max={100} step="0.1" required defaultValue={cubicle?.y ?? 20} />
+          Piso
+          <input
+            className={input}
+            name="floor"
+            value={floor}
+            onChange={(e) => setFloor(e.target.value)}
+            maxLength={20}
+            placeholder="Ej. Piso 1"
+          />
         </label>
       </div>
       <Feedback state={state} />
       <SubmitButton className={btn} pending={pending} pendingText="Guardando…">
-        {cubicle ? "Actualizar mi cubículo" : "Crear mi cubículo"}
+        {cubicle?.room_code ? "Actualizar mi cubículo" : "Confirmar mi cubículo"}
       </SubmitButton>
     </form>
   );

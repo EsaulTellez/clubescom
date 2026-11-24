@@ -112,7 +112,7 @@ export async function assignSelfToRoom(
         [code, user.id],
       );
       await client.query(
-        "update cubicles set room_code = null where professor_id = $1 and room_code = $2",
+        "delete from cubicles where professor_id = $1 and room_code = $2",
         [user.id, code],
       );
       await client.query("commit");

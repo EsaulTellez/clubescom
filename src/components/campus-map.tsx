@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { memo, useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FormDialog } from "@/components/form-dialog";
 import { SubmitButton } from "@/components/loading-ui";
@@ -19,8 +20,10 @@ import {
 export type Professor = { id: string; name: string; boleta?: string | null; email?: string | null };
 export type ProfessorDirectoryItem = {
   id: string;
+  professor_id?: string | null;
   name: string;
   room_code: string | null;
+  room_name?: string | null;
   status?: "confirmado" | "sugerido" | "sin_ubicacion";
   schedule_text?: string | null;
   subjects_text?: string | null;
@@ -899,26 +902,61 @@ function ProfessorSelfAssignBox({
   );
 }
 
+function formatRoomLocationBadge(code: string) {
+  if (code.startsWith("G")) {
+    return `Edificio de Gobierno · ${code[1] === "0" ? "Planta baja" : `Piso ${code[1]}`}`;
+  }
+  return `Edificio ${code[0]} · ${levels[Number(code[1])] ?? "Planta baja"}`;
+}
+
+const ROOM_PICKER_GROUPS: Array<{ label: string; rooms: Array<{ code: string; label: string }> }> = [
+  {
+    label: "Edificio de Gobierno",
+    rooms: GOBIERNO_SPACES.map((sp) => ({
+      code: sp.code,
+      label: `${sp.code} · ${sp.shortLabel} (${sp.floor === 0 ? "Planta baja" : `Piso ${sp.floor}`})`,
+    })),
+  },
+  ...[1, 2, 3, 4].map((b) => ({
+    label: `Edificio ${b}`,
+    rooms: [0, 1, 2].flatMap((lvl) =>
+      Array.from({ length: b < 3 ? 13 : 10 }, (_, i) => {
+        const code = `${b}${lvl}${String(i + (b < 3 ? 1 : 4)).padStart(2, "0")}`;
+        return {
+          code,
+          label: `${code} · Edificio ${b} · ${levels[lvl]}`,
+        };
+      }),
+    ),
+  })),
+];
+
 function FormalSuggestionDialog({
   code,
   buildingBadge,
   roomName,
+  initialProfessor = null,
   professors,
   viewer,
   onClose,
 }: {
-  code: string;
-  buildingBadge: string;
-  roomName: string;
+  code?: string;
+  buildingBadge?: string;
+  roomName?: string;
+  initialProfessor?: Professor | null;
   professors: Professor[];
   viewer: NonNullable<CurrentViewer>;
   onClose: () => void;
 }) {
+  const router = useRouter();
+  const [selectedCode, setSelectedCode] = useState(code ?? "");
+  const [roomFilter, setRoomFilter] = useState("");
   const [manualNameMode, setManualNameMode] = useState(false);
   const [state, action, pending] = useActionState(
     async (prev: { error?: string; ok?: string }, formData: FormData) => {
       const res = await suggestProfessorInRoom(prev, formData);
       if (res.ok) {
+        router.refresh();
         onClose();
       }
       return res;
@@ -926,10 +964,35 @@ function FormalSuggestionDialog({
     {},
   );
 
+  const filteredRoomGroups = useMemo(() => {
+    const q = roomFilter.trim().toLocaleLowerCase("es-MX");
+    if (!q) return ROOM_PICKER_GROUPS;
+    return ROOM_PICKER_GROUPS.map((g) => ({
+      ...g,
+      rooms: g.rooms.filter((r) => r.label.toLocaleLowerCase("es-MX").includes(q)),
+    })).filter((g) => g.rooms.length > 0);
+  }, [roomFilter]);
+
+  const isSelfAssignment =
+    viewer.role === "profesor" &&
+    (!initialProfessor || initialProfessor.id === viewer.id);
+
+  const dialogTitle = code
+    ? isSelfAssignment
+      ? "Registrar ubicación en cubículo"
+      : "Sugerir profesor en este cubículo"
+    : initialProfessor
+      ? `Sugerir cubículo para ${initialProfessor.name}`
+      : "Sugerir cubículo o salón";
+
+  const dialogKicker = code
+    ? `${buildingBadge ?? formatRoomLocationBadge(code)} · Espacio ${code}`
+    : "Directorio de cubículos ESCOM";
+
   return (
     <FormDialog
-      title={viewer.role === "profesor" ? "Registrar ubicación en cubículo" : "Sugerir profesor en este cubículo"}
-      kicker={`${buildingBadge} · Espacio ${code}`}
+      title={dialogTitle}
+      kicker={dialogKicker}
       subtitle={roomName}
       accent="amber"
       size="md"
@@ -937,7 +1000,42 @@ function FormalSuggestionDialog({
       disableClose={pending}
     >
       <form action={action} className="space-y-4">
-        <input type="hidden" name="code" value={code} />
+        {code ? (
+          <input type="hidden" name="code" value={code} />
+        ) : (
+          <div className="space-y-1.5">
+            <label className={labelClass}>
+              Cubículo o salón *
+              <input
+                type="search"
+                value={roomFilter}
+                onChange={(e) => setRoomFilter(e.target.value)}
+                placeholder="Filtrar por código (ej. 2105, G101, Edificio 2…)"
+                className={`${input} mb-1.5`}
+              />
+              <select
+                name="code"
+                required
+                value={selectedCode}
+                onChange={(e) => setSelectedCode(e.target.value)}
+                className={input}
+              >
+                <option value="" disabled>
+                  Selecciona el cubículo o salón…
+                </option>
+                {filteredRoomGroups.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.rooms.map((room) => (
+                      <option key={room.code} value={room.code}>
+                        {room.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
 
         <div className="space-y-2">
           {!manualNameMode ? (
@@ -946,7 +1044,8 @@ function FormalSuggestionDialog({
               label="Nombre del profesor *"
               roles={["profesor"]}
               initialUsers={professors}
-              defaultValue={viewer.role === "profesor" ? viewer.id : ""}
+              defaultUser={initialProfessor}
+              defaultValue={!initialProfessor && viewer.role === "profesor" ? viewer.id : ""}
               required
               placeholder="Buscar profesor por nombre o no. de empleado…"
             />
@@ -963,7 +1062,7 @@ function FormalSuggestionDialog({
               />
             </label>
           )}
-          {viewer.role !== "profesor" && (
+          {!initialProfessor && (
             <button
               type="button"
               onClick={() => setManualNameMode((v) => !v)}
@@ -1019,7 +1118,7 @@ function FormalSuggestionDialog({
             Cancelar
           </button>
           <SubmitButton pending={pending} pendingText="Guardando…" className={btn}>
-            {viewer.role === "profesor" ? "Guardar ubicación" : "Publicar sugerencia"}
+            {isSelfAssignment && !manualNameMode ? "Guardar ubicación" : "Publicar sugerencia"}
           </SubmitButton>
         </div>
       </form>
@@ -1051,8 +1150,11 @@ export function CampusMap({
 }) {
   const [activeTab, setActiveTab] = useState<"mapa" | "directorio">("mapa");
   const [directoryQuery, setDirectoryQuery] = useState("");
-  const [directoryStatus, setDirectoryStatus] = useState<"all" | "confirmado" | "sugerido" | "sin_ubicacion">("all");
-  const [suggestionDialogOpen, setSuggestionDialogOpen] = useState(false);
+  const [directoryStatus, setDirectoryStatus] = useState<"ubicados" | "confirmado" | "sugerido" | "sin_ubicacion">("ubicados");
+  const [suggestionDialogState, setSuggestionDialogState] = useState<{
+    code?: string;
+    professor?: Professor | null;
+  } | null>(null);
   const [cubicleDialogOpen, setCubicleDialogOpen] = useState(false);
   const [level, setLevel] = useState<number | null>(null);
   const [selected, setSelected] = useState("");
@@ -1073,15 +1175,46 @@ export function CampusMap({
   const drag = useRef<{ x: number; y: number; angle: number; tilt: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
 
+  const directoryCounts = useMemo(() => {
+    let confirmado = 0;
+    let sugerido = 0;
+    let sinUbicacion = 0;
+    for (const p of professorDirectories) {
+      if (p.status === "confirmado") confirmado += 1;
+      else if (p.status === "sugerido") sugerido += 1;
+      else sinUbicacion += 1;
+    }
+    return {
+      ubicados: confirmado + sugerido,
+      confirmado,
+      sugerido,
+      sin_ubicacion: sinUbicacion,
+    };
+  }, [professorDirectories]);
+
   const filteredDirectory = useMemo(() => {
     const q = directoryQuery.trim().toLocaleLowerCase("es-MX");
     return professorDirectories.filter((prof) => {
-      if (directoryStatus !== "all" && prof.status !== directoryStatus) return false;
+      if (directoryStatus === "ubicados") {
+        if (prof.status === "sin_ubicacion" || !prof.room_code) return false;
+      } else if (prof.status !== directoryStatus) {
+        return false;
+      }
       if (!q) return true;
-      return `${prof.name} ${prof.room_code ?? ""} ${prof.location ?? ""} ${prof.subjects_text ?? ""} ${prof.schedule_text ?? ""}`
+      return `${prof.name} ${prof.room_code ?? ""} ${prof.room_name ?? ""} ${prof.location ?? ""} ${prof.subjects_text ?? ""} ${prof.schedule_text ?? ""}`
         .toLocaleLowerCase("es-MX")
         .includes(q);
     });
+  }, [professorDirectories, directoryQuery, directoryStatus]);
+
+  const unlocatedSearchMatches = useMemo(() => {
+    const q = directoryQuery.trim().toLocaleLowerCase("es-MX");
+    if (!q || directoryStatus === "sin_ubicacion") return [];
+    return professorDirectories.filter(
+      (prof) =>
+        (prof.status === "sin_ubicacion" || !prof.room_code) &&
+        prof.name.toLocaleLowerCase("es-MX").includes(q),
+    );
   }, [professorDirectories, directoryQuery, directoryStatus]);
 
   useEffect(() => {
@@ -1243,7 +1376,7 @@ export function CampusMap({
                 onClick={() => setCubicleDialogOpen(true)}
                 className={btnGhost}
               >
-                {myCubicle ? "Actualizar mi cubículo" : "Registrar mi cubículo"}
+                {myCubicle?.room_code ? `Mi cubículo (${myCubicle.room_code})` : "Colocar mi cubículo"}
               </button>
             )}
           </div>
@@ -1266,7 +1399,7 @@ export function CampusMap({
             className="catalog-tab"
           >
             <span>Directorio de profesores</span>
-            <small>{professorDirectories.length}</small>
+            <small>{directoryCounts.ubicados}</small>
           </button>
         </nav>
       </header>
@@ -1278,15 +1411,15 @@ export function CampusMap({
             <CatalogSearch
               value={directoryQuery}
               onChange={setDirectoryQuery}
-              label="Buscar profesor, cubículo, materia u horario"
+              label="Buscar cubículo, salón, profesor, materia u horario"
             />
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {(
                 [
-                  ["all", `Todos (${professorDirectories.length})`],
-                  ["confirmado", `Confirmados (${professorDirectories.filter((p) => p.status === "confirmado").length})`],
-                  ["sugerido", `Sugeridos (${professorDirectories.filter((p) => p.status === "sugerido").length})`],
-                  ["sin_ubicacion", `Sin ubicar (${professorDirectories.filter((p) => p.status === "sin_ubicacion").length})`],
+                  ["ubicados", `Con cubículo (${directoryCounts.ubicados})`],
+                  ["confirmado", `Confirmados (${directoryCounts.confirmado})`],
+                  ["sugerido", `Sugeridos (${directoryCounts.sugerido})`],
+                  ["sin_ubicacion", `Sin cubículo (${directoryCounts.sin_ubicacion})`],
                 ] as const
               ).map(([st, lbl]) => (
                 <button
@@ -1302,79 +1435,218 @@ export function CampusMap({
                   {lbl}
                 </button>
               ))}
+              {viewer && (
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => setSuggestionDialogState({})}
+                  className="rounded border border-[#c9b37c] bg-[#fff9e8] px-3 py-1.5 text-xs font-extrabold text-[#7a4f06] transition hover:border-[#8a5708] hover:bg-[#fdf1cf]"
+                >
+                  + Sugerir cubículo
+                </button>
+              )}
             </div>
           </div>
 
           {filteredDirectory.length === 0 ? (
-            <p className="rounded-md border border-[#d6d9d0] bg-[#fffdf7] p-8 text-center text-sm text-[#5d707a]">
-              No hay profesores que coincidan con tu búsqueda.
-            </p>
+            <div className="rounded-md border border-[#d6d9d0] bg-[#fffdf7] p-8 text-center">
+              <p className="text-sm font-medium text-[#4f646f]">
+                {directoryQuery.trim()
+                  ? `No hay cubículos ni salones con profesor que coincidan con «${directoryQuery.trim()}».`
+                  : directoryStatus === "sin_ubicacion"
+                    ? "Todos los profesores registrados ya tienen cubículo o sugerencia."
+                    : "Aún no hay cubículos o salones con profesor registrado."}
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                {directoryStatus !== "sin_ubicacion" && directoryCounts.sin_ubicacion > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setDirectoryStatus("sin_ubicacion")}
+                    className={btnGhost}
+                  >
+                    Ver profesores sin cubículo ({directoryCounts.sin_ubicacion})
+                  </button>
+                )}
+                {viewer?.role === "profesor" && (
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    onClick={() => setCubicleDialogOpen(true)}
+                    className={btn}
+                  >
+                    {myCubicle?.room_code ? "Actualizar mi cubículo" : "Colocar mi cubículo"}
+                  </button>
+                )}
+                {viewer && viewer.role !== "profesor" && (
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    onClick={() => setSuggestionDialogState({})}
+                    className={btn}
+                  >
+                    + Sugerir cubículo
+                  </button>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredDirectory.map((prof) => (
-                <article
-                  key={prof.id}
-                  className="flex flex-col justify-between overflow-hidden rounded-md border border-[#c8d0ca] bg-[#fffdf7] shadow-[0_2px_6px_rgba(20,44,60,0.04)]"
-                >
-                  {/* Placa superior tipo señalética ESCOM */}
-                  <div className="flex items-center justify-between gap-2 bg-[#162f3e] px-4 py-2 text-xs text-[#f2f0e6]">
-                    <span className="font-mono text-sm font-black tracking-wider text-[#e3b341]">
-                      {prof.room_code ?? "SIN CUBÍCULO"}
-                    </span>
-                    <span
-                      className={`rounded px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${
-                        prof.status === "confirmado"
-                          ? "bg-[#157154] text-white"
-                          : prof.status === "sugerido"
-                            ? "bg-[#b88917] text-[#142c3c]"
-                            : "bg-[#2c4a5c] text-[#c7d9e3]"
-                      }`}
-                    >
-                      {prof.status === "confirmado"
-                        ? "Confirmado"
-                        : prof.status === "sugerido"
-                          ? "Sugerido"
-                          : "Por ubicar"}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-1 flex-col gap-2.5 p-4">
-                    <h2 className="text-base font-extrabold leading-snug text-[#142c3c]">{prof.name}</h2>
-                    <p className="text-xs font-medium text-[#4f646f]">
-                      {prof.location ?? "Ubicación pendiente de registro o sugerencia."}
-                    </p>
-                    {(prof.schedule_text || prof.subjects_text) && (
-                      <div className="flex flex-wrap gap-1.5 text-[11px]">
-                        {prof.schedule_text && (
-                          <span className="rounded border border-[#d6e0dc] bg-[#f3f8f6] px-2 py-0.5 font-semibold text-[#234d42]">
-                            Horario: {prof.schedule_text}
-                          </span>
-                        )}
-                        {prof.subjects_text && (
-                          <span className="rounded border border-[#d5e2ea] bg-[#f2f8fc] px-2 py-0.5 font-semibold text-[#164b68]">
-                            {prof.subjects_text}
+              {filteredDirectory.map((prof) => {
+                const targetProfId = prof.professor_id ?? (prof.id.startsWith("manual:") ? null : prof.id);
+                const isOwnCard = Boolean(viewer?.role === "profesor" && targetProfId && viewer.id === targetProfId);
+                const matchedProf = targetProfId ? professors.find((p) => p.id === targetProfId) ?? { id: targetProfId, name: prof.name } : null;
+                return (
+                  <article
+                    key={prof.id}
+                    className="flex flex-col justify-between overflow-hidden rounded-md border border-[#c8d0ca] bg-[#fffdf7] shadow-[0_2px_6px_rgba(20,44,60,0.04)]"
+                  >
+                    {/* Placa superior tipo señalética ESCOM */}
+                    <div className="flex items-center justify-between gap-2 bg-[#162f3e] px-4 py-2 text-xs text-[#f2f0e6]">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="font-mono text-sm font-black tracking-wider text-[#e3b341]">
+                          {prof.room_code ?? "SIN CUBÍCULO"}
+                        </span>
+                        {prof.room_code && (
+                          <span className="truncate text-[11px] font-semibold text-[#a8c5d4]">
+                            {formatRoomLocationBadge(prof.room_code)}
                           </span>
                         )}
                       </div>
-                    )}
-                    {prof.room_code && (
-                      <div className="mt-auto pt-2">
+                      <span
+                        className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${
+                          prof.status === "confirmado"
+                            ? "bg-[#157154] text-white"
+                            : prof.status === "sugerido"
+                              ? "bg-[#b88917] text-[#142c3c]"
+                              : "bg-[#2c4a5c] text-[#c7d9e3]"
+                        }`}
+                      >
+                        {prof.status === "confirmado"
+                          ? "Confirmado"
+                          : prof.status === "sugerido"
+                            ? "Sugerido"
+                            : "Sin cubículo"}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-1 flex-col gap-2.5 p-4">
+                      <h2 className="text-base font-extrabold leading-snug text-[#142c3c]">{prof.name}</h2>
+                      <p className="text-xs font-medium text-[#4f646f]">
+                        {prof.location ?? "Sin cubículo o salón registrado todavía."}
+                      </p>
+                      {(prof.schedule_text || prof.subjects_text) && (
+                        <div className="flex flex-wrap gap-1.5 text-[11px]">
+                          {prof.schedule_text && (
+                            <span className="rounded border border-[#d6e0dc] bg-[#f3f8f6] px-2 py-0.5 font-semibold text-[#234d42]">
+                              Horario: {prof.schedule_text}
+                            </span>
+                          )}
+                          {prof.subjects_text && (
+                            <span className="rounded border border-[#d5e2ea] bg-[#f2f8fc] px-2 py-0.5 font-semibold text-[#164b68]">
+                              {prof.subjects_text}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
+                        {prof.room_code ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveTab("mapa");
+                                handleSelectSpace(prof.room_code!);
+                              }}
+                              className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[#006699] hover:underline"
+                            >
+                              <span>Ubicar en el mapa 3D</span>
+                              <span aria-hidden="true">→</span>
+                            </button>
+                            {isOwnCard && (
+                              <button
+                                type="button"
+                                aria-haspopup="dialog"
+                                onClick={() => setCubicleDialogOpen(true)}
+                                className="rounded border border-[#b4dcd1] bg-[#f2fbf8] px-2.5 py-1 text-xs font-extrabold text-[#0b5c46] hover:bg-[#e1f3ee]"
+                              >
+                                Cambiar mi cubículo
+                              </button>
+                            )}
+                          </>
+                        ) : isOwnCard ? (
+                          <button
+                            type="button"
+                            aria-haspopup="dialog"
+                            onClick={() => setCubicleDialogOpen(true)}
+                            className="inline-flex items-center gap-1 rounded bg-[#0d7a5f] px-3 py-1.5 text-xs font-extrabold text-white shadow-sm hover:bg-[#09634c]"
+                          >
+                            Colocar mi cubículo
+                          </button>
+                        ) : viewer && matchedProf ? (
+                          <button
+                            type="button"
+                            aria-haspopup="dialog"
+                            onClick={() => setSuggestionDialogState({ professor: matchedProf })}
+                            className="inline-flex items-center gap-1 rounded border border-[#c9b37c] bg-[#fff9e8] px-3 py-1.5 text-xs font-extrabold text-[#7a4f06] transition hover:border-[#8a5708] hover:bg-[#fdf1cf]"
+                          >
+                            <span>+</span>
+                            <span>Sugerir cubículo</span>
+                          </button>
+                        ) : (
+                          <span className="text-[11px] font-medium text-[#6c7d86]">
+                            Inicia sesión para sugerir su cubículo
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+
+          {unlocatedSearchMatches.length > 0 && (
+            <div className="space-y-2.5 border-t border-[#d4dad2] pt-4">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#526771]">
+                Coincidencias sin cubículo registrado ({unlocatedSearchMatches.length})
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {unlocatedSearchMatches.map((prof) => {
+                  const targetProfId = prof.professor_id ?? prof.id;
+                  const isOwnCard = Boolean(viewer?.role === "profesor" && viewer.id === targetProfId);
+                  const matchedProf = professors.find((p) => p.id === targetProfId) ?? { id: targetProfId, name: prof.name };
+                  return (
+                    <div
+                      key={`unloc-${prof.id}`}
+                      className="flex items-center justify-between gap-3 rounded-md border border-[#d4dad2] bg-[#fffdf7] px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-extrabold text-[#142c3c]">{prof.name}</p>
+                        <p className="text-xs text-[#61737d]">Sin cubículo asignado</p>
+                      </div>
+                      {isOwnCard ? (
                         <button
                           type="button"
-                          onClick={() => {
-                            setActiveTab("mapa");
-                            handleSelectSpace(prof.room_code!);
-                          }}
-                          className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[#006699] hover:underline"
+                          aria-haspopup="dialog"
+                          onClick={() => setCubicleDialogOpen(true)}
+                          className="shrink-0 rounded bg-[#0d7a5f] px-3 py-1.5 text-xs font-extrabold text-white hover:bg-[#09634c]"
                         >
-                          <span>Ubicar en el mapa 3D</span>
-                          <span aria-hidden="true">→</span>
+                          Colocar mi cubículo
                         </button>
-                      </div>
-                    )}
-                  </div>
-                </article>
-              ))}
+                      ) : viewer ? (
+                        <button
+                          type="button"
+                          aria-haspopup="dialog"
+                          onClick={() => setSuggestionDialogState({ professor: matchedProf })}
+                          className="shrink-0 rounded border border-[#c9b37c] bg-[#fff9e8] px-2.5 py-1.5 text-xs font-extrabold text-[#7a4f06] hover:border-[#8a5708] hover:bg-[#fdf1cf]"
+                        >
+                          + Sugerir cubículo
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </section>
@@ -1867,7 +2139,7 @@ export function CampusMap({
                     <button
                       type="button"
                       aria-haspopup="dialog"
-                      onClick={() => setSuggestionDialogOpen(true)}
+                      onClick={() => setSuggestionDialogState({ code: selected })}
                       className="inline-flex items-center gap-1 rounded border border-[#c9b37c] bg-[#fff9e8] px-2.5 py-1 text-xs font-extrabold text-[#7a4f06] transition hover:border-[#8a5708] hover:bg-[#fdf1cf]"
                     >
                       <span>+</span>
@@ -2011,28 +2283,33 @@ export function CampusMap({
       )}
 
       {/* DIÁLOGO FORMAL DE SUGERENCIA DE CUBÍCULO */}
-      {suggestionDialogOpen && selected && viewer && (
+      {suggestionDialogState && viewer && (
         <FormalSuggestionDialog
-          key={`sug-dialog-${selected}`}
-          code={selected}
-          buildingBadge={buildingBadge}
-          roomName={selectedRoom?.name || govMeta?.shortLabel || `Espacio ${selected}`}
+          key={`sug-dialog-${suggestionDialogState.code ?? "any"}-${suggestionDialogState.professor?.id ?? "any"}`}
+          code={suggestionDialogState.code}
+          buildingBadge={suggestionDialogState.code ? buildingBadge : undefined}
+          roomName={
+            suggestionDialogState.code
+              ? selectedRoom?.name || govMeta?.shortLabel || `Espacio ${suggestionDialogState.code}`
+              : undefined
+          }
+          initialProfessor={suggestionDialogState.professor ?? null}
           professors={professors}
           viewer={viewer}
-          onClose={() => setSuggestionDialogOpen(false)}
+          onClose={() => setSuggestionDialogState(null)}
         />
       )}
 
       {/* DIÁLOGO: MI CUBÍCULO (PROFESORES) */}
       {cubicleDialogOpen && viewer?.role === "profesor" && (
         <FormDialog
-          title={myCubicle ? "Actualizar mi cubículo" : "Registrar mi cubículo"}
+          title={myCubicle?.room_code ? "Actualizar mi cubículo" : "Colocar mi cubículo"}
           kicker="Profesorado ESCOM"
           accent="teal"
           size="md"
           onClose={() => setCubicleDialogOpen(false)}
         >
-          <CubicleForm cubicle={myCubicle} />
+          <CubicleForm cubicle={myCubicle} onSuccess={() => setCubicleDialogOpen(false)} />
         </FormDialog>
       )}
     </div>
