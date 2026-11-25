@@ -64,24 +64,22 @@ export function StoryCarousel({ items }: { items: StoryCard[] }) {
                 setSelected(item);
                 trackAvisoInteraction(item.id, "view");
               }}
-              className="group flex w-56 shrink-0 snap-start flex-col overflow-hidden rounded-sm border border-[#d6d3c6] bg-[#10212b] text-left sm:w-64"
+              className="group relative flex w-56 shrink-0 snap-start flex-col overflow-hidden rounded-sm border border-[#d6d3c6] bg-[#10212b] pt-52 text-left sm:w-64"
             >
-              <div className="relative h-52 w-full overflow-hidden bg-[#0c1a23]">
-                <img
-                  src={item.image}
-                  alt={item.title}
-                  onLoad={updateScrollState}
-                  className="h-full w-full object-cover object-top transition duration-300 group-hover:scale-[1.03]"
-                />
-              </div>
-              <div className="flex flex-1 flex-col justify-between border-t border-white/10 bg-[#12232e] p-3.5 text-white">
+              <img
+                src={item.image}
+                alt={item.title}
+                onLoad={updateScrollState}
+                className="absolute inset-0 h-full w-full object-cover object-top transition duration-300 group-hover:scale-[1.03]"
+              />
+              <div className="relative flex flex-1 flex-col justify-between bg-linear-to-t from-[#081b29]/98 to-[#12354c]/72 p-3.5 text-white">
                 <div>
-                  <p className="text-[11px] font-semibold text-[#9fc5d8]">{item.dateLabel}</p>
+                  <p className="text-[11px] font-semibold text-white">{item.dateLabel}</p>
                   <h3 className="mt-1 line-clamp-2 text-sm font-bold leading-snug text-white">
                     {item.title}
                   </h3>
                 </div>
-                <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-white/75">
+                <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-white/95">
                   {item.summary}
                 </p>
               </div>

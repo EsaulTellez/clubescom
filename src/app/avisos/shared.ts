@@ -103,6 +103,12 @@ export function socialTemplate(category: string, title: string, body: string) {
   return `ESCOM | ${category}: ${title.trim()}. ${body.trim().slice(0, 180)}`;
 }
 
+export function formatAvisoDeadline(value: string) {
+  return "Hasta el " + new Intl.DateTimeFormat("es-MX", {
+    day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+  }).format(new Date(value + "T00:00:00Z"));
+}
+
 export function formatWhen(value: Date | string) {
   return new Intl.DateTimeFormat("es-MX", {
     dateStyle: "medium",
@@ -124,6 +130,11 @@ export function toDatetimeLocal(value: Date | string) {
   const get = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
+
+export function nextAvisoMidnight() {
+  const today = toDatetimeLocal(new Date()).slice(0, 10);
+  return Date.parse(today + "T24:00:00-06:00");
 }
 
 export function parsePublishAt(value: string) {

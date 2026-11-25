@@ -1,5 +1,5 @@
 import { pool } from "@/lib/db";
-import { demoClubArt, demoNoticeArt, demoNoticeAuthor } from "@/lib/demo-art";
+import { demoClubArt, demoNoticeAuthor } from "@/lib/demo-art";
 
 export type FeedMode = "para_ti" | "clubes" | "avisos" | "foro" | "eventos" | "recientes";
 
@@ -268,6 +268,7 @@ export async function getHomeFeedBatch({
       join public.users u on u.id = a.author_id
       where (a.is_public or $2::boolean)
         and a.publish_at <= now()
+        and nullif(btrim(a.image_url), '') is not null
 
       union all
 
@@ -429,9 +430,7 @@ export async function getHomeFeedBatch({
 
   const items: FeedItem[] = rows.map((row) => {
     const pubDate = new Date(row.publish_at);
-    const art =
-      row.image_url ??
-      (row.source_type === "aviso" ? demoNoticeArt(row.title) : null);
+    const art = row.image_url;
 
     const authorName =
       row.source_type === "aviso" && demoNoticeAuthor(row.title) !== "Comunidad ESCOM"

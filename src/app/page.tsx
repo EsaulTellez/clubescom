@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { canManageAvisos, toDatetimeLocal } from "@/app/avisos/shared";
+import { canManageAvisos, formatAvisoDeadline, nextAvisoMidnight, toDatetimeLocal } from "@/app/avisos/shared";
 import { canManageSpaceByName, canPublishAnySpaceEvents } from "@/app/espacios/shared";
 import { AttendButton } from "@/components/attend-button";
 import { HomeFeed } from "@/components/home-feed";
@@ -7,7 +7,7 @@ import { RealtimeRefresh } from "@/components/realtime-refresh";
 import { StoryCarousel, type StoryCard } from "@/components/story-carousel";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
-import { demoNoticeArt, demoNoticeAuthor } from "@/lib/demo-art";
+import { demoNoticeAuthor } from "@/lib/demo-art";
 import {
   getHomeFeedBatch,
   getTrendingLeaderboards,
@@ -24,7 +24,8 @@ type ComunicadoHighlight = {
   title: string;
   body: string;
   publish_at: Date;
-  image_url: string | null;
+  image_url: string;
+  valid_until: string | null;
   external_url: string | null;
 };
 
@@ -64,11 +65,11 @@ export default async function HomePage() {
 
     const [highlightsRes, feedBatch, leaderboards, clubsRes, spacesRes] = await Promise.all([
       pool.query<ComunicadoHighlight>(
-        `select id, title, body, publish_at, image_url, external_url
-         from public.avisos
-         where (is_public or $1::boolean) and publish_at <= now()
-         order by (image_url is not null) desc, featured desc, publish_at desc
-         limit 8`,
+        `select a.id, a.title, a.body, a.publish_at, a.valid_until::text, a.image_url, a.external_url
+         from public.aviso_carousel c
+         join public.avisos a on a.id = c.id
+         where a.is_public or $1::boolean
+         order by c.position`,
         [Boolean(user)],
       ),
       getHomeFeedBatch({
@@ -93,21 +94,15 @@ export default async function HomePage() {
         : Promise.resolve({ rows: [] as { id: string; name: string }[] }),
     ]);
 
-    stories = highlightsRes.rows
-      .map((aviso): StoryCard | null => {
-        const img = aviso.image_url ?? demoNoticeArt(aviso.title);
-        if (!img) return null;
-        return {
-          id: aviso.id,
-          title: aviso.title,
-          summary: aviso.body,
-          dateLabel: shortWhen(new Date(aviso.publish_at)),
-          author: demoNoticeAuthor(aviso.title),
-          image: img,
-          externalUrl: aviso.external_url,
-        };
-      })
-      .filter((item): item is StoryCard => item !== null);
+    stories = highlightsRes.rows.map((aviso) => ({
+      id: aviso.id,
+      title: aviso.title,
+      summary: aviso.body,
+      dateLabel: aviso.valid_until ? formatAvisoDeadline(aviso.valid_until) : shortWhen(aviso.publish_at),
+      author: demoNoticeAuthor(aviso.title),
+      image: aviso.image_url,
+      externalUrl: aviso.external_url,
+    }));
 
     initialBatch = feedBatch;
     popularClubs = leaderboards.popularClubs;
@@ -121,6 +116,7 @@ export default async function HomePage() {
   return (
     <div className="board-page">
       <RealtimeRefresh
+        refreshAt={nextAvisoMidnight()}
         tables={["avisos", "clubs", "club_posts", "club_events", "space_events", "questions", "event_attendees"]}
       />
 
@@ -132,7 +128,7 @@ export default async function HomePage() {
 
       <div className="board-layout">
         <div className="board-main">
-          {stories.length > 0 && (
+          {!dbDown && (
             <section className="board-pinned" aria-labelledby="comunicados-heading">
               <div className="edition-rule mb-4 flex items-baseline justify-between gap-3">
                 <h1 id="comunicados-heading" className="edition-title">
@@ -140,7 +136,11 @@ export default async function HomePage() {
                 </h1>
                 <Link href="/avisos" className="shrink-0 text-sm font-semibold text-[#155775] hover:underline">Ver avisos →</Link>
               </div>
-              <StoryCarousel items={stories} />
+              {stories.length > 0 ? (
+                <StoryCarousel items={stories} />
+              ) : (
+                <p className="text-sm text-[#53656c]">Hoy no hay avisos vigentes con cartel.</p>
+              )}
             </section>
           )}
 

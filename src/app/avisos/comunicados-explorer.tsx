@@ -13,6 +13,7 @@ import { AvisoForm } from "./aviso-form";
 import { DeleteAviso } from "./delete-aviso";
 import {
   categoryLabel,
+  formatAvisoDeadline,
   linkDomain,
   SOURCE_AREAS,
   sourceAreaLabel,
@@ -38,6 +39,8 @@ export type ComunicadoItem = {
   linkClicksCount: number;
   publishAtIso: string;
   publishAtLocal: string;
+  validUntil: string | null;
+  carouselPosition: number | null;
   publishDateFormatted: string;
   publishTimeFormatted: string;
   socialTwitter: string | null;
@@ -253,8 +256,10 @@ export function ComunicadosExplorer({
     });
   }, [items, categoryFilter, areaFilter, onlyWithPoster, onlyWithLink, query]);
 
-  const featuredItems = useMemo(
-    () => items.filter((item) => item.featured && !item.isScheduled),
+  const carouselItems = useMemo(
+    () => items
+      .filter((item) => item.carouselPosition !== null)
+      .sort((a, b) => a.carouselPosition! - b.carouselPosition!),
     [items],
   );
 
@@ -347,7 +352,7 @@ export function ComunicadosExplorer({
     updateCarouselState();
     window.addEventListener("resize", updateCarouselState);
     return () => window.removeEventListener("resize", updateCarouselState);
-  }, [featuredItems.length]);
+  }, [carouselItems.length]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -755,14 +760,14 @@ export function ComunicadosExplorer({
         </section>
       )}
 
-      {/* Vitrina de comunicados destacados (cuando no se está filtrando por texto) */}
-      {!query.trim() && featuredItems.length > 0 && (
-        <section className="min-w-0" aria-labelledby="destacados-heading">
+      {/* Carrusel de avisos vigentes (cuando no se está filtrando por texto) */}
+      {!query.trim() && carouselItems.length > 0 && (
+        <section className="min-w-0" aria-labelledby="avisos-vigentes-heading">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 id="destacados-heading" className="text-lg font-extrabold tracking-tight text-[#15394d] sm:text-xl">
-              Destacados
+            <h2 id="avisos-vigentes-heading" className="text-lg font-extrabold tracking-tight text-[#15394d] sm:text-xl">
+              Avisos vigentes
             </h2>
-            <span className="font-mono text-xs text-[#53656c]">{featuredItems.length}</span>
+            <span className="font-mono text-xs text-[#53656c]">{carouselItems.length}</span>
           </div>
 
           <div className="relative">
@@ -771,7 +776,7 @@ export function ComunicadosExplorer({
               onScroll={updateCarouselState}
               className="flex snap-x snap-mandatory items-stretch gap-4 overflow-x-auto pb-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-              {featuredItems.map((item) => (
+              {carouselItems.map((item) => (
                 <button key={item.id} type="button" onClick={() => openComunicado(item.id)}
                   className="group flex w-[min(84%,23rem)] shrink-0 snap-start flex-col border-t-2 border-[#264b58] bg-[#fffdf7] text-left sm:w-[calc((100%-2rem)/3)]">
                   {item.imageUrl && (
@@ -783,7 +788,9 @@ export function ComunicadosExplorer({
                   <div className="w-full p-4">
                     <p className="flex flex-wrap justify-between gap-2 text-xs text-[#53656c]">
                       <span className={`font-semibold ${CATEGORY_STYLES[item.category].badgeText}`}>{categoryLabel(item.category)}</span>
-                      <time dateTime={item.publishAtIso}>{item.publishDateFormatted}</time>
+                      <time dateTime={item.validUntil ?? item.publishAtIso}>
+                        {item.validUntil ? formatAvisoDeadline(item.validUntil) : item.publishDateFormatted}
+                      </time>
                     </p>
                     <h3 className="mt-2 text-xl leading-tight font-bold text-[#213d49] group-hover:underline decoration-1 underline-offset-4 sm:text-2xl">{item.title}</h3>
                     <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[#4c6068]">{item.body}</p>
@@ -1272,6 +1279,7 @@ export function ComunicadosExplorer({
                 featured: formModal.item.featured,
                 isPublic: formModal.item.isPublic,
                 publishAt: formModal.item.publishAtLocal,
+                validUntil: formModal.item.validUntil,
                 externalUrl: formModal.item.externalUrl ?? "",
                 socialCopy: formModal.item.socialCopy ?? "",
                 socialTwitter: formModal.item.socialTwitter ?? "",

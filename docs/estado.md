@@ -52,6 +52,10 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 ## Cambios
 
+- 2026-11-25. CU-08 sigue parcial. Inicio conserva la sección Comunicados y el enlace al mural cuando no hay carteles vigentes. La demo local incluye tres avisos con vigencias distintas para recorrer el carrusel.
+
+- 2026-11-25. CU-07, CU-08 y CU-COM-04-01 siguen parciales. Los carruseles de Inicio y Avisos ordenan todos los avisos publicados con cartel por fin de vigencia. Sin vigencia explícita se muestran solo el día de publicación en Ciudad de México. Los avisos sin imagen se consultan en el mural de Avisos.
+
 - 2026-11-24. CU-25 sigue `parcial`. Las puertas de `3x01` y `4x01` abren al pasillo `01–02` mirando hacia `3x02` y `4x02`; junto a los baños del `3013` y `4013` se agregaron Papelería (izquierda) y Cafetería (derecha) solo en planta baja, dejando esos cuadros como pasillo abierto con barda gris en pisos 1 y 2; y los puentes de Gobierno en piso 1 se bajaron al borde sur de Gobierno (altura de `1102`/`2102`) en línea con su pasillo de barda gris hacia la Explanada.
 
 - 2026-11-24. CU-25 sigue `parcial`. Los edificios 1 a 4 usan paredes grises sin rayas azules, con puertas cafés en cada salón mirando a los barandales y ventanas en la cara opuesta de los edificios 1 y 2; se agregaron `3x01` y `4x01` con el pasillo 01–02 alineado al puente 07–08 (`20261124000400_map_classroom_01.sql`), y en los edificios 1 y 2 los baños quedan Hombres a la izquierda (oeste) y Mujeres a la derecha (este) viendo al norte.

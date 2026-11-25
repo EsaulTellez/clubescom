@@ -20,6 +20,7 @@ type Aviso = {
   featured: boolean;
   is_public: boolean;
   publish_at: Date;
+  valid_until: string | null;
   external_url: string | null;
   social_copy: string | null;
   social_twitter: string | null;
@@ -45,7 +46,7 @@ export default async function EditarAvisoPage({ params }: { params: Promise<{ id
   }
 
   const { rows } = await pool.query<Aviso>(
-    `select id, author_id, title, body, category, source_area, featured, is_public, publish_at, external_url, social_copy, social_twitter, social_facebook, social_instagram, image_url
+    `select id, author_id, title, body, category, source_area, featured, is_public, publish_at, valid_until::text, external_url, social_copy, social_twitter, social_facebook, social_instagram, image_url
      from avisos where id = $1`,
     [id],
   );
@@ -81,6 +82,7 @@ export default async function EditarAvisoPage({ params }: { params: Promise<{ id
             featured: aviso.featured,
             isPublic: aviso.is_public,
             publishAt: toDatetimeLocal(aviso.publish_at),
+            validUntil: aviso.valid_until,
             externalUrl: aviso.external_url ?? "",
             socialCopy: aviso.social_copy ?? "",
             socialTwitter: aviso.social_twitter ?? "",

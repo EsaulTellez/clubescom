@@ -24,6 +24,7 @@ type Initial = {
   featured: boolean;
   isPublic: boolean;
   publishAt: string;
+  validUntil?: string | null;
   externalUrl?: string;
   socialCopy: string;
   socialTwitter?: string;
@@ -223,7 +224,7 @@ export function AvisoForm({
           />
         </div>
 
-        <div className="grid gap-3 rounded-md border border-[#e2ded1] bg-[#faf8f1] p-3.5 sm:grid-cols-3">
+        <div className="grid gap-3 rounded-md border border-[#e2ded1] bg-[#faf8f1] p-3.5 sm:grid-cols-2">
           <div>
             <label className={label} htmlFor={`category-${initial.id ?? "new"}`}>
               Categoría
@@ -272,6 +273,22 @@ export function AvisoForm({
               defaultValue={initial.publishAt}
               required
             />
+          </div>
+          <div>
+            <label className={label} htmlFor={`valid_until-${initial.id ?? "new"}`}>
+              Vigente hasta (opcional)
+            </label>
+            <input
+              id={`valid_until-${initial.id ?? "new"}`}
+              name="valid_until"
+              type="date"
+              className={input}
+              defaultValue={initial.validUntil ?? ""}
+              aria-describedby={`valid_until_hint-${initial.id ?? "new"}`}
+            />
+            <p id={`valid_until_hint-${initial.id ?? "new"}`} className="mt-1 text-xs text-[#53656c]">
+              Sin fecha, el cartel aparece en el carrusel solo el día de publicación.
+            </p>
           </div>
         </div>
 

@@ -12,6 +12,7 @@ import {
   canManageAvisos,
   isCategory,
   isSourceArea,
+  nextAvisoMidnight,
   toDatetimeLocal,
   type Category,
   type SourceArea,
@@ -34,6 +35,8 @@ type AvisoRow = {
   views_count: number;
   link_clicks_count: number;
   publish_at: Date;
+  valid_until: string | null;
+  carousel_position: number | null;
   social_twitter: string | null;
   social_facebook: string | null;
   social_instagram: string | null;
@@ -114,11 +117,14 @@ export default async function AvisosPage({
                 a.views_count,
                 a.link_clicks_count,
                 a.publish_at,
+                a.valid_until::text,
+                c.position::int as carousel_position,
                 a.social_twitter,
                 a.social_facebook,
                 a.social_instagram,
                 a.social_copy
          from public.avisos a
+         left join public.aviso_carousel c on c.id = a.id
          join public.users u on u.id = a.author_id
          where ((a.is_public or $1::boolean) and a.publish_at <= now())
             or $2::boolean
@@ -168,6 +174,8 @@ export default async function AvisosPage({
         viewsCount: row.views_count,
         linkClicksCount: row.link_clicks_count,
         publishAtIso: pubDate.toISOString(),
+        validUntil: row.valid_until,
+        carouselPosition: row.carousel_position,
         publishAtLocal: toDatetimeLocal(pubDate),
         publishDateFormatted: formatShortDate(pubDate),
         publishTimeFormatted: `${formatShortTime(pubDate)} hrs`,
@@ -192,7 +200,7 @@ export default async function AvisosPage({
 
   return (
     <div className="space-y-6">
-      <RealtimeRefresh tables={["avisos"]} />
+      <RealtimeRefresh tables={["avisos"]} refreshAt={nextAvisoMidnight()} />
 
       {dbDown && (
         <p className={card} role="status">

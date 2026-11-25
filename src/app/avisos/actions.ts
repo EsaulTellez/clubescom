@@ -909,6 +909,7 @@ function readAviso(form: FormData) {
   const featured = form.get("featured") === "on";
   const isPublic = form.get("is_public") === "on";
   const publishAt = parsePublishAt(String(form.get("publish_at") ?? ""));
+  const validUntil = String(form.get("valid_until") ?? "").trim();
   const externalUrlParsed = parseExternalUrl(String(form.get("external_url") ?? ""));
   const socialTwitter = String(form.get("social_twitter") ?? "").trim().slice(0, 280);
   const socialFacebook = String(form.get("social_facebook") ?? "").trim().slice(0, 1000);
@@ -926,6 +927,15 @@ function readAviso(form: FormData) {
   }
   if (!publishAt) {
     return { error: "Indica una fecha de publicación válida." } as const;
+  }
+  if (validUntil) {
+    const day = new Date(validUntil + "T00:00:00Z");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(validUntil) || Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== validUntil) {
+      return { error: "Indica una fecha de vigencia válida." } as const;
+    }
+    if (validUntil < String(form.get("publish_at")).slice(0, 10)) {
+      return { error: "La vigencia debe terminar el día de publicación o después." } as const;
+    }
   }
   if ("error" in externalUrlParsed) {
     return { error: externalUrlParsed.error } as const;
@@ -950,6 +960,7 @@ function readAviso(form: FormData) {
     featured,
     isPublic,
     publishAt,
+    validUntil: validUntil || null,
     externalUrl: externalUrlParsed.url,
     socialCopy: combinedSocial || null,
     socialTwitter: socialTwitter || null,
@@ -977,8 +988,8 @@ export async function crearAviso(_prev: FormState, form: FormData): Promise<Form
 
   const { rows } = await pool.query<{ id: string }>(
     `insert into avisos
-       (author_id, title, body, category, source_area, featured, is_public, publish_at, external_url, social_copy, social_twitter, social_facebook, social_instagram, image_url, published_triggered)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, ($8 <= now()))
+       (author_id, title, body, category, source_area, featured, is_public, publish_at, external_url, social_copy, social_twitter, social_facebook, social_instagram, image_url, valid_until, published_triggered)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, ($8 <= now()))
      returning id`,
     [
       user.id,
@@ -995,6 +1006,7 @@ export async function crearAviso(_prev: FormState, form: FormData): Promise<Form
       parsed.socialFacebook,
       parsed.socialInstagram,
       uploaded.url,
+      parsed.validUntil,
     ],
   );
   const id = rows[0]?.id;
@@ -1024,9 +1036,9 @@ export async function actualizarAviso(_prev: FormState, form: FormData): Promise
      set title = $1, body = $2, category = $3, source_area = $4, featured = $5,
          is_public = $6, publish_at = $7, external_url = $8,
          social_copy = $9, social_twitter = $10, social_facebook = $11, social_instagram = $12,
-         image_url = coalesce($13, image_url),
+         image_url = coalesce($13, image_url), valid_until = $14,
          published_triggered = ($7 <= now())
-     where id = $14 and (author_id = $15 or $16::boolean)
+     where id = $15 and (author_id = $16 or $17::boolean)
      returning id`,
     [
       parsed.title,
@@ -1042,6 +1054,7 @@ export async function actualizarAviso(_prev: FormState, form: FormData): Promise
       parsed.socialFacebook,
       parsed.socialInstagram,
       uploaded.url,
+      parsed.validUntil,
       id,
       user.id,
       user.role === "admin",
