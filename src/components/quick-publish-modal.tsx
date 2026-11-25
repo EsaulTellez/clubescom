@@ -386,8 +386,8 @@ function QuickPublishDialog({
                   <button type="button" onClick={onClose} disabled={anyPending} className={btnGhost}>
                     Cancelar
                   </button>
-                  <SubmitButton className={btn} pending={clubEventPending} pendingText="Enviando…">
-                    Enviar a revisión
+                  <SubmitButton className={btn} pending={clubEventPending} pendingText="Publicando…">
+                    Publicar evento
                   </SubmitButton>
                 </div>
               </form>

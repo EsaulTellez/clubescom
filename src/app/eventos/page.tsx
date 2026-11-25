@@ -142,13 +142,6 @@ export default async function EspaciosPage() {
           from public.space_events e
           join public.spaces s on s.id = e.space_id
           where e.approval_status = 'pendiente'
-          union all
-          select ce.id::text, 'club', null::text, ce.title, ce.description, ce.starts_at, ce.ends_at,
-                 trim(split_part(ce.location, '·', 1)), ce.location, null, null, true, ce.club_id::text, c.name, c.kind,
-                 ce.image_url, 0, false
-          from public.club_events ce join public.clubs c on c.id = ce.club_id
-          where c.active and ce.approval_status = 'pendiente'
-            and private.club_event_venue_area(ce.location) is not null
           order by starts_at asc
         `)
       : Promise.resolve({ rows: [] as RawCarteleraEvent[] }),

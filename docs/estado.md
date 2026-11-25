@@ -52,6 +52,8 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 ## Cambios
 
+- 2026-11-25. CU-20 y CU-28 siguen `parcial`. El alumno responsable y el profesor coordinador de un club publican y editan directamente los eventos de su propio club sin requerir autorización previa de administración ni de otras áreas (`supabase/migrations/20261125000300_club_events_direct_publish.sql`, `src/app/clubes/actions.ts`, `src/app/clubes/forms.tsx`, `src/app/clubes/[id]/page.tsx`, `src/app/clubes/[id]/club-workspace.tsx`, `src/app/eventos/page.tsx`, `src/app/eventos/event-board.tsx`, `src/components/quick-publish-modal.tsx`); se retiraron las colas de autorización de eventos de club.
+
 - 2026-11-25. CU-28 y CU-20 siguen `parcial`. En `check_space_event_overlap` (`supabase/migrations/20261125000200_events_schedule_edit_fixes.sql`), los eventos sin fecha de cierre ya no se tratan como interminables ni bloquean nuevos eventos en esa sede o fecha; el calendario de `/eventos` marca con punto todos los días de cada rango (`src/lib/event-dates.ts`, `src/app/eventos/event-board.tsx`), y los eventos en curso o con rango vigente permanecen visibles en `/eventos`, `/clubes/[id]` y el feed con acciones de edición y cancelación aun después de pasar su fecha inicial.
 
 - 2026-11-25. CU-01 sigue `parcial`. El registro y el reenvío admiten el dominio público de Google Cloud en tiempo de ejecución. El correo de ESCOM incluye un botón y un enlace copiable con el mismo token. Falta aplicar la configuración de Supabase alojado y verificar la entrega a un buzón institucional.

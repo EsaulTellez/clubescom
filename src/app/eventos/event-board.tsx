@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { createClubEvent } from "../clubes/actions";
-import { ClubEventForm, ClubEventReviewButtons, DeleteClubEventButton } from "../clubes/forms";
+import { ClubEventForm, DeleteClubEventButton } from "../clubes/forms";
 import { AttendButton } from "@/components/attend-button";
 import { FormDialog } from "@/components/form-dialog";
 import { ImageUploadField } from "@/components/image-upload-field";
@@ -338,8 +338,8 @@ function ClubEventBoardForm({
       {state.error && <p className="text-sm text-[#8C1D18]" role="alert">{state.error}</p>}
       <div className="flex justify-end gap-2 border-t border-[#e5e1d4] pt-4">
         <button type="button" onClick={onCancel} className={btnGhost}>Cancelar</button>
-        <SubmitButton className={btn} pending={pending} pendingText="Enviando…">
-          Enviar a revisión
+        <SubmitButton className={btn} pending={pending} pendingText="Publicando…">
+          Publicar evento
         </SubmitButton>
       </div>
     </form>
@@ -578,7 +578,7 @@ export function EventBoard({
       {/* DIÁLOGO DE PUBLICACIÓN */}
       {showPublishForm && canCreateAnyEvent && (
         <FormDialog
-          title={publishMode === "space" && canCreateSpace ? "Publicar evento autorizado" : "Proponer evento de club"}
+          title={publishMode === "space" && canCreateSpace ? "Publicar evento autorizado" : "Publicar evento de club"}
           kicker="Cartelera ESCOM"
           accent={publishMode === "space" && canCreateSpace ? "amber" : "teal"}
           onClose={() => setShowPublishForm(false)}
@@ -860,7 +860,7 @@ export function EventBoard({
                       )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      {ev.clubId ? <ClubEventReviewButtons clubId={ev.clubId} eventId={ev.id} /> : <form action={reviewSpaceEvent} className="flex flex-wrap gap-1.5">
+                      <form action={reviewSpaceEvent} className="flex flex-wrap gap-1.5">
                         <input type="hidden" name="id" value={ev.id} />
                         <SubmitButton name="decision" value="aprobado" className={btn} pendingText="Aprobando…">
                           Aprobar y publicar
@@ -868,7 +868,7 @@ export function EventBoard({
                         <SubmitButton name="decision" value="rechazado" className={btnGhost} pendingText="Rechazando…">
                           Rechazar
                         </SubmitButton>
-                      </form>}
+                      </form>
                       <button
                         type="button"
                         onClick={() => setEditingEvent(ev)}

@@ -64,7 +64,8 @@ Decisiones confirmadas por el propietario del proyecto el 2026-11-04. Aplican al
 
 - La propuesta necesita 20 votos/interesados para avanzar.
 - Decisión del propietario del 2026-11-11: el área de clubes puede registrar directamente un club reconocido sin la votación. En el alta directa se asignan un alumno responsable y un profesor asesor; la moderación cultural registra clubes culturales o deportivos. La administración general también puede hacerlo.
-- Solo el alumno responsable asignado y el profesor asesor asignado pueden crear publicaciones del club; pertenecer al club permite consultar sus publicaciones, no crearlas.
+- Solo el alumno responsable asignado y el profesor asesor asignado pueden crear publicaciones y eventos de su propio club; pertenecer al club permite consultar sus publicaciones, no crearlas.
+- Decisión del propietario del 2026-11-25: el alumno moderador y el profesor moderador de un club publican y editan directamente los eventos de su propio club sin requerir autorización de administración ni de otras áreas (solo pueden publicar eventos del club que moderan).
 - Cada persona interesada deberá cargar credencial del IPN, boleta y vigencia de derechos del IMSS.
 - La propuesta también necesita un profesor asesor que confirme su participación mediante un código.
 - Con los documentos y el asesor confirmados, la persona responsable de Subdirección Académica/Sala 14 revisa y agenda/valida la cita con el grupo proponente.

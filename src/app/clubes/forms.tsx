@@ -31,7 +31,6 @@ import {
   requestClubAppointment,
   requestMembership,
   respondClubAppointmentSlots,
-  reviewClubEvent,
   reviewProposalDocument,
   reviewProposalStatus,
   revokeSseisDelegate,
@@ -2431,15 +2430,6 @@ export function ClubEventForm({
         </SubmitButton>
       </div>
     </form>
-  );
-}
-
-export function ClubEventReviewButtons({ clubId, eventId }: { clubId: string; eventId: string }) {
-  return (
-    <div className="mt-2 flex flex-wrap gap-2">
-      <ActionForm action={reviewClubEvent} fields={{ club_id: clubId, event_id: eventId, decision: "aprobado" }} label="Aprobar evento" />
-      <ActionForm action={reviewClubEvent} fields={{ club_id: clubId, event_id: eventId, decision: "rechazado" }} label="Rechazar" variant="ghost" />
-    </div>
   );
 }
 

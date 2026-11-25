@@ -731,7 +731,8 @@ export function ClubWorkspace({
                       <div>
                         <p className="text-sm font-bold text-[#142c3c]">{group.title}</p>
                         <p className="text-xs text-[#697e8a]">
-                          {group.startsLabel} · {group.location} · {group.approvalStatus}
+                          {group.startsLabel} · {group.location}
+                          {group.approvalStatus !== "aprobado" ? ` · ${group.approvalStatus}` : ""}
                         </p>
                       </div>
                       <span className="rounded bg-[#e6f3fa] px-2.5 py-1 text-xs font-extrabold text-[#004d73]">
@@ -788,7 +789,7 @@ export function ClubWorkspace({
       {/* DIÁLOGO: NUEVO EVENTO */}
       {eventDialogOpen && canCreateEvent && (
         <FormDialog
-          title="Proponer evento del club"
+          title="Publicar evento del club"
           kicker={club.name}
           accent="amber"
           size="lg"

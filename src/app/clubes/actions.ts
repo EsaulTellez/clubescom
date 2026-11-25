@@ -1543,64 +1543,6 @@ export async function createClubEvent(_prev: ClubState, form: FormData): Promise
   };
 }
 
-export async function reviewClubEvent(_prev: ClubState, form: FormData): Promise<ClubState> {
-  const user = await getSession();
-  if (!user) return { error: "Inicia sesión para revisar eventos." };
-  const clubId = String(form.get("club_id") ?? "");
-  const eventId = String(form.get("event_id") ?? "");
-  const decision = String(form.get("decision") ?? "");
-  if (!isUuid(clubId) || !isUuid(eventId) || !["aprobado", "rechazado"].includes(decision)) {
-    return { error: "Decisión inválida." };
-  }
-
-  const evRes = await pool.query<{ location: string; kind: string }>(
-    `select ce.location, c.kind
-       from club_events ce
-       join clubs c on c.id = ce.club_id
-      where ce.id = $1 and ce.club_id = $2 and ce.approval_status = 'pendiente'`,
-    [eventId, clubId],
-  );
-  const ev = evRes.rows[0];
-  if (!ev) return { error: "El evento no existe o ya fue revisado." };
-
-  const venueArea = clubEventVenueArea(ev.location);
-  const canReview = venueArea
-    ? user.role === "admin" || (user.role === "moderador" && user.area === venueArea)
-    : canModerateClubKind(user, ev.kind);
-  if (!canReview) {
-    return { error: "Este evento corresponde a otra área para su autorización." };
-  }
-
-  if (decision === "aprobado") {
-    const overlap = await pool.query<{ conflict_title: string | null }>(
-      `select public.check_space_event_overlap(s.id, ce.starts_at, ce.ends_at, ce.id) as conflict_title
-         from club_events ce
-         join spaces s on lower(trim(s.name)) = lower(trim(split_part(ce.location, '·', 1)))
-        where ce.id = $1 and ce.club_id = $2
-        limit 1`,
-      [eventId, clubId],
-    );
-    const conflict = overlap.rows[0]?.conflict_title;
-    if (conflict) {
-      return {
-        error: `No se puede aprobar porque el espacio se traslapa con «${conflict}».`,
-      };
-    }
-  }
-
-  const updated = await pool.query(
-    `update club_events
-        set approval_status = $1,
-            approved_by = case when $1 = 'aprobado' then $2::uuid else null end
-      where id = $3 and club_id = $4 and approval_status = 'pendiente'`,
-    [decision, user.id, eventId, clubId],
-  );
-  if (!updated.rowCount) return { error: "El evento ya fue revisado." };
-  await audit(user.id, `evento_club_${decision}`, "club_events", eventId, clubId);
-  refresh(undefined, clubId);
-  return { success: decision === "aprobado" ? "Evento aprobado." : "Evento rechazado." };
-}
-
 export async function updateClubEvent(_prev: ClubState, form: FormData): Promise<ClubState> {
   const user = await getSession();
   if (!user) return { error: "Inicia sesión para editar eventos del club." };
