@@ -136,7 +136,7 @@ export function RegisterForm({
         <div className="rounded-sm border border-[#c3d9cf] bg-[#eff7f2] p-4 text-sm text-[#173142]">
           <p className="font-bold text-[#14593e]">Revisa tu correo institucional</p>
           <p className="mt-1">
-            Enviamos un enlace de confirmación a <strong>{state.email}</strong>. Ábrelo para activar tu cuenta e ingresar automáticamente al sistema.
+            Enviamos un enlace de confirmación a <strong>{state.email}</strong>. Abre el enlace y selecciona «Confirmar y activar cuenta».
           </p>
         </div>
         {resendAction && (

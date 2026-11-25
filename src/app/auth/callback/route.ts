@@ -22,6 +22,7 @@ function isEmailOtpType(value: string | null): value is EmailOtpType {
 }
 
 export async function GET(request: NextRequest) {
+  const siteUrl = process.env.SITE_URL || request.url;
   const code = request.nextUrl.searchParams.get("code");
   const tokenHash = request.nextUrl.searchParams.get("token_hash");
   const type = request.nextUrl.searchParams.get("type");
@@ -30,9 +31,9 @@ export async function GET(request: NextRequest) {
 
   const failureRedirect = (reason: "enlace_invalido" | "otro_navegador") => {
     if (next.startsWith("/recuperar") || type === "recovery") {
-      return NextResponse.redirect(new URL("/recuperar?error=enlace_invalido", request.url));
+      return NextResponse.redirect(new URL("/recuperar?error=enlace_invalido", siteUrl));
     }
-    return NextResponse.redirect(new URL(`/auth/confirmado?error=${reason}`, request.url));
+    return NextResponse.redirect(new URL(`/auth/confirmado?error=${reason}`, siteUrl));
   };
 
   if (authError) {
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
           // Do not block sign-in if audit logging fails.
         }
       }
-      return NextResponse.redirect(new URL(destination, request.url));
+      return NextResponse.redirect(new URL(destination, siteUrl));
     }
     if (/pkce|code verifier/i.test(error.message)) {
       return failureRedirect("otro_navegador");
@@ -80,14 +81,14 @@ export async function GET(request: NextRequest) {
           // Do not block sign-in if audit logging fails.
         }
       }
-      return NextResponse.redirect(new URL(destination, request.url));
+      return NextResponse.redirect(new URL(destination, siteUrl));
     }
     return failureRedirect("enlace_invalido");
   }
 
   const { data: userData } = await supabase.auth.getUser();
   if (userData.user && next === "/auth/confirmado") {
-    return NextResponse.redirect(new URL("/auth/confirmado", request.url));
+    return NextResponse.redirect(new URL("/auth/confirmado", siteUrl));
   }
 
   return failureRedirect("enlace_invalido");

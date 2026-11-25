@@ -168,7 +168,7 @@ export async function importRoster(_prev: RosterImportState, form: FormData): Pr
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!url || !secret) return { error: "Falta configurar el servicio de invitaciones para crear cuentas." };
   const admin = createClient(url, secret, { auth: { autoRefreshToken: false, persistSession: false } });
-  const redirectTo = new URL("/auth/confirmado", process.env.NEXT_PUBLIC_SITE_URL || "http://127.0.0.1:3001").toString();
+  const redirectTo = new URL("/auth/confirmado", process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://127.0.0.1:3001").toString();
   const resultRows: NonNullable<RosterImportState["rows"]> = [];
   let created = 0;
   for (const row of rows) {

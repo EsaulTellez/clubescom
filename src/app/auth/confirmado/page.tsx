@@ -21,7 +21,7 @@ export default async function AuthConfirmadoPage({
     const isInvite = type === "invite";
     return (
       <section className={`${card} mx-auto max-w-md space-y-4`}>
-        <h1 className="text-xl font-semibold text-[#173142]">
+        <h1 className="border-t-4 border-[#155775] pt-4 text-2xl font-bold text-[#173142]">
           {isRecovery
             ? "Confirma tu solicitud de recuperación"
             : isInvite
@@ -30,8 +30,10 @@ export default async function AuthConfirmadoPage({
         </h1>
         <p className="text-sm text-[#304958]">
           {isRecovery
-            ? "Presiona el botón de abajo para verificar tu enlace y elegir tu nueva contraseña."
-            : "Presiona el botón para completar la verificación de tu cuenta. Este paso protege el enlace ante escáneres automáticos de correo."}
+            ? "Confirma la solicitud para elegir una contraseña nueva."
+            : isInvite
+              ? "Acepta la invitación para elegir tu contraseña."
+              : "Activa tu cuenta para entrar a la plataforma con tu correo institucional."}
         </p>
         <ConfirmTokenForm
           action={confirmEmailTokenAction}
@@ -44,7 +46,7 @@ export default async function AuthConfirmadoPage({
     );
   }
 
-  if (user) {
+  if (user && !error) {
     return (
       <section className={`${card} mx-auto max-w-md space-y-4`}>
         <div className="flex items-center gap-3">
@@ -56,13 +58,13 @@ export default async function AuthConfirmadoPage({
           </span>
           <div>
             <h1 className="text-xl font-semibold text-[#173142]">
-              ¡Te autenticaste de forma exitosa!
+              Correo verificado
             </h1>
             <p className="text-sm text-[#526974]">{user.email}</p>
           </div>
         </div>
         <p className="text-sm text-[#304958]">
-          Tu cuenta de <strong>{user.name}</strong> quedó confirmada y ya iniciaste sesión en la plataforma.
+          Ya iniciaste sesión, <strong>{user.name}</strong>.
         </p>
         <AutoRedirect to="/" delayMs={2500} />
         <div className="flex flex-wrap gap-2 pt-1">

@@ -45,22 +45,26 @@ No entrega un objeto en persona ni exige que un prefecto esté presente. Tampoco
 
 ## Ejecutar el proyecto
 
-### Producción en Vercel
+### Producción en Google Cloud
 
-Importa la rama `main` desde la raíz del repositorio. Selecciona **Next.js**, Node.js **24.x** y el comando de compilación `npm run build`. Conserva el directorio de salida automático. Para reproducir el servidor de producción en tu equipo, ejecuta `npm run build` y después `npm start`. El comando `npm run dev` sirve para desarrollo local.
+La plataforma se publica en `https://escomunidad.duckdns.org`. Compila con `npm run build` y arranca el servidor con `npm start`.
 
-Configura las variables del entorno **Production** antes de compilar. Las variables `NEXT_PUBLIC_*` se integran al build. Si cambian, genera un despliegue nuevo.
-
-- `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` corresponden a la URL HTTPS y la clave pública del mismo proyecto Supabase.
-- `SUPABASE_SECRET_KEY` es la clave privada de administración. `DATABASE_URL` es la cadena privada del **Session pooler** de ese proyecto en el puerto **5432**. Algunas operaciones conservan el rol de PostgreSQL durante toda una conexión. La aplicación verifica TLS con la CA pública de Supabase incluida en `db/supabase-prod-ca-2021.crt`.
-- `NEXT_PUBLIC_SITE_URL` es el origen HTTPS definitivo de la plataforma. Puedes omitirla para usar el dominio de producción que Vercel proporciona al build. Si usas un dominio personalizado, escribe la URL completa.
+- Configura `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` con la URL HTTPS y la clave pública del mismo proyecto Supabase antes de compilar.
+- `SUPABASE_SECRET_KEY` es la clave privada de administración. `DATABASE_URL` es la cadena privada del **Session pooler** del proyecto en el puerto **5432**. La aplicación verifica TLS con la CA pública de Supabase incluida en `db/supabase-prod-ca-2021.crt`.
+- Configura `SITE_URL=https://escomunidad.duckdns.org` en el entorno del proceso Next.js y reinícialo tras cambiar el valor. Para despliegues de la versión anterior y otros enlaces públicos de la aplicación, usa el mismo origen en `NEXT_PUBLIC_SITE_URL` al compilar.
 - `GOOGLE_GENERATIVE_AI_API_KEY` habilita la generación de comunicados y el procesamiento de documentos. Para el correo de coordinación de clubes por Resend, configura `RESEND_API_KEY` y `MAIL_FROM_EMAIL` con un remitente verificado.
 
-En **Supabase Auth**, configura el mismo dominio en **Site URL**, permite el callback `/auth/callback` con sus parámetros de recuperación y activa la confirmación de correo. Configura SMTP para entregar mensajes a las cuentas institucionales. El formulario espera un OTP de seis dígitos con vigencia de 900 segundos. Las plantillas de confirmación y recuperación están en `supabase/templates/`.
+#### Verificación de correo en Supabase
+
+1. En **Authentication → URL Configuration**, establece **Site URL** en `https://escomunidad.duckdns.org`. La plantilla usa ese origen para construir el enlace que llega al buzón.
+2. En **Redirect URLs**, permite los destinos que solicita la app para alta y reenvío, recuperación e invitación, respectivamente. Retira las entradas del despliegue de Vercel que ya se dio de baja.
+   - `https://escomunidad.duckdns.org/auth/callback?next=/auth/confirmado`
+   - `https://escomunidad.duckdns.org/auth/callback?next=/recuperar?cambiar=1`
+   - `https://escomunidad.duckdns.org/auth/confirmado`
+3. En **Authentication → Email Templates → Confirm signup**, guarda el contenido de [confirmation.html](supabase/templates/confirmation.html) y el asunto **Confirma tu correo institucional de ESCOM**. La plantilla del repositorio se carga automáticamente en la demo local. El proyecto alojado en Supabase usa la plantilla guardada en su panel.
+4. Con la confirmación de correo habilitada y SMTP configurado, solicita un enlace nuevo desde el registro. Tanto el botón como el enlace copiable deben abrir `/auth/confirmado` en el dominio público. La cuenta se activa al pulsar **Confirmar y activar cuenta**. Si alguien ya verificó el correo antes de llegar a Vercel, puede iniciar sesión en el dominio actual con el mismo proyecto de Supabase.
 
 La base necesita el esquema de `supabase/migrations/`, incluidos permisos, buckets de Storage y publicación Realtime. Para una base nueva, aplica las migraciones una vez antes del primer despliegue. El proyecto remoto existente tiene un historial agrupado. Compara su esquema antes de aplicar cambios. Reserva `npm run db:seed` y Docker Compose para la demo local.
-
-Los adjuntos que pasan por Server Actions están sujetos al máximo de **4.5 MB por petición completa** de Vercel. Los límites por archivo de algunas pantallas son mayores. Para admitir esos tamaños en Vercel hace falta subir los archivos directamente a Storage. [Límites de Vercel Functions](https://vercel.com/docs/functions/limitations#request-body-size)
 
 ### Con Docker Compose
 

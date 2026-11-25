@@ -1,5 +1,29 @@
-<h2>Confirma tu correo de ESCOM</h2>
-<p>Abre este enlace para confirmar tu cuenta e ingresar a la plataforma:</p>
-<p><a href="{{ .SiteURL }}/auth/confirmado?token_hash={{ .TokenHash }}&type=signup">Confirmar cuenta</a></p>
-<p>Si el botón no abre directamente, entra a <strong>{{ .SiteURL }}/auth/confirmado</strong> desde el navegador.</p>
-<p>Si no solicitaste una cuenta, puedes ignorar este mensaje.</p>
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Confirma tu correo institucional de ESCOM</title>
+  </head>
+  <body style="margin:0;background:#f2f1eb;color:#173142;font-family:Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+      <tr><td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#fffdf7;border:1px solid #d0cec2;">
+          <tr><td style="padding:16px 24px;background:#155775;color:#ffffff;font-size:17px;font-weight:bold;">
+            ESCOM <span style="font-weight:normal;">&nbsp;·&nbsp; Instituto Politécnico Nacional</span>
+          </td></tr>
+          <tr><td style="padding:24px;">
+            <h1 style="margin:0 0 12px;font-size:26px;line-height:1.2;">Confirma tu correo institucional</h1>
+            <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">Para terminar tu registro, abre el enlace y selecciona <strong>Confirmar y activar cuenta</strong> en la plataforma.</p>
+            <a href="{{ .SiteURL }}/auth/confirmado?token_hash={{ .TokenHash }}&amp;type=signup" style="display:inline-block;background:#155775;border:12px solid #155775;border-left-width:18px;border-right-width:18px;border-radius:3px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">Verificar mi correo</a>
+            <p style="margin:24px 0 6px;font-size:14px;line-height:1.5;">Si el botón no abre, copia este enlace en tu navegador.</p>
+            <p style="margin:0;font-size:13px;line-height:1.5;word-break:break-all;"><a href="{{ .SiteURL }}/auth/confirmado?token_hash={{ .TokenHash }}&amp;type=signup" style="color:#155775;">{{ .SiteURL }}/auth/confirmado?token_hash={{ .TokenHash }}&amp;type=signup</a></p>
+          </td></tr>
+          <tr><td style="border-top:1px solid #d0cec2;padding:16px 24px;color:#526974;font-size:13px;line-height:1.5;">
+            Si no solicitaste esta cuenta, puedes ignorar el mensaje.
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>

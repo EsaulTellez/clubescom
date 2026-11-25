@@ -29,7 +29,8 @@ function emailFrom(form: FormData) {
 }
 
 async function getSiteUrl() {
-  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  const configuredUrl = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL;
+  if (configuredUrl) return new URL(configuredUrl).origin;
   try {
     const hdrs = await headers();
     const host = hdrs.get("x-forwarded-host") || hdrs.get("host");

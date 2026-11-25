@@ -40,7 +40,7 @@ Los casos de las tablas 3.32 a 3.38 agregan notificaciones y el panel de adminis
 
 ## Stack y decisiones vigentes
 
-La plataforma se desarrollará con Next.js y Supabase para autenticación, PostgreSQL, políticas RLS, almacenamiento de archivos y tiempo real. **No se usará Cloudflare R2.** La demo se ejecuta localmente y el despliegue de producción usa Vercel con Supabase remoto. La lógica programada o de servidor que requieran los flujos deberá integrarse con Supabase y quedar disponible en el entorno local.
+La plataforma se desarrollará con Next.js y Supabase para autenticación, PostgreSQL, políticas RLS, almacenamiento de archivos y tiempo real. **No se usará Cloudflare R2.** La demo se ejecuta localmente y el despliegue de producción usa Google Cloud con Supabase remoto. La lógica programada o de servidor que requieran los flujos deberá integrarse con Supabase y quedar disponible en el entorno local.
 
 La demo usa Supabase local para Auth, PostgreSQL, Storage y Realtime. Las consultas PostgreSQL de la aplicación se ejecutan con el contexto de la sesión y las políticas RLS; todavía faltan recorridos y revisión de permisos de extremo a extremo. El estado real y las decisiones detalladas están en `docs/estado.md`, `docs/pendientes.md` y `docs/decisiones-producto.md`.
 
