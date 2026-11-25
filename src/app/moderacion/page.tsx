@@ -1,8 +1,9 @@
+import type { DirectoryUserOption } from "@/components/searchable-user-picker";
 import { redirect } from "next/navigation";
 import { officeModules } from "@/lib/areas";
 import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
-import { MODERATION_AREAS } from "./shared";
+import { MODERATION_AREAS, UUID } from "./shared";
 import { ModerationWorkspace } from "./moderation-workspace";
 
 export const dynamic = "force-dynamic";
@@ -16,14 +17,6 @@ type Search = Promise<{
   source_type?: string;
   reason?: string;
 }>;
-type Person = {
-  id: string;
-  name: string;
-  role: string;
-  area: string | null;
-  boleta: string | null;
-  email: string | null;
-};
 type Strike = {
   id: string;
   user_name: string;
@@ -40,7 +33,6 @@ type Suspension = {
   user_boleta: string | null;
   area: string;
   strike_count: number;
-  duration: string | null;
   starts_at: Date;
   ends_at: Date | null;
   is_permanent: boolean;
@@ -77,51 +69,51 @@ export default async function ModeracionPage({ searchParams }: { searchParams: S
   const isAreaMod = user.role === "moderador";
   const areaScope = isAreaMod ? user.area : null;
 
+  const params = await searchParams;
+  const targetRoles = isAreaMod ? ["alumno", "profesor"] : ["alumno", "profesor", "moderador"];
   const [peopleResult, strikesResult, suspensionsResult, appealsResult] = await Promise.all([
-    pool.query<Person>(
-      `select u.id::text as id, u.name, u.role, u.area, p.boleta, p.email
-         from public.users u
-         left join private.user_private p on p.user_id = u.id
-        where u.is_active
-          and u.id <> $1
-          and ($2::boolean and u.role in ('alumno', 'profesor') or (not $2::boolean and u.role <> 'admin'))
-        order by u.name limit 80`,
-      [user.id, isAreaMod],
-    ),
+    params.user_id && UUID.test(params.user_id)
+      ? pool.query<DirectoryUserOption>(
+          `select id, name, role from public.users
+            where id = $1 and is_active and role::text = any($2::text[]) and id <> $3`,
+          [params.user_id, targetRoles, user.id],
+        )
+      : pool.query<DirectoryUserOption>(
+          `select id, name, role, area, boleta, email
+             from public.search_directory_users('', $1::text[], 50)
+            where id <> $2`,
+          [targetRoles, user.id],
+        ),
     pool.query<Strike>(
-      `select s.id, u.name as user_name, p.boleta as user_boleta, s.area, s.reason, s.source_type, s.created_at,
+      `select s.id, u.name as user_name, private.moderation_user_boleta(u.id) as user_boleta, s.area, s.reason, s.source_type, s.created_at,
               (select count(*)::int from moderation_strikes all_s where all_s.user_id = s.user_id) as strike_total
          from moderation_strikes s
          join users u on u.id = s.user_id
-         left join private.user_private p on p.user_id = u.id
         where ($1::text is null or s.area = $1::text)
         order by s.created_at desc limit 100`,
       [areaScope],
     ),
     pool.query<Suspension>(
-      `select s.id, u.name as user_name, p.boleta as user_boleta, s.area, s.strike_count, s.duration,
+      `select s.id, u.name as user_name, private.moderation_user_boleta(u.id) as user_boleta, s.area, s.strike_count,
               s.starts_at, s.ends_at, s.is_permanent
          from moderation_suspensions s
          join users u on u.id = s.user_id
-         left join private.user_private p on p.user_id = u.id
         where ($1::text is null or s.area = $1::text)
         order by s.starts_at desc limit 100`,
       [areaScope],
     ),
     pool.query<Appeal>(
       `select a.id, a.suspension_id, a.body, a.status, a.created_at,
-              u.name as user_name, p.boleta as user_boleta, s.area, s.strike_count, s.starts_at, s.is_permanent, s.ends_at
+              u.name as user_name, private.moderation_user_boleta(u.id) as user_boleta, s.area, s.strike_count, s.starts_at, s.is_permanent, s.ends_at
          from moderation_appeals a
          join moderation_suspensions s on s.id = a.suspension_id
          join users u on u.id = a.user_id
-         left join private.user_private p on p.user_id = u.id
         where ($1::text is null or s.area = $1::text)
         order by (a.status = 'pendiente') desc, a.created_at desc limit 100`,
       [areaScope],
     ),
   ]);
 
-  const params = await searchParams;
   const areaChoices =
     user.role === "moderador"
       ? MODERATION_AREAS.filter((area) => area.id === user.area)
@@ -159,7 +151,6 @@ export default async function ModeracionPage({ searchParams }: { searchParams: S
         user_boleta: s.user_boleta,
         area: s.area,
         strike_count: s.strike_count,
-        duration: s.duration,
         starts_at: s.starts_at.toISOString(),
         starts_label: when(s.starts_at),
         ends_at: s.ends_at?.toISOString() ?? null,

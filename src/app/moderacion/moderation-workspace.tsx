@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { FormDialog } from "@/components/form-dialog";
 import { SubmitButton } from "@/components/loading-ui";
 import type { DirectoryUserOption } from "@/components/searchable-user-picker";
-import { btn, btnGhost, card, input, label } from "@/lib/ui";
+import { btnGhost, card, input, label } from "@/lib/ui";
 import { registerStrike, reviewAppeal } from "./actions";
 import { moderationAreaLabel, suspensionLabel } from "./shared";
 import { StrikeUserPicker } from "./user-picker";
@@ -27,7 +27,6 @@ export type ModerationSuspension = {
   user_boleta: string | null;
   area: string;
   strike_count: number;
-  duration: string | null;
   starts_at: string;
   starts_label: string;
   ends_at: string | null;

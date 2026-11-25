@@ -5,9 +5,7 @@ import { redirect } from "next/navigation";
 import { officeModules } from "@/lib/areas";
 import { audit, getSession } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { MODERATION_AREAS } from "./shared";
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { MODERATION_AREAS, UUID } from "./shared";
 
 function message(error: unknown) {
   if (typeof error === "object" && error && "code" in error && error.code === "23505") {

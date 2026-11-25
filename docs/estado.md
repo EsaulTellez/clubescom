@@ -52,6 +52,8 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 ## Cambios
 
+- 2026-11-24. CU-15 conserva el estado `parcial`. Se corrigió la carga de `/moderacion` para administración y moderación de área. El historial consulta la boleta según los permisos de la sesión y el enlace del foro preselecciona la cuenta por su identificador.
+
 - 2026-11-24. CU-17, CU-18, CU-19 y CU-20 conservan el estado `parcial`. Se corrigieron las lecturas de contactos que bloqueaban el panel del área, el detalle de clubes, los expedientes y la notificación de citas. Se verificaron el directorio, un club activo y una propuesta con cinco perfiles en Supabase local.
 
 - 2026-11-23. `CU-25`, `CU-26` y `CU-27` conservan `parcial`: en `/mapa` (`src/components/campus-map.tsx`, `src/app/mapa/page.tsx`, `src/app/mapa/actions.ts`, `src/app/espacios/actions.ts`, `src/app/espacios/forms.tsx`) la pestaña «Directorio de profesores» ahora muestra por defecto únicamente los cubículos y salones que ya cuentan con profesor confirmado o sugerido (incluyendo profesores sugeridos por nombre manual), separa los profesores sin cubículo en el filtro «Sin cubículo» (y en coincidencias de búsqueda) con acción directa «+ Sugerir cubículo» desde la propia tarjeta mediante selector de espacio del campus, y corrige el flujo de auto-asignación de cubículo del profesor (`saveCubicle` vía RPC `SECURITY DEFINER` `public.assign_my_map_room` sin `INSERT` directo a `map_rooms`, `CubicleForm` con autocompletado de edificio/piso sin coordenadas técnicas X/Y y limpieza de `cubicles` al retirarse).

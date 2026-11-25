@@ -1,3 +1,5 @@
+export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const MODERATION_AREAS = [
   { id: "comunicacion", label: "Comunicación Social" },
   { id: "gestion_escolar", label: "Gestión Escolar" },
