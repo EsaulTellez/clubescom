@@ -9,7 +9,6 @@ import { btn, btnGhost, card, input } from "@/lib/ui";
 import {
   ClubEditForm,
   ClubEventForm,
-  ClubEventReviewButtons,
   ClubLogoForm,
   ClubPostForm,
   DecisionButtons,
@@ -76,6 +75,8 @@ export type ClubEventItem = {
   title: string;
   description: string;
   location: string;
+  starts_at: string;
+  ends_at: string | null;
   starts_label: string;
   day: string;
   month: string;
@@ -142,7 +143,6 @@ export function ClubWorkspace({
   members,
   posts,
   events,
-  pendingEvents,
   pendingRequests,
   metrics,
   eventAttendeeGroups,
@@ -165,7 +165,6 @@ export function ClubWorkspace({
   members: ClubMemberRow[];
   posts: ClubPostRow[];
   events: ClubEventItem[];
-  pendingEvents: ClubEventItem[];
   pendingRequests: ClubPendingRow[];
   metrics: ClubMetricsData | null;
   eventAttendeeGroups: ClubEventAttendeeGroup[];
@@ -175,6 +174,7 @@ export function ClubWorkspace({
   const [activeTab, setActiveTab] = useState<ClubTab>("publicaciones");
   const [postDialogOpen, setPostDialogOpen] = useState(false);
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<ClubEventItem | null>(null);
   const [logoDialogOpen, setLogoDialogOpen] = useState(false);
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
@@ -195,8 +195,7 @@ export function ClubWorkspace({
     {
       id: "eventos",
       label: "Eventos",
-      badge: events.length + (isAreaStaff ? pendingEvents.length : 0),
-      alert: isAreaStaff && pendingEvents.length > 0,
+      badge: events.length,
     },
     { id: "integrantes", label: "Integrantes", badge: members.length },
     { id: "acerca", label: "Acerca y contacto" },
@@ -446,39 +445,13 @@ export function ClubWorkspace({
       {/* PESTAÑA: EVENTOS */}
       {activeTab === "eventos" && (
         <section className="space-y-5">
-          {isAreaStaff && pendingEvents.length > 0 && (
-            <div className="space-y-3 rounded-md border border-[#dfca94] bg-[#fdf9ee] p-5">
-              <h2 className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#835e0d]">
-                Eventos pendientes de autorización ({pendingEvents.length})
-              </h2>
-              <div className="grid gap-3 md:grid-cols-2">
-                {pendingEvents.map((ev) => (
-                  <article key={ev.id} className="space-y-2 rounded-md border border-[#e6dab9] bg-white p-4 text-sm">
-                    {ev.image_url && (
-                      <img src={ev.image_url} alt={ev.title} className="h-32 w-full rounded object-cover" />
-                    )}
-                    <h3 className="font-extrabold text-[#142c3c]">{ev.title}</h3>
-                    <p className="text-xs font-semibold text-[#566b77]">
-                      {ev.starts_label} · {ev.location}
-                    </p>
-                    {ev.description && <p className="text-xs text-[#4a5e68]">{ev.description}</p>}
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <ClubEventReviewButtons clubId={club.id} eventId={ev.id} />
-                      <DeleteClubEventButton clubId={club.id} eventId={ev.id} />
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </div>
-          )}
-
           {events.length === 0 ? (
             <div className={`${card} border-dashed py-10 text-center`}>
               <h2 className="text-base font-extrabold text-[#142c3c]">No hay eventos próximos publicados</h2>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 {canCreateEvent && (
                   <button type="button" onClick={() => setEventDialogOpen(true)} className={btn}>
-                    + Proponer evento
+                    + Publicar evento
                   </button>
                 )}
                 <Link href="/eventos" className={btnGhost}>
@@ -529,7 +502,18 @@ export function ClubWorkspace({
                           isAuthenticated={isAuthenticated}
                           compact
                         />
-                        {canModerate && <DeleteClubEventButton clubId={club.id} eventId={event.id} />}
+                        {canModerate && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setEditingEvent(event)}
+                              className={btnGhost}
+                            >
+                              Editar
+                            </button>
+                            <DeleteClubEventButton clubId={club.id} eventId={event.id} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -730,7 +714,7 @@ export function ClubWorkspace({
               <p className="text-[11px] font-bold uppercase text-[#5c7280]">Registros Asistiré</p>
               <p className="mt-1 font-mono text-2xl font-extrabold text-[#006699]">{metrics.total_attendees}</p>
               <p className="text-xs text-[#5c7280]">
-                {metrics.approved_events} aprobados · prom. {metrics.avg_attendance}
+                {metrics.approved_events} publicados · prom. {metrics.avg_attendance}
               </p>
             </div>
           </div>
@@ -814,6 +798,31 @@ export function ClubWorkspace({
             clubId={club.id}
             onSuccess={() => setEventDialogOpen(false)}
             onCancel={() => setEventDialogOpen(false)}
+          />
+        </FormDialog>
+      )}
+
+      {/* DIÁLOGO: EDITAR EVENTO */}
+      {editingEvent && canModerate && (
+        <FormDialog
+          title="Editar evento del club"
+          kicker={club.name}
+          accent="amber"
+          size="lg"
+          onClose={() => setEditingEvent(null)}
+        >
+          <ClubEventForm
+            clubId={club.id}
+            initialEvent={{
+              id: editingEvent.id,
+              title: editingEvent.title,
+              description: editingEvent.description,
+              location: editingEvent.location,
+              startsAt: editingEvent.starts_at,
+              endsAt: editingEvent.ends_at,
+            }}
+            onSuccess={() => setEditingEvent(null)}
+            onCancel={() => setEditingEvent(null)}
           />
         </FormDialog>
       )}

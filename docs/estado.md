@@ -52,6 +52,14 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 ## Cambios
 
+- 2026-11-25. CU-28 y CU-20 siguen `parcial`. En `check_space_event_overlap` (`supabase/migrations/20261125000200_events_schedule_edit_fixes.sql`), los eventos sin fecha de cierre ya no se tratan como interminables ni bloquean nuevos eventos en esa sede o fecha; el calendario de `/eventos` marca con punto todos los días de cada rango (`src/lib/event-dates.ts`, `src/app/eventos/event-board.tsx`), y los eventos en curso o con rango vigente permanecen visibles en `/eventos`, `/clubes/[id]` y el feed con acciones de edición y cancelación aun después de pasar su fecha inicial.
+
+- 2026-11-25. CU-01 sigue `parcial`. El registro y el reenvío admiten el dominio público de Google Cloud en tiempo de ejecución. El correo de ESCOM incluye un botón y un enlace copiable con el mismo token. Falta aplicar la configuración de Supabase alojado y verificar la entrega a un buzón institucional.
+
+- 2026-11-25. CU-09 sigue `parcial`. El PDF de apertura de grupos genera cinco acciones en orden pese a la numeración repetida. El resumen conserva el objetivo y la vigencia, los requisitos de inscripción quedan juntos y la referencia de profesores conserva su URL completa. Hay pruebas de regresión del lector local en `tests/guide-document.test.mjs`.
+
+- 2026-11-25. CU-09 sigue `parcial`. Al crear o editar una guía, el importador organiza instrucciones en prosa y listas como pasos editables. El lector local integra el texto seleccionable y las indicaciones dentro de imágenes de un mismo PDF, y reconoce instrucciones en fotos con OCR en español.
+
 - 2026-11-25. CU-08 sigue parcial. Inicio conserva la sección Comunicados y el enlace al mural cuando no hay carteles vigentes. La demo local incluye tres avisos con vigencias distintas para recorrer el carrusel.
 
 - 2026-11-25. CU-07, CU-08 y CU-COM-04-01 siguen parciales. Los carruseles de Inicio y Avisos ordenan todos los avisos publicados con cartel por fin de vigencia. Sin vigencia explícita se muestran solo el día de publicación en Ciudad de México. Los avisos sin imagen se consultan en el mural de Avisos.

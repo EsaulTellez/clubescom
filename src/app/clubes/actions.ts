@@ -1466,7 +1466,7 @@ export async function updateClubDetails(_prev: ClubState, form: FormData): Promi
 
 export async function createClubEvent(_prev: ClubState, form: FormData): Promise<ClubState> {
   const user = await getSession();
-  if (!user) return { error: "Inicia sesión para proponer un evento del club." };
+  if (!user) return { error: "Inicia sesión para publicar un evento del club." };
   const clubId = String(form.get("club_id") ?? "");
   const title = String(form.get("title") ?? "").trim();
   const description = String(form.get("description") ?? "").trim();
@@ -1516,8 +1516,8 @@ export async function createClubEvent(_prev: ClubState, form: FormData): Promise
   const uploaded = await resolveUploadedPublicImage(form, "image", user.id, "club-events");
   if ("error" in uploaded) return { error: uploaded.error };
 
-  const status = "pendiente";
-  const approvedBy = null;
+  const status = "aprobado";
+  const approvedBy = user.id;
 
   await pool.query(
     `insert into club_events (club_id, created_by, title, description, starts_at, ends_at, location, approval_status, approved_by, image_url)
@@ -1539,7 +1539,7 @@ export async function createClubEvent(_prev: ClubState, form: FormData): Promise
   await audit(user.id, "crear_evento_club", "club_events", clubId, title);
   refresh(undefined, clubId);
   return {
-    success: "Evento enviado. Quedará visible en la cartelera cuando el área responsable lo apruebe.",
+    success: "Evento publicado. Ya aparece en tu club y en la cartelera general.",
   };
 }
 
@@ -1599,6 +1599,114 @@ export async function reviewClubEvent(_prev: ClubState, form: FormData): Promise
   await audit(user.id, `evento_club_${decision}`, "club_events", eventId, clubId);
   refresh(undefined, clubId);
   return { success: decision === "aprobado" ? "Evento aprobado." : "Evento rechazado." };
+}
+
+export async function updateClubEvent(_prev: ClubState, form: FormData): Promise<ClubState> {
+  const user = await getSession();
+  if (!user) return { error: "Inicia sesión para editar eventos del club." };
+  const clubId = String(form.get("club_id") ?? "");
+  const eventId = String(form.get("event_id") ?? "");
+  const title = String(form.get("title") ?? "").trim();
+  const description = String(form.get("description") ?? "").trim();
+  const location = String(form.get("location") ?? "").trim();
+  const startsAt = parseMxLocalDate(String(form.get("starts_at") ?? ""));
+  const endsRaw = String(form.get("ends_at") ?? "").trim();
+  const endsAt = endsRaw ? parseMxLocalDate(endsRaw) : null;
+
+  if (!isUuid(clubId) || !isUuid(eventId)) return { error: "Datos inválidos." };
+  if (title.length < 3 || title.length > 140) return { error: "El título debe tener entre 3 y 140 caracteres." };
+  if (location.length < 2 || location.length > 140) return { error: "Indica el lugar del evento." };
+  if (!startsAt) return { error: "Indica una fecha y hora de inicio válidas." };
+  if (endsRaw && (!endsAt || endsAt <= startsAt)) {
+    return { error: "La hora de cierre debe ser posterior al inicio del evento." };
+  }
+
+  const evRes = await pool.query<{
+    kind: string;
+    leader_id: string | null;
+    advisor_id: string | null;
+    location: string;
+    approval_status: string;
+    image_url: string | null;
+  }>(
+    `select c.kind, c.leader_id, c.advisor_id, ce.location, ce.approval_status, ce.image_url
+       from club_events ce
+       join clubs c on c.id = ce.club_id
+      where ce.id = $1 and ce.club_id = $2`,
+    [eventId, clubId],
+  );
+  const row = evRes.rows[0];
+  if (!row) return { error: "Evento o club no encontrado." };
+
+  const isManager =
+    (user.role === "alumno" && user.id === row.leader_id) ||
+    (user.role === "profesor" && user.id === row.advisor_id);
+  const currentVenueArea = clubEventVenueArea(row.location);
+  const nextVenueArea = clubEventVenueArea(location);
+  const canReviewCurrent = currentVenueArea
+    ? user.role === "admin" || (user.role === "moderador" && user.area === currentVenueArea)
+    : canModerateClubKind(user, row.kind);
+  const canReviewNext = nextVenueArea
+    ? user.role === "admin" || (user.role === "moderador" && user.area === nextVenueArea)
+    : canModerateClubKind(user, row.kind);
+  const isStaffEditor = canReviewCurrent && canReviewNext;
+
+  if (!isManager && !isStaffEditor) {
+    return { error: "Sin permiso para editar este evento o moverlo a esa sede." };
+  }
+
+  const spaceNameKey = location.split("·")[0]?.trim() ?? location;
+  const overlap = await pool.query<{ conflict_title: string | null }>(
+    `select public.check_space_event_overlap(s.id, $2::timestamptz, $3::timestamptz, $4::uuid) as conflict_title
+       from spaces s
+      where lower(trim(s.name)) = lower(trim($1))
+      limit 1`,
+    [spaceNameKey, startsAt.toISOString(), endsAt ? endsAt.toISOString() : null, eventId],
+  );
+  const conflict = overlap.rows[0]?.conflict_title;
+  if (conflict) {
+    return {
+      error: `Ese espacio ya tiene otro evento en ese horario («${conflict}»). Ajusta la hora o elige otra sede.`,
+    };
+  }
+
+  const uploaded = await resolveUploadedPublicImage(form, "image", user.id, "club-events");
+  if ("error" in uploaded) return { error: uploaded.error };
+  const nextImageUrl = uploaded.url ?? row.image_url;
+
+  const nextStatus = isManager ? "aprobado" : row.approval_status;
+  const nextApprovedBy = nextStatus === "aprobado" ? user.id : null;
+
+  const updated = await pool.query(
+    `update club_events
+        set title = $1,
+            description = $2,
+            starts_at = $3,
+            ends_at = $4,
+            location = $5,
+            image_url = $6,
+            approval_status = $7,
+            approved_by = $8
+      where id = $9 and club_id = $10`,
+    [
+      title,
+      description,
+      startsAt.toISOString(),
+      endsAt ? endsAt.toISOString() : null,
+      location,
+      nextImageUrl,
+      nextStatus,
+      nextApprovedBy,
+      eventId,
+      clubId,
+    ],
+  );
+  if (!updated.rowCount) return { error: "No se pudo actualizar este evento." };
+  await audit(user.id, "editar_evento_club", "club_events", eventId, `${clubId}: ${title}`);
+  refresh(undefined, clubId);
+  return {
+    success: "Evento actualizado.",
+  };
 }
 
 export async function deleteClubEvent(_prev: ClubState, form: FormData): Promise<ClubState> {

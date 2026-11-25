@@ -4,11 +4,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { createClubEvent } from "../clubes/actions";
-import { ClubEventReviewButtons, DeleteClubEventButton } from "../clubes/forms";
+import { ClubEventForm, ClubEventReviewButtons, DeleteClubEventButton } from "../clubes/forms";
 import { AttendButton } from "@/components/attend-button";
 import { FormDialog } from "@/components/form-dialog";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { SubmitButton } from "@/components/loading-ui";
+import {
+  eventDateKey,
+  eventDaySpan,
+  eventDaysInMonth,
+  eventIntersectsDayRange,
+  monthDayBounds,
+  MX_TIME_ZONE,
+} from "@/lib/event-dates";
 import { btn, btnGhost, card, input, label } from "@/lib/ui";
 import { deleteSpaceEvent, reviewSpaceEvent } from "../espacios/actions";
 import { SpaceEventForm } from "../espacios/forms";
@@ -16,13 +24,16 @@ import { SpaceEventForm } from "../espacios/forms";
 type EventItem = {
   id: string;
   eventKind: "space" | "club";
+  spaceId?: string | null;
   title: string;
   description: string;
   startsAt: string;
   endsAt: string | null;
   spaceName: string;
+  location?: string | null;
   building: string | null;
   speaker?: string | null;
+  isPublic?: boolean;
   clubId?: string | null;
   clubName?: string | null;
   imageUrl?: string | null;
@@ -39,17 +50,10 @@ type Space = {
   description: string | null;
 };
 
-const TZ = "America/Mexico_City";
+const TZ = MX_TIME_ZONE;
 
 function keyDate(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: TZ,
-  }).formatToParts(date);
-  const part = (kind: string) => parts.find((item) => item.type === kind)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
+  return eventDateKey(date);
 }
 
 function monthLabel(value: string) {
@@ -93,16 +97,18 @@ function dateStubParts(iso: string) {
   return { day: get("day"), month: get("month"), weekday: get("weekday") };
 }
 
-function EventCard({ event, featured = false, isAuthenticated, canDelete, openPoster }: {
+function EventCard({ event, featured = false, isAuthenticated, canDelete, onEdit, openPoster }: {
   event: EventItem;
   featured?: boolean;
   isAuthenticated: boolean;
   canDelete: boolean;
+  onEdit: (event: EventItem) => void;
   openPoster: (poster: { src: string; title: string }) => void;
 }) {
   const { imageUrl, startsAt, endsAt } = event;
   const Heading = featured ? "h2" : "h3";
-  const otherDay = endsAt && keyDate(new Date(startsAt)) !== keyDate(new Date(endsAt));
+  const span = eventDaySpan(startsAt, endsAt);
+  const otherDay = Boolean(endsAt && span.endDay > span.startDay);
   const stub = dateStubParts(startsAt);
 
   return (
@@ -156,6 +162,12 @@ function EventCard({ event, featured = false, isAuthenticated, canDelete, openPo
             <div className="min-w-0 flex-1">
               <p className="font-mono text-[11px] font-bold uppercase tracking-wider text-[#8a4526]">
                 <time dateTime={startsAt}>{programDate.format(new Date(startsAt))}</time>
+                {otherDay && endsAt && (
+                  <>
+                    {" – "}
+                    <time dateTime={endsAt}>{programDate.format(new Date(endsAt))}</time>
+                  </>
+                )}
               </p>
               <Heading
                 className={`mt-1 text-balance font-serif font-bold leading-[1.1] tracking-tight text-[#142c3c] [overflow-wrap:anywhere] ${
@@ -207,18 +219,29 @@ function EventCard({ event, featured = false, isAuthenticated, canDelete, openPo
                 initialCount={event.attendeesCount}
                 isAuthenticated={isAuthenticated}
               />
-              {canDelete && event.clubId && <DeleteClubEventButton clubId={event.clubId} eventId={event.id} />}
-              {canDelete && event.eventKind === "space" && (
-                <form action={deleteSpaceEvent}>
-                  <input type="hidden" name="id" value={event.id} />
-                  <SubmitButton
-                    pendingText="Eliminando…"
-                    spinnerClassName="h-3 w-3"
-                    className="text-xs font-bold text-[#8c2925] hover:underline"
+              {canDelete && (
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onEdit(event)}
+                    className="text-xs font-bold text-[#005980] hover:underline"
                   >
-                    Eliminar evento
-                  </SubmitButton>
-                </form>
+                    Editar
+                  </button>
+                  {event.clubId && <DeleteClubEventButton clubId={event.clubId} eventId={event.id} />}
+                  {event.eventKind === "space" && (
+                    <form action={deleteSpaceEvent}>
+                      <input type="hidden" name="id" value={event.id} />
+                      <SubmitButton
+                        pendingText="Cancelando…"
+                        spinnerClassName="h-3 w-3"
+                        className="text-xs font-bold text-[#8c2925] hover:underline"
+                      >
+                        Cancelar evento
+                      </SubmitButton>
+                    </form>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -356,6 +379,7 @@ export function EventBoard({
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [next7DaysOnly, setNext7DaysOnly] = useState(false);
   const [showPublishForm, setShowPublishForm] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
   const [publishMode, setPublishMode] = useState<"space" | "club">(
     canPublishEvents && spaces.length > 0 ? "space" : "club",
   );
@@ -378,30 +402,34 @@ export function EventBoard({
     const endDate = new Date(`${startDay}T23:59:59-06:00`);
     endDate.setDate(endDate.getDate() + 7);
     const endDay = keyDate(endDate);
-    return events.filter((event) => {
-      const day = keyDate(new Date(event.startsAt));
-      return day >= startDay && day <= endDay && (spaceFilter === "all" || event.spaceName === spaceFilter);
-    });
+    return events.filter(
+      (event) =>
+        eventIntersectsDayRange(event.startsAt, event.endsAt, startDay, endDay) &&
+        (spaceFilter === "all" || event.spaceName === spaceFilter),
+    );
   }, [events, spaceFilter]);
+
+  const { monthStart, monthEnd, days } = useMemo(() => monthDayBounds(month), [month]);
 
   const inMonth = useMemo(
     () =>
       events.filter(
         (event) =>
-          keyDate(new Date(event.startsAt)).slice(0, 7) === month &&
+          eventIntersectsDayRange(event.startsAt, event.endsAt, monthStart, monthEnd) &&
           (spaceFilter === "all" || event.spaceName === spaceFilter),
       ),
-    [events, month, spaceFilter],
+    [events, monthStart, monthEnd, spaceFilter],
   );
 
   const byDay = useMemo(() => {
     const result = new Map<string, EventItem[]>();
     inMonth.forEach((event) => {
-      const day = keyDate(new Date(event.startsAt));
-      result.set(day, [...(result.get(day) ?? []), event]);
+      for (const day of eventDaysInMonth(event.startsAt, event.endsAt, month)) {
+        result.set(day, [...(result.get(day) ?? []), event]);
+      }
     });
     return result;
-  }, [inMonth]);
+  }, [inMonth, month]);
 
   const spaceTabs = useMemo(() => {
     return [
@@ -416,7 +444,6 @@ export function EventBoard({
 
   const [year, monthNumber] = month.split("-").map(Number);
   const blanks = (new Date(year, monthNumber - 1, 1).getDay() + 6) % 7;
-  const days = new Date(year, monthNumber, 0).getDate();
   const cells: Array<number | null> = [
     ...Array(blanks).fill(null),
     ...Array.from({ length: days }, (_, index) => index + 1),
@@ -602,6 +629,49 @@ export function EventBoard({
         </FormDialog>
       )}
 
+      {/* DIÁLOGO DE EDICIÓN */}
+      {editingEvent && (
+        <FormDialog
+          title={editingEvent.eventKind === "space" ? "Editar evento" : "Editar evento de club"}
+          kicker="Cartelera ESCOM"
+          accent={editingEvent.eventKind === "space" ? "amber" : "teal"}
+          onClose={() => setEditingEvent(null)}
+          serifTitle
+        >
+          {editingEvent.eventKind === "space" && editingEvent.spaceId ? (
+            <SpaceEventForm
+              spaces={spaces.map((space) => ({ id: space.id, name: space.name }))}
+              initialEvent={{
+                id: editingEvent.id,
+                spaceId: editingEvent.spaceId,
+                title: editingEvent.title,
+                description: editingEvent.description,
+                speaker: editingEvent.speaker,
+                startsAt: editingEvent.startsAt,
+                endsAt: editingEvent.endsAt,
+                isPublic: editingEvent.isPublic,
+              }}
+              onSuccess={() => setEditingEvent(null)}
+              onCancel={() => setEditingEvent(null)}
+            />
+          ) : editingEvent.clubId ? (
+            <ClubEventForm
+              clubId={editingEvent.clubId}
+              initialEvent={{
+                id: editingEvent.id,
+                title: editingEvent.title,
+                description: editingEvent.description,
+                location: editingEvent.location ?? editingEvent.spaceName,
+                startsAt: editingEvent.startsAt,
+                endsAt: editingEvent.endsAt,
+              }}
+              onSuccess={() => setEditingEvent(null)}
+              onCancel={() => setEditingEvent(null)}
+            />
+          ) : null}
+        </FormDialog>
+      )}
+
       {/* CUERPO PRINCIPAL: CARTELERA PROTAGONISTA + ALMANAQUE COMPACTO */}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
         {/* ESCENARIO DE CARTELERA */}
@@ -614,6 +684,7 @@ export function EventBoard({
                 featured
                 isAuthenticated={isAuthenticated}
                 canDelete={featuredEvent.canManageEvent ?? (canPublishEvents && featuredEvent.eventKind === "space")}
+                onEdit={setEditingEvent}
                 openPoster={setLightboxItem}
               />
               {billboardEvents.length > 0 && (
@@ -624,6 +695,7 @@ export function EventBoard({
                       event={event}
                       isAuthenticated={isAuthenticated}
                       canDelete={event.canManageEvent ?? (canPublishEvents && event.eventKind === "space")}
+                      onEdit={setEditingEvent}
                       openPoster={setLightboxItem}
                     />
                   ))}
@@ -781,20 +853,30 @@ export function EventBoard({
                       </p>
                       <p className="text-[11px] text-[#5f6e78]">
                         {new Date(ev.startsAt).toLocaleString("es-MX", { timeZone: TZ })}
+                        {ev.endsAt ? ` – ${new Date(ev.endsAt).toLocaleString("es-MX", { timeZone: TZ })}` : ""}
                       </p>
                       {ev.description && (
                         <p className="mt-1 text-[11px] text-[#536974]">{ev.description}</p>
                       )}
                     </div>
-                    {ev.clubId ? <ClubEventReviewButtons clubId={ev.clubId} eventId={ev.id} /> : <form action={reviewSpaceEvent} className="flex flex-wrap gap-1.5">
-                      <input type="hidden" name="id" value={ev.id} />
-                      <SubmitButton name="decision" value="aprobado" className={btn} pendingText="Aprobando…">
-                        Aprobar y publicar
-                      </SubmitButton>
-                      <SubmitButton name="decision" value="rechazado" className={btnGhost} pendingText="Rechazando…">
-                        Rechazar
-                      </SubmitButton>
-                    </form>}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {ev.clubId ? <ClubEventReviewButtons clubId={ev.clubId} eventId={ev.id} /> : <form action={reviewSpaceEvent} className="flex flex-wrap gap-1.5">
+                        <input type="hidden" name="id" value={ev.id} />
+                        <SubmitButton name="decision" value="aprobado" className={btn} pendingText="Aprobando…">
+                          Aprobar y publicar
+                        </SubmitButton>
+                        <SubmitButton name="decision" value="rechazado" className={btnGhost} pendingText="Rechazando…">
+                          Rechazar
+                        </SubmitButton>
+                      </form>}
+                      <button
+                        type="button"
+                        onClick={() => setEditingEvent(ev)}
+                        className="text-xs font-bold text-[#005980] hover:underline"
+                      >
+                        Editar
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>

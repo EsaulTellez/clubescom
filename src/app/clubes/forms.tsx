@@ -39,6 +39,7 @@ import {
   sendAdvisorCodeToEmail,
   submitFormalClubRequest,
   updateClubDetails,
+  updateClubEvent,
   updateClubLogo,
   updateProposalDetails,
   uploadProposalDocument,
@@ -2290,19 +2291,35 @@ export function ClubEditForm({
   );
 }
 
+const CLUB_VENUE_PRESETS = ["Auditorio", "Sala 14", "El domo", "Canchas", "Explanada"] as const;
+
+export type EditableClubEvent = {
+  id: string;
+  title: string;
+  description: string;
+  location: string;
+  startsAt: string;
+  endsAt: string | null;
+};
+
 export function ClubEventForm({
   clubId,
+  initialEvent,
   onSuccess,
   onCancel,
 }: {
   clubId: string;
+  initialEvent?: EditableClubEvent;
   onSuccess?: () => void;
   onCancel?: () => void;
 }) {
   const router = useRouter();
+  const isEditing = Boolean(initialEvent);
   const [state, action, pending] = useActionState(
     async (prev: ClubState, formData: FormData) => {
-      const res = await createClubEvent(prev, formData);
+      const res = isEditing
+        ? await updateClubEvent(prev, formData)
+        : await createClubEvent(prev, formData);
       if (res.success) {
         router.refresh();
         onSuccess?.();
@@ -2311,22 +2328,44 @@ export function ClubEventForm({
     },
     {},
   );
-  const [venuePreset, setVenuePreset] = useState("Auditorio");
+  const initialPreset = initialEvent
+    ? CLUB_VENUE_PRESETS.find((p) => p.toLowerCase() === initialEvent.location.trim().toLowerCase()) ?? "Otro"
+    : "Auditorio";
+  const [venuePreset, setVenuePreset] = useState<string>(initialPreset);
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="club_id" value={clubId} />
+      {initialEvent && <input type="hidden" name="event_id" value={initialEvent.id} />}
       <label className={label}>
         Título
-        <input className={input} name="title" required minLength={3} maxLength={140} />
+        <input
+          className={input}
+          name="title"
+          required
+          minLength={3}
+          maxLength={140}
+          defaultValue={initialEvent?.title ?? ""}
+        />
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={label}>
           Inicio (CDMX)
-          <input className={input} name="starts_at" type="datetime-local" required />
+          <input
+            className={input}
+            name="starts_at"
+            type="datetime-local"
+            required
+            defaultValue={toMxLocalInputValue(initialEvent?.startsAt)}
+          />
         </label>
         <label className={label}>
           Fin (opcional)
-          <input className={input} name="ends_at" type="datetime-local" />
+          <input
+            className={input}
+            name="ends_at"
+            type="datetime-local"
+            defaultValue={toMxLocalInputValue(initialEvent?.endsAt)}
+          />
         </label>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -2354,6 +2393,7 @@ export function ClubEventForm({
               required
               minLength={2}
               maxLength={140}
+              defaultValue={initialEvent?.location ?? ""}
               placeholder="Ej. Laboratorio 2103"
             />
           </label>
@@ -2363,9 +2403,22 @@ export function ClubEventForm({
       </div>
       <label className={label}>
         Descripción
-        <textarea className={`${input} min-h-20`} name="description" maxLength={500} />
+        <textarea
+          className={`${input} min-h-20`}
+          name="description"
+          maxLength={500}
+          defaultValue={initialEvent?.description ?? ""}
+        />
       </label>
-      <ImageUploadField name="image" label="Cartel o imagen del evento (opcional)" compact />
+      <ImageUploadField
+        name="image"
+        label={
+          isEditing
+            ? "Reemplazar cartel o imagen (opcional)"
+            : "Cartel o imagen del evento (opcional)"
+        }
+        compact
+      />
       <FieldError state={state} />
       <div className="flex flex-wrap justify-end gap-2 border-t border-[#e5e1d4] pt-4">
         {onCancel && (
@@ -2373,8 +2426,8 @@ export function ClubEventForm({
             Cancelar
           </button>
         )}
-        <SubmitButton className={btn} pending={pending} pendingText="Enviando…">
-          Enviar evento a revisión
+        <SubmitButton className={btn} pending={pending} pendingText={isEditing ? "Guardando…" : "Publicando…"}>
+          {isEditing ? "Guardar cambios" : "Publicar evento"}
         </SubmitButton>
       </div>
     </form>
@@ -2395,7 +2448,7 @@ export function DeleteClubEventButton({ clubId, eventId }: { clubId: string; eve
     <ActionForm
       action={deleteClubEvent}
       fields={{ club_id: clubId, event_id: eventId }}
-      label="Eliminar evento"
+      label="Cancelar evento"
       variant="ghost"
     />
   );

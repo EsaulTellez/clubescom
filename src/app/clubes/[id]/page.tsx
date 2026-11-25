@@ -4,7 +4,6 @@ import { getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { demoClubArt } from "@/lib/demo-art";
 import { card } from "@/lib/ui";
-import { clubEventVenueArea } from "../../espacios/shared";
 import {
   allowedClubKinds,
   canManageAnyClubs,
@@ -62,6 +61,7 @@ type RawEventRow = {
   description: string;
   location: string;
   starts_at: Date;
+  ends_at: Date | null;
   approval_status: string;
   image_url: string | null;
   attendees_count: number;
@@ -129,7 +129,6 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
   let members: ClubMemberRow[] = [];
   let posts: RawPost[] = [];
   let events: RawEventRow[] = [];
-  let pendingEvents: RawEventRow[] = [];
   let metricsRaw: RawMetricsSummary | null = null;
   let eventAttendeeGroups: ClubEventAttendeeGroup[] = [];
   let directoryPeople: DirectoryUserOption[] = [];
@@ -168,7 +167,7 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
       const isMemberEarly = managesClub || membership === "aceptada";
       const canViewFeedEarly = isMemberEarly || isAreaStaff;
 
-      const [roster, feed, upcoming, pendingEvs, peopleRes] = await Promise.all([
+      const [roster, feed, upcoming, peopleRes] = await Promise.all([
         pool.query<ClubMemberRow>(
           `select distinct u.id, u.name,
                   case when u.id = c.leader_id then 'Responsable'
@@ -191,25 +190,18 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
             )
           : Promise.resolve({ rows: [] as RawPost[] }),
         pool.query<RawEventRow>(
-          `select ce.id, ce.title, ce.description, ce.location, ce.starts_at, ce.approval_status, ce.image_url,
+          `select ce.id, ce.title, ce.description, ce.location, ce.starts_at, ce.ends_at, ce.approval_status, ce.image_url,
                   coalesce(count(ea.user_id), 0)::int as attendees_count,
                   coalesce(bool_or(ea.user_id = $2::uuid), false) as user_attending
            from club_events ce
            left join event_attendees ea on ea.event_kind = 'club' and ea.event_id = ce.id
-           where ce.club_id = $1 and ce.starts_at >= now() and ce.approval_status = 'aprobado'
+           where ce.club_id = $1
+             and (ce.starts_at >= now() - interval '12 hours' or (ce.ends_at is not null and ce.ends_at >= now()))
+             and ce.approval_status = 'aprobado'
            group by ce.id
            order by ce.starts_at asc limit 12`,
           [id, user?.id ?? null],
         ),
-        isAreaStaff || user?.role === "moderador"
-          ? pool.query<RawEventRow>(
-              `select ce.id, ce.title, ce.description, ce.location, ce.starts_at, ce.approval_status, ce.image_url,
-                      0::int as attendees_count, false as user_attending
-               from club_events ce where ce.club_id = $1 and ce.approval_status = 'pendiente'
-               order by ce.starts_at asc`,
-              [id],
-            )
-          : Promise.resolve({ rows: [] as RawEventRow[] }),
         isAreaStaff
           ? pool.query<DirectoryUserOption>(
               `select id, name, role from public.users where id = any($1::uuid[])`,
@@ -221,11 +213,6 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
       members = roster.rows;
       posts = feed.rows;
       events = upcoming.rows;
-      pendingEvents = pendingEvs.rows.filter((ev) => {
-        const venueArea = clubEventVenueArea(ev.location);
-        if (venueArea) return user?.role === "admin" || (user?.role === "moderador" && user.area === venueArea);
-        return isAreaStaff;
-      });
       directoryPeople = peopleRes.rows;
 
       const isMember = managesClub || membership === "aceptada";
@@ -355,7 +342,11 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
       title: ev.title,
       description: ev.description,
       location: ev.location,
-      starts_label: formatWhen(ev.starts_at),
+      starts_at: ev.starts_at.toISOString(),
+      ends_at: ev.ends_at?.toISOString() ?? null,
+      starts_label: ev.ends_at
+        ? `${formatWhen(ev.starts_at)} – ${formatWhen(ev.ends_at)}`
+        : formatWhen(ev.starts_at),
       day: dp.day,
       month: dp.month,
       approval_status: ev.approval_status,
@@ -394,7 +385,6 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
         created_label: formatWhen(p.created_at),
       }))}
       events={events.map(mapEvent)}
-      pendingEvents={pendingEvents.map(mapEvent)}
       pendingRequests={pending}
       metrics={metrics}
       eventAttendeeGroups={eventAttendeeGroups}

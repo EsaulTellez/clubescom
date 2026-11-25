@@ -351,7 +351,7 @@ export async function getHomeFeedBatch({
       join public.users u on u.id = se.created_by
       where se.approval_status = 'aprobado'
         and se.is_public = true
-        and se.starts_at >= now() - interval '12 hours'
+        and (se.starts_at >= now() - interval '12 hours' or (se.ends_at is not null and se.ends_at >= now()))
 
       union all
 
@@ -380,7 +380,7 @@ export async function getHomeFeedBatch({
         ce.location as event_location,
         null::text as event_speaker,
         ce.starts_at as event_starts_at,
-        null::timestamptz as event_ends_at,
+        ce.ends_at as event_ends_at,
         (select count(*)::int from public.event_attendees ea where ea.event_kind = 'club' and ea.event_id = ce.id) as attendees_count,
         exists (
           select 1 from public.event_attendees ea
@@ -393,7 +393,7 @@ export async function getHomeFeedBatch({
       from public.club_events ce
       join public.clubs c on c.id = ce.club_id and c.active = true
       where ce.approval_status = 'aprobado'
-        and ce.starts_at >= now() - interval '12 hours'
+        and (ce.starts_at >= now() - interval '12 hours' or (ce.ends_at is not null and ce.ends_at >= now()))
     ),
     filtered as (
       select
@@ -548,7 +548,7 @@ export async function getTrendingLeaderboards(userId: string | null): Promise<{
         join public.spaces s on s.id = se.space_id
         where se.approval_status = 'aprobado'
           and se.is_public = true
-          and se.starts_at >= now() - interval '6 hours'
+          and (se.starts_at >= now() - interval '6 hours' or (se.ends_at is not null and se.ends_at >= now()))
 
         union all
 
@@ -569,7 +569,7 @@ export async function getTrendingLeaderboards(userId: string | null): Promise<{
         join public.clubs c on c.id = ce.club_id
         where ce.approval_status = 'aprobado'
           and c.active = true
-          and ce.starts_at >= now() - interval '6 hours'
+          and (ce.starts_at >= now() - interval '6 hours' or (ce.ends_at is not null and ce.ends_at >= now()))
       )
       select *
       from combined_events

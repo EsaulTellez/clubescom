@@ -226,17 +226,103 @@ export async function reviewSpaceEvent(form: FormData) {
   revalidatePath("/mapa");
 }
 
+export async function updateSpaceEvent(_prev: FormState, form: FormData): Promise<FormState> {
+  const user = await getSession();
+  if (!user) {
+    return { error: "Inicia sesión para editar eventos del itinerario." };
+  }
+
+  const id = text(form, "id");
+  const spaceId = text(form, "space_id");
+  const title = text(form, "title");
+  const description = text(form, "description");
+  const speaker = text(form, "speaker");
+  const isPublic = form.has("is_public_field") ? form.get("is_public") === "on" : true;
+  const starts = parseMxLocalDate(text(form, "starts_at"));
+  const endsValue = text(form, "ends_at");
+  const ends = endsValue ? parseMxLocalDate(endsValue) : null;
+
+  if (!UUID.test(id)) return { error: "Evento inválido." };
+  if (!UUID.test(spaceId)) return { error: "Elige un espacio." };
+  if (title.length < 3 || title.length > 160) return { error: "El título debe tener entre 3 y 160 caracteres." };
+  if (description.length > 2000) return { error: "La descripción no debe superar los 2,000 caracteres." };
+  if (speaker.length > 160) return { error: "El nombre del ponente es demasiado largo." };
+  if (!starts || (endsValue && !ends) || (starts && ends && ends <= starts)) {
+    return { error: "Revisa la fecha de inicio y asegúrate de que el fin sea posterior al inicio." };
+  }
+
+  const currentRes = await pool.query<{ space_name: string; image_url: string | null }>(
+    `select s.name as space_name, e.image_url
+       from space_events e
+       join spaces s on s.id = e.space_id
+      where e.id = $1`,
+    [id],
+  );
+  const current = currentRes.rows[0];
+  if (!current) return { error: "No encontramos ese evento." };
+  if (!canManageSpaceByName(user, current.space_name)) {
+    return { error: "No tienes permiso para editar este evento." };
+  }
+
+  const targetSpaceRes = await pool.query<{ name: string }>("select name from spaces where id = $1", [spaceId]);
+  if (!targetSpaceRes.rowCount) return { error: "El espacio seleccionado no existe." };
+  const targetSpaceName = targetSpaceRes.rows[0].name;
+  if (!canManageSpaceByName(user, targetSpaceName)) {
+    return { error: "No tienes permiso para asignar eventos a ese espacio." };
+  }
+  if (/auditorio|sala\s*14/i.test(targetSpaceName) && speaker.length < 2) {
+    return { error: "Para eventos en Auditorio o Sala 14 indica el nombre del ponente." };
+  }
+
+  const overlap = await pool.query<{ conflict_title: string | null }>(
+    `select public.check_space_event_overlap($1::uuid, $2::timestamptz, $3::timestamptz, $4::uuid) as conflict_title`,
+    [spaceId, starts.toISOString(), ends ? ends.toISOString() : null, id],
+  );
+  const conflict = overlap.rows[0]?.conflict_title;
+  if (conflict) {
+    return {
+      error: `${targetSpaceName} ya tiene programado «${conflict}» en ese horario. Elige otra hora o espacio.`,
+    };
+  }
+
+  const uploaded = await resolveUploadedPublicImage(form, "image", user.id, "space-events");
+  if ("error" in uploaded) return { error: uploaded.error };
+  const nextImageUrl = uploaded.url ?? current.image_url;
+
+  const updated = await pool.query(
+    `update space_events
+        set space_id = $1,
+            title = $2,
+            description = $3,
+            speaker = $4,
+            is_public = $5,
+            starts_at = $6,
+            ends_at = $7,
+            image_url = $8
+      where id = $9`,
+    [spaceId, title, description, speaker || null, isPublic, starts, ends, nextImageUrl, id],
+  );
+  if (!updated.rowCount) return { error: "No se pudo actualizar el evento." };
+
+  await audit(user.id, "editar_evento_espacio", "space_events", id, `${targetSpaceName}: ${title}`);
+  revalidatePath("/");
+  revalidatePath("/eventos");
+  revalidatePath("/mapa");
+  return { ok: "Evento actualizado." };
+}
+
 export async function deleteSpaceEvent(form: FormData) {
   const user = await getSession();
   const id = text(form, "id");
   if (!user || !UUID.test(id)) return;
-  const ev = await pool.query<{ space_name: string }>(
-    `select s.name as space_name from space_events e join spaces s on s.id = e.space_id where e.id = $1`,
+  const ev = await pool.query<{ space_name: string; title: string }>(
+    `select s.name as space_name, e.title from space_events e join spaces s on s.id = e.space_id where e.id = $1`,
     [id],
   );
-  const spaceName = ev.rows[0]?.space_name;
-  if (!spaceName || !canManageSpaceByName(user, spaceName)) return;
+  const row = ev.rows[0];
+  if (!row || !canManageSpaceByName(user, row.space_name)) return;
   await pool.query("delete from space_events where id = $1", [id]);
+  await audit(user.id, "eliminar_evento_espacio", "space_events", id, `${row.space_name}: ${row.title}`);
   revalidatePath("/");
   revalidatePath("/eventos");
   revalidatePath("/mapa");

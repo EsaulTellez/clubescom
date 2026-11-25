@@ -1,12 +1,13 @@
 "use client";
 
 import { buildingRoomGroups } from "@/lib/campus-rooms";
+import { toMxLocalInputValue } from "@/lib/datetime";
 import { useRouter } from "next/navigation";
 import { useActionState, useState } from "react";
 import { SubmitButton } from "@/components/loading-ui";
 import { ImageUploadField } from "@/components/image-upload-field";
-import { btn, input, label } from "@/lib/ui";
-import { addSpaceEvent, saveCubicle } from "./actions";
+import { btn, btnGhost, input, label } from "@/lib/ui";
+import { addSpaceEvent, saveCubicle, updateSpaceEvent } from "./actions";
 
 type FormState = { error?: string; ok?: string };
 
@@ -151,19 +152,37 @@ export function CubicleForm({
   );
 }
 
+export type EditableSpaceEvent = {
+  id: string;
+  spaceId: string;
+  title: string;
+  description: string;
+  speaker?: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  isPublic?: boolean;
+};
+
 export function SpaceEventForm({
   spaces,
   isDirectPublisher = true,
+  initialEvent,
   onSuccess,
+  onCancel,
 }: {
   spaces: { id: string; name: string }[];
   isDirectPublisher?: boolean;
+  initialEvent?: EditableSpaceEvent;
   onSuccess?: () => void;
+  onCancel?: () => void;
 }) {
   const router = useRouter();
+  const isEditing = Boolean(initialEvent);
   const [state, action, pending] = useActionState(
     async (prev: FormState, formData: FormData) => {
-      const res = await addSpaceEvent(prev, formData);
+      const res = isEditing
+        ? await updateSpaceEvent(prev, formData)
+        : await addSpaceEvent(prev, formData);
       if (res.ok) {
         router.refresh();
         onSuccess?.();
@@ -172,12 +191,15 @@ export function SpaceEventForm({
     },
     {},
   );
-  const [selectedSpaceId, setSelectedSpaceId] = useState(spaces.length === 1 ? spaces[0].id : "");
+  const [selectedSpaceId, setSelectedSpaceId] = useState(
+    initialEvent?.spaceId ?? (spaces.length === 1 ? spaces[0].id : ""),
+  );
   const selectedSpace = spaces.find((s) => s.id === selectedSpaceId);
   const requiresSpeaker = Boolean(selectedSpace && /auditorio|sala\s*14/i.test(selectedSpace.name));
 
   return (
     <form action={action} className="space-y-3">
+      {initialEvent && <input type="hidden" name="id" value={initialEvent.id} />}
       <input type="hidden" name="is_public_field" value="1" />
       <label className={label}>
         Espacio
@@ -200,7 +222,14 @@ export function SpaceEventForm({
       </label>
       <label className={label}>
         Título
-        <input className={input} name="title" required maxLength={160} placeholder="Actividad autorizada por ESCOM" />
+        <input
+          className={input}
+          name="title"
+          required
+          maxLength={160}
+          defaultValue={initialEvent?.title ?? ""}
+          placeholder="Actividad autorizada por ESCOM"
+        />
       </label>
       <label className={label}>
         {requiresSpeaker ? "Ponente (obligatorio)" : "Ponente (opcional)"}
@@ -209,36 +238,82 @@ export function SpaceEventForm({
           name="speaker"
           required={requiresSpeaker}
           maxLength={160}
+          defaultValue={initialEvent?.speaker ?? ""}
           placeholder="Nombre de la persona ponente o expositora"
         />
       </label>
       <label className={label}>
         Descripción
-        <textarea className={input} name="description" rows={3} maxLength={2000} placeholder="Detalles que la comunidad necesita conocer" />
+        <textarea
+          className={input}
+          name="description"
+          rows={3}
+          maxLength={2000}
+          defaultValue={initialEvent?.description ?? ""}
+          placeholder="Detalles que la comunidad necesita conocer"
+        />
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={label}>
-          Inicio
-          <input className={input} name="starts_at" type="datetime-local" required />
+          Inicio (CDMX)
+          <input
+            className={input}
+            name="starts_at"
+            type="datetime-local"
+            required
+            defaultValue={toMxLocalInputValue(initialEvent?.startsAt)}
+          />
         </label>
         <label className={label}>
-          Fin
-          <input className={input} name="ends_at" type="datetime-local" />
+          Fin (opcional)
+          <input
+            className={input}
+            name="ends_at"
+            type="datetime-local"
+            defaultValue={toMxLocalInputValue(initialEvent?.endsAt)}
+          />
         </label>
       </div>
       <label className="flex items-start gap-2.5 rounded-lg border border-[#d6d3c6] bg-[#faf8f0] px-3 py-2 text-sm text-[#2c4452]">
-        <input type="checkbox" name="is_public" defaultChecked className="mt-1" />
+        <input
+          type="checkbox"
+          name="is_public"
+          defaultChecked={initialEvent ? initialEvent.isPublic !== false : true}
+          className="mt-1"
+        />
         <span>
           <strong className="block font-bold">Abierto al público</strong>
           <span className="text-xs text-[#5d6f79]">Si se desmarca, no se mostrará en la cartelera ni en el feed público.</span>
         </span>
       </label>
-      <ImageUploadField name="image" label="Cartel o imagen del evento (opcional · JPG, PNG o WEBP)" />
-      <p className="text-sm text-[#667085]">Publica solo actividades que ya fueron autorizadas fuera de la plataforma. Este registro no reserva ni autoriza el espacio.</p>
+      <ImageUploadField
+        name="image"
+        label={
+          isEditing
+            ? "Reemplazar cartel o imagen (opcional · JPG, PNG o WEBP)"
+            : "Cartel o imagen del evento (opcional · JPG, PNG o WEBP)"
+        }
+      />
+      {!isEditing && (
+        <p className="text-sm text-[#667085]">
+          Publica solo actividades que ya fueron autorizadas fuera de la plataforma. Este registro no reserva ni autoriza el espacio.
+        </p>
+      )}
       <Feedback state={state} />
-      <SubmitButton className={btn} pending={pending} pendingText="Guardando…">
-        {isDirectPublisher ? "Publicar evento autorizado" : "Enviar evento a revisión"}
-      </SubmitButton>
+      <div className="flex flex-wrap justify-end gap-2">
+        {onCancel && (
+          <button type="button" onClick={onCancel} className={btnGhost}>
+            Cancelar
+          </button>
+        )}
+        <SubmitButton className={btn} pending={pending} pendingText="Guardando…">
+          {isEditing
+            ? "Guardar cambios"
+            : isDirectPublisher
+              ? "Publicar evento autorizado"
+              : "Enviar evento a revisión"}
+        </SubmitButton>
+      </div>
     </form>
   );
 }
