@@ -1,5 +1,6 @@
 "use client";
 
+import { buildingRoomGroups, campusLevels as levels, classroomCode, firstClassroom } from "@/lib/campus-rooms";
 import { useRouter } from "next/navigation";
 import { memo, useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FormDialog } from "@/components/form-dialog";
@@ -60,16 +61,58 @@ export type CurrentViewer = {
 type Rect = { x: number; y: number; w: number; h: number };
 type Block = Rect & { id: number; start: number; end: number };
 
+// Las alas de cada edificio dejan libres los pasillos transversales (07–08 en todos y 01–02 en 3 y 4).
 const blocks: Block[] = [
-  { id: 1, x: 183, y: 304, w: 88, h: 540, start: 1, end: 13 },
-  { id: 2, x: 565, y: 304, w: 88, h: 540, start: 1, end: 13 },
-  { id: 3, x: 340, y: 500, w: 68, h: 312, start: 4, end: 7 },
-  { id: 4, x: 408, y: 500, w: 68, h: 312, start: 4, end: 7 },
+  { id: 1, x: 183, y: 304, w: 88, h: 241, start: firstClassroom(1), end: 7 },
+  { id: 2, x: 565, y: 304, w: 88, h: 241, start: firstClassroom(2), end: 7 },
+  { id: 1, x: 183, y: 568, w: 88, h: 276, start: 8, end: 13 },
+  { id: 2, x: 565, y: 568, w: 88, h: 276, start: 8, end: 13 },
+  { id: 3, x: 340, y: 500, w: 68, h: 45, start: firstClassroom(3), end: 1 },
+  { id: 4, x: 408, y: 500, w: 68, h: 45, start: firstClassroom(4), end: 1 },
+  { id: 3, x: 340, y: 568, w: 68, h: 212, start: 2, end: 7 },
+  { id: 4, x: 408, y: 568, w: 68, h: 212, start: 2, end: 7 },
   { id: 3, x: 323, y: 812, w: 85, h: 334, start: 8, end: 13 },
   { id: 4, x: 408, y: 812, w: 85, h: 334, start: 8, end: 13 },
 ];
 
-const levels = ["Planta baja", "Piso 1", "Piso 2"];
+const bridgeRows = [545, 780];
+const bridgeDepth = 23;
+const connections = bridgeRows.flatMap((y) => [
+  { x: 271, y, w: 69, h: bridgeDepth },
+  { x: 476, y, w: 89, h: bridgeDepth },
+]);
+const governmentBridgeY = 357;
+const governmentBridgeDepth = 14;
+const governmentBridges = [
+  { x: 271, y: governmentBridgeY, w: 24, h: governmentBridgeDepth },
+  { x: 545, y: governmentBridgeY, w: 20, h: governmentBridgeDepth },
+];
+
+type WallOpening = { y: number; h: number };
+const bridgeOpenings: WallOpening[] = bridgeRows.map((y) => ({ y, h: bridgeDepth }));
+const governmentBridgeOpening: WallOpening = { y: governmentBridgeY, h: governmentBridgeDepth };
+
+// Conserva los tramos de muro entre accesos, en orden norte–sur.
+function wallAroundOpenings(wall: Rect, openings: WallOpening[]) {
+  const end = wall.y + wall.h;
+  const parts: Rect[] = [];
+  let start = wall.y;
+  for (const opening of [...openings].sort((a, b) => a.y - b.y)) {
+    if (opening.y >= end || opening.y + opening.h <= start) continue;
+    if (opening.y > start) parts.push({ ...wall, y: start, h: opening.y - start });
+    start = Math.max(start, opening.y + opening.h);
+  }
+  if (start < end) parts.push({ ...wall, y: start, h: end - start });
+  return parts;
+}
+
+const crossPassages = blocks.flatMap((block) => {
+  const nextWing = blocks.find((wing) => wing.id === block.id && wing.start === block.end + 1);
+  if (!nextWing) return [];
+  const y = block.y + block.h;
+  return [{ x: block.x, y, w: block.w, h: nextWing.y - y }];
+});
+
 const floorHeight = 26;
 
 export const GOBIERNO_SPACES: Array<{
@@ -501,6 +544,9 @@ const GobiernoBuilding3D = memo(function GobiernoBuilding3D({
         <Box rect={{ x: 295, y: 353, w: 250, h: 4 }} bottom={floorHeight + 3} height={floorHeight - 3} color="#dcded5" roof="#b9756c" />
         <Box rect={{ x: 295, y: 179, w: 4, h: 174 }} bottom={floorHeight + 3} height={floorHeight - 3} color="#dcded5" roof="#b9756c" />
         <Box rect={{ x: 541, y: 179, w: 4, h: 174 }} bottom={floorHeight + 3} height={floorHeight - 3} color="#dcded5" roof="#b9756c" />
+        {/* Pasillo sur de Gobierno en Piso 1 alineado con los puentes hacia Edif. 1 y 2 */}
+        <Box rect={{ x: 295, y: governmentBridgeY, w: 250, h: governmentBridgeDepth }} bottom={floorHeight - 3} height={6} color="#a4b0af" roof="#d7ddd6" />
+        <CorridorWall rect={{ x: 295, y: governmentBridgeY + governmentBridgeDepth - 2, w: 250, h: 2 }} floor={1} />
         {/* Mobiliario 3D de oficinas del Piso 1 */}
         <Box rect={{ x: 386, y: 196, w: 68, h: 22 }} bottom={floorHeight + 3} height={7} color="#8c624d" roof="#b88b6e" />
         <Box rect={{ x: 316, y: 258, w: 36, h: 36 }} bottom={floorHeight + 3} height={6} color="#9e7b50" roof="#dfc69f" />
@@ -551,12 +597,9 @@ const GobiernoBuilding3D = memo(function GobiernoBuilding3D({
       <Ground rect={{ x: 370, y: 240, w: 100, h: 75 }} className="courtyard">
         <span />
       </Ground>
-      {[26, 52].map((height) => (
-        <Box key={`gov-gallery-floor-${height}`} rect={{ x: 295, y: 357, w: 250, h: 14 }} bottom={height - 3} height={3} color="#cfd4cb" roof="#f2f3eb" />
-      ))}
-      {[26].map((height) => (
-        <Box key={`gov-gallery-rail-${height}`} rect={{ x: 295, y: 368, w: 250, h: 3 }} bottom={height} height={8} color="#e2e5dd" roof="#f3f4ee" />
-      ))}
+      <Box rect={{ x: 295, y: governmentBridgeY, w: 250, h: governmentBridgeDepth }} bottom={floorHeight - 3} height={6} color="#a4b0af" roof="#d7ddd6" />
+      <Box rect={{ x: 295, y: governmentBridgeY, w: 250, h: governmentBridgeDepth }} bottom={2 * floorHeight - 3} height={3} color="#cfd4cb" roof="#f2f3eb" />
+      <CorridorWall rect={{ x: 295, y: governmentBridgeY + governmentBridgeDepth - 2, w: 250, h: 2 }} floor={1} />
       {[295, 345, 395, 445, 495, 542].map((x) => (
         <Box key={`gov-gallery-column-${x}`} rect={{ x, y: 368, w: 3, h: 3 }} height={52} color="#d2d8d0" roof="#f4f5ed" />
       ))}
@@ -610,6 +653,271 @@ const GobiernoBuilding3D = memo(function GobiernoBuilding3D({
   );
 });
 
+const restroomDepth = 25;
+// Viendo al norte, Hombres queda a la izquierda (oeste) y Mujeres a la derecha (este).
+const bothRestrooms = ["Hombres", "Mujeres"];
+
+function RestroomRow({ rect, signs, height, level, adjacentRoom, entrance }: {
+  rect: Rect;
+  signs: string[];
+  height: number;
+  level: number | null;
+  adjacentRoom: string;
+  entrance: "north" | "south";
+}) {
+  const w = rect.w / signs.length;
+  return signs.map((sign, index) => {
+    const label = `Baño de ${sign.toLowerCase()} junto al salón ${adjacentRoom}`;
+    const x = rect.x + index * w;
+    const doorY = entrance === "south" ? rect.y + rect.h + 0.4 : rect.y - 0.4;
+    return (
+      <div key={sign} className="model-group">
+        <Box
+          rect={{ ...rect, x, w }}
+          height={height}
+          color="#b8bdb9"
+          roof={level === null ? "#b9756c" : "#d8ece7"}
+          topContent={level !== null && (
+            <span className="restroom-sign" role="img" aria-label={label} title={label}>
+              <b>WC</b>{sign}
+            </span>
+          )}
+        />
+        {Array.from({ length: height / floorHeight }, (_, floor) => (
+          <span key={floor} className="restroom-door" aria-hidden="true" style={{
+            left: x + w / 2,
+            top: doorY,
+            transform: `translate3d(-50%, 0, ${floor * floorHeight + 3}px) rotateX(90deg)`,
+          }} />
+        ))}
+      </div>
+    );
+  });
+}
+
+function CorridorWall({ rect, floor }: { rect: Rect; floor: number }) {
+  return <Box rect={rect} bottom={floor * floorHeight + 3} height={8}
+    color="#959995" roof="#b9bcb8" className="corridor-parapet" />;
+}
+
+function Bridge({ rect, floor, northWall = true }: { rect: Rect; floor: number; northWall?: boolean }) {
+  return (
+    <div className="model-group">
+      <Box rect={rect} bottom={floor * floorHeight - 3} height={6} color="#a4b0af" roof="#d7ddd6" className="building-bridge" />
+      {northWall && <CorridorWall rect={{ ...rect, h: 2 }} floor={floor} />}
+      <CorridorWall rect={{ ...rect, y: rect.y + rect.h - 2, h: 2 }} floor={floor} />
+    </div>
+  );
+}
+
+// Anexos en los extremos sur de los edificios 3 (Papelería) y 4 (Cafetería):
+// en planta baja son locales cerrados y en pisos 1 y 2 son cuadros abiertos de pasillo con barda.
+const southCornerAnnexes: Array<{
+  id: string;
+  label: string;
+  ariaLabel: string;
+  side: "west" | "east";
+  rect: Rect;
+  pbRoof: string;
+}> = [
+  {
+    id: "papeleria",
+    label: "Papelería",
+    ariaLabel: "Papelería junto al baño de hombres del salón 3013",
+    side: "west",
+    rect: { x: 303, y: 1100, w: 20, h: 46 },
+    pbRoof: "#f3e6c8",
+  },
+  {
+    id: "cafeteria-e4",
+    label: "Cafetería",
+    ariaLabel: "Cafetería junto al baño de mujeres del salón 4013",
+    side: "east",
+    rect: { x: 493, y: 1100, w: 20, h: 46 },
+    pbRoof: "#f2dfd0",
+  },
+];
+
+function SouthCornerAnnex({
+  annex,
+  visibleFloors,
+  level,
+}: {
+  annex: (typeof southCornerAnnexes)[number];
+  visibleFloors: number;
+  level: number | null;
+}) {
+  const { rect, side, label, ariaLabel, pbRoof } = annex;
+  const outerWallX = side === "west" ? rect.x : rect.x + rect.w - 3;
+  const corridorDoorX = side === "west" ? rect.x + rect.w + 0.4 : rect.x - 0.4;
+  return (
+    <div className="model-group">
+      {/* Planta baja: local cerrado de Papelería o Cafetería */}
+      <Box
+        rect={rect}
+        bottom={0}
+        height={floorHeight}
+        color="#b8bdb9"
+        roof={level === 0 ? pbRoof : "#e6e8df"}
+        className="service-kiosk"
+        topContent={
+          level === 0 && (
+            <span className="kiosk-sign" role="img" aria-label={ariaLabel} title={`${label} · Planta baja`}>
+              {label}
+            </span>
+          )
+        }
+      />
+      {/* Acceso hacia el andador sur y ventanilla hacia el pasillo */}
+      <span
+        className="kiosk-door"
+        aria-hidden="true"
+        style={{
+          left: rect.x + (rect.w - 12) / 2,
+          top: rect.y + rect.h + 0.4,
+          width: 12,
+          transform: "translateZ(3px) rotateX(90deg)",
+        }}
+      />
+      <span
+        className="kiosk-window"
+        aria-hidden="true"
+        style={{
+          left: corridorDoorX,
+          top: rect.y + 11,
+          width: 24,
+          transform: "translateZ(10px) rotateZ(90deg) rotateX(90deg)",
+        }}
+      />
+      {/* Pisos 1 y 2: cuadro extra de pasillo abierto con barda gris en los 3 bordes exteriores */}
+      {Array.from({ length: Math.max(0, visibleFloors - 1) }, (_, idx) => {
+        const floor = idx + 1;
+        return (
+          <div key={`${annex.id}-floor-${floor}`} className="model-group">
+            <Box
+              rect={rect}
+              bottom={floor * floorHeight}
+              height={3}
+              color="#c6ccc5"
+              roof="#e6e8df"
+            />
+            <CorridorWall rect={{ x: rect.x, y: rect.y, w: rect.w, h: 2 }} floor={floor} />
+            <CorridorWall rect={{ x: outerWallX, y: rect.y, w: 3, h: rect.h }} floor={floor} />
+            <CorridorWall rect={{ x: rect.x, y: rect.y + rect.h - 2, w: rect.w, h: 2 }} floor={floor} />
+          </div>
+        );
+      })}
+      {level === null && (
+        <Box
+          rect={rect}
+          bottom={visibleFloors * floorHeight - 3}
+          height={3}
+          color="#d3d7cf"
+          roof="#b9756c"
+        />
+      )}
+    </div>
+  );
+}
+
+// Hueco compartido entre los baños del 3x13 y 4x13, abierto a la galería sur.
+const stairwell = { x: 382, y: 1100, w: 52, h: 46 };
+const stairWidth = 15;
+const treadDepth = 4;
+const treadsPerFlight = 8;
+const flightLength = treadDepth * treadsPerFlight;
+const stairRise = floorHeight / (2 * treadsPerFlight);
+
+function SouthStairwell({ floors }: { floors: number }) {
+  const south = stairwell.y + stairwell.h;
+  const shaft = {
+    x: stairwell.x + stairWidth, y: south - flightLength,
+    w: stairwell.w - 2 * stairWidth, h: flightLength,
+  };
+  return (
+    <div className="model-group" role="img" aria-label="Elevador entre los baños. En planta baja, la escalera del lado del edificio 3 baja al estacionamiento y la del edificio 4 sube al primer piso.">
+      <Box rect={shaft} bottom={-floorHeight} height={(floors + 1) * floorHeight} color="#9aa9aa" roof="#c6d0d0" className="elevator-shaft" />
+      {floors === levels.length && (
+        <Box rect={stairwell} bottom={floors * floorHeight} height={3} color="#a8655e" roof="#b9756c" className="stairwell-roof" />
+      )}
+      {Array.from({ length: floors }, (_, floor) => (
+        <span key={floor} className="elevator-door" style={{
+          left: shaft.x + shaft.w / 2,
+          top: south + 0.4,
+          transform: `translate3d(-50%, 0, ${floor * floorHeight + 3}px) rotateX(90deg)`,
+        }} />
+      ))}
+      {Array.from({ length: 1 + Math.min(floors, levels.length - 1) }, (_, index) => {
+        const floor = index - 1;
+        const base = floor * floorHeight + 3;
+        // En el piso de corte se ve la bajada a un lado y el arranque de subida al otro.
+        const flights = floors > 0 && floor === floors - 1 ? ["outbound"] : ["outbound", "return"];
+        return (
+          <div key={floor} className="model-group">
+            {flights.map((flight, leg) =>
+              Array.from({ length: treadsPerFlight }, (_, step) => {
+                const rect = {
+                  x: leg === 0 ? shaft.x + shaft.w : stairwell.x,
+                  y: leg === 0 ? south - (step + 1) * treadDepth : shaft.y + step * treadDepth,
+                  w: stairWidth, h: treadDepth,
+                };
+                return <Box key={`${flight}-${step}`} rect={rect}
+                  bottom={base + (leg * treadsPerFlight + step) * stairRise - 2} height={stairRise + 2}
+                  color="#818984" roof="#e1ded1" className="stair-tread" />;
+              })
+            )}
+            <Box rect={{ ...stairwell, h: shaft.y - stairwell.y }} bottom={base + floorHeight / 2 - 3}
+              height={3} color="#8b938d" roof="#d4d3c7" className="stair-turn" />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SouthGallery({ rect, floors }: { rect: Rect; floors: number }) {
+  return (
+    <div className="model-group">
+      {Array.from({ length: floors }, (_, floor) => (
+        <div key={floor} className="model-group">
+          <Box rect={rect} bottom={floor * floorHeight} height={3}
+            color="#b9c2bc" roof="#e6e8df" className="south-gallery-slab" />
+          {floor > 0 && <CorridorWall floor={floor} rect={{ ...rect, y: rect.y + rect.h - 2, h: 2 }} />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const garageSections: Rect[] = [
+  { x: 340, y: 500, w: 136, h: 312 },
+  { x: 323, y: 812, w: 170, h: 348 },
+];
+
+function CampusGround({ openings }: { openings: Rect[] }) {
+  const masks = openings.map(({ x, y, w, h }) =>
+    `linear-gradient(#000 0 0) ${x}px ${y}px / ${w}px ${h}px no-repeat border-box`
+  );
+  return (
+    <div className="model-ground model-base" style={{
+      ...rectStyle({ x: 0, y: 0, w: 1000, h: 1300 }),
+      mask: ["linear-gradient(#000 0 0) border-box", ...masks].join(", "),
+      maskComposite: "exclude",
+    }} />
+  );
+}
+
+function UndergroundParking() {
+  return (
+    <div className="model-group" role="img" aria-label="Estacionamiento subterráneo de los edificios 3 y 4">
+      {garageSections.map((rect) => (
+        <Box key={rect.y} rect={rect} bottom={-floorHeight} height={3}
+          color="#676e6d" roof="#757e7b" className="garage-deck" />
+      ))}
+    </div>
+  );
+}
+
 const CampusScene = memo(function CampusScene({
   level,
   selected,
@@ -622,9 +930,28 @@ const CampusScene = memo(function CampusScene({
   roomInfo: RoomInfo[];
 }) {
   const infoMap = useMemo(() => new Map(roomInfo.map((r) => [r.code, r])), [roomInfo]);
+  const visibleFloors = level === null ? levels.length : level + 1;
+  const totalHeight = visibleFloors * floorHeight;
+  if (level === -1) {
+    return (
+      <>
+        <CampusGround openings={garageSections} />
+        {garageSections.flatMap((section) => [section.x - 2, section.x + section.w].map((x) => (
+          <Box key={`${x}-${section.y}`} rect={{ ...section, x, w: 2 }} bottom={-floorHeight} height={floorHeight}
+            color="#a2a5a0" roof="#c6cac0" />
+        )))}
+        <UndergroundParking />
+        <SouthStairwell floors={0} />
+        <div className="model-label" style={{ left: 330, top: 477, transform: "translateZ(2px)" }}>
+          ESTACIONAMIENTO · EDIF. 3 Y 4
+        </div>
+      </>
+    );
+  }
   return (
     <>
-      <Ground rect={{ x: 0, y: 0, w: 1000, h: 1300 }} className="model-base" />
+      <CampusGround openings={[stairwell]} />
+      <UndergroundParking />
       <Ground rect={{ x: 755, y: 130, w: 210, h: 760 }} className="parking">
         <div className="parking-island island-a" />
         <div className="parking-island island-b" />
@@ -666,43 +993,131 @@ const CampusScene = memo(function CampusScene({
       {/* Edificio de Gobierno y Auditorio con distribución interior por capa */}
       <GobiernoBuilding3D level={level} selected={selected} onSelect={onSelect} infoMap={infoMap} />
 
-      <Box rect={{ x: 315, y: 1128, w: 185, h: 28 }} height={8} color="#aeb4ae" roof="#d9d9ce" />
+      {[{ x: 303, w: stairwell.x - 303 }, { x: stairwell.x + stairwell.w, w: 513 - stairwell.x - stairwell.w }].map((side) => (
+        <Box key={side.x} rect={{ ...side, y: 1128, h: 28 }} height={2} color="#aeb4ae" roof="#d9d9ce" />
+      ))}
+      <SouthStairwell floors={visibleFloors} />
       {blocks.map((block) => {
-        const visibleFloors = level === null ? 3 : level + 1;
-        const totalHeight = visibleFloors * floorHeight;
         const corridorWidth = 14;
         const corridorOnRight = block.id === 1 || block.id === 4;
         const corridorX = corridorOnRight ? block.x + block.w - corridorWidth : block.x;
-        const railX = corridorOnRight ? corridorX + corridorWidth - 3 : corridorX;
+        const wallX = corridorOnRight ? corridorX + corridorWidth - 3 : corridorX;
         const core = { ...block, x: block.x + (corridorOnRight ? 0 : corridorWidth), w: block.w - corridorWidth };
+        const bathroomsBy08 = block.start === 8 && block.id >= 3;
+        const bathroomsAtEnd = block.end === 13 || block.id <= 2;
+        const restroomSigns = block.id <= 2 ? bothRestrooms : [block.id === 3 ? "Hombres" : "Mujeres"];
+        const startInset = bathroomsBy08 ? restroomDepth : 0;
+        const besideStairs = block.end === 13 && block.id >= 3;
+        const endDepth = besideStairs ? stairwell.h : restroomDepth;
+        const endInset = bathroomsAtEnd ? endDepth : 0;
+        const endBath = { x: core.x, y: core.y + core.h - endDepth, w: core.w, h: endDepth };
+        if (besideStairs) {
+          if (block.id === 3) endBath.w = stairwell.x - core.x;
+          else {
+            endBath.x = stairwell.x + stairwell.w;
+            endBath.w = core.x + core.w - endBath.x;
+          }
+        }
+        const classrooms = {
+          ...core,
+          y: core.y + startInset,
+          h: core.h - startInset - endInset,
+        };
+        const roomCount = block.end - block.start + 1;
+        const roomDepth = classrooms.h / roomCount;
+        const doorX = corridorOnRight ? classrooms.x + classrooms.w + 0.4 : classrooms.x - 0.4;
+        const doorWidth = 12;
+        const doorsFaceSouthPassage = block.id >= 3 && block.start === 1 && block.end === 1;
+        const hasOppositeWindows = block.id <= 2;
+        const windowX = corridorOnRight ? classrooms.x - 0.4 : classrooms.x + classrooms.w + 0.4;
+        const windowWidth = Math.max(16, Math.round(roomDepth - 10));
+        // La barda deja libre la boca de cada conexión entre edificios y los cuadros de pasillo sur en 3 y 4.
+        const wall = { x: wallX, y: block.y, w: 3, h: block.h };
+        const annexOpenings: WallOpening[] = besideStairs ? [{ y: stairwell.y, h: stairwell.h }] : [];
         return (
           <div key={`${block.id}-${block.start}`} className="model-group">
             <Box
-              rect={core}
+              rect={classrooms}
               bottom={0}
               height={totalHeight}
-              color="#e8e9e1"
+              color="#b8bdb9"
               roof={level !== null ? "#e9e5d7" : "#b9756c"}
               className="school-block"
             />
-            <Box
-              rect={{ x: railX, y: block.y, w: 3, h: block.h }}
-              bottom={3}
-              height={totalHeight - 3}
-              color="transparent"
-              roof="#f3f4ed"
-              className="corridor-rail-wall"
-            />
-            {Array.from({ length: visibleFloors }, (_, floor) => (
-              <Box
-                key={floor}
-                rect={{ x: corridorX, y: block.y, w: corridorWidth, h: block.h }}
-                bottom={floor * floorHeight}
-                height={3}
-                color="#c6ccc5"
-                roof="#e6e8df"
-              />
-            ))}
+            {bathroomsBy08 && (
+              <RestroomRow rect={{ ...core, h: restroomDepth }} signs={restroomSigns} entrance="north"
+                height={totalHeight} level={level} adjacentRoom={classroomCode(block.id, level ?? 0, 8)} />
+            )}
+            {bathroomsAtEnd && (
+              <RestroomRow rect={endBath} signs={restroomSigns} entrance="south"
+                height={totalHeight} level={level} adjacentRoom={classroomCode(block.id, level ?? 0, block.end)} />
+            )}
+            {block.end === 13 && (
+              <SouthGallery rect={{ x: block.x, y: block.y + block.h, w: block.w, h: corridorWidth }} floors={visibleFloors} />
+            )}
+            {Array.from({ length: visibleFloors }, (_, floor) => {
+              const wallOpenings: WallOpening[] = [
+                ...(floor === 1 && block.id <= 2 ? [governmentBridgeOpening] : []),
+                ...bridgeOpenings,
+                ...annexOpenings,
+              ];
+              return (
+              <div key={floor} className="model-group">
+                {(floor > 0 || block.id >= 3) && wallAroundOpenings(wall, wallOpenings).map((part) => (
+                  <CorridorWall key={part.y} rect={part} floor={floor} />
+                ))}
+                <Box
+                  rect={{ x: corridorX, y: block.y, w: corridorWidth, h: block.h }}
+                  bottom={floor * floorHeight}
+                  height={3}
+                  color="#c6ccc5"
+                  roof="#e6e8df"
+                />
+                {Array.from({ length: roomCount }, (_, i) => {
+                  const roomTop = classrooms.y + i * roomDepth;
+                  return (
+                    <div key={`openings-${floor}-${i}`} className="model-group">
+                      {doorsFaceSouthPassage ? (
+                        <span
+                          className="classroom-door"
+                          aria-hidden="true"
+                          style={{
+                            left: classrooms.x + (classrooms.w - doorWidth) / 2,
+                            top: classrooms.y + classrooms.h + 0.4,
+                            width: doorWidth,
+                            transform: `translateZ(${floor * floorHeight + 3}px) rotateX(90deg)`,
+                          }}
+                        />
+                      ) : (
+                        <span
+                          className="classroom-door"
+                          aria-hidden="true"
+                          style={{
+                            left: doorX,
+                            top: roomTop + (roomDepth - doorWidth) / 2,
+                            width: doorWidth,
+                            transform: `translateZ(${floor * floorHeight + 3}px) rotateZ(90deg) rotateX(90deg)`,
+                          }}
+                        />
+                      )}
+                      {hasOppositeWindows && (
+                        <span
+                          className="classroom-window"
+                          aria-hidden="true"
+                          style={{
+                            left: windowX,
+                            top: roomTop + (roomDepth - windowWidth) / 2,
+                            width: windowWidth,
+                            transform: `translateZ(${floor * floorHeight + 10}px) rotateZ(90deg) rotateX(90deg)`,
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              );
+            })}
             {level === null && (
               <Box
                 rect={{ x: corridorX, y: block.y, w: corridorWidth, h: block.h }}
@@ -714,8 +1129,7 @@ const CampusScene = memo(function CampusScene({
             )}
             {level !== null &&
               Array.from({ length: block.end - block.start + 1 }, (_, i) => {
-                const code = `${block.id}${level}${String(block.start + i).padStart(2, "0")}`;
-                const h = block.h / (block.end - block.start + 1);
+                const code = classroomCode(block.id, level, block.start + i);
                 const info = infoMap.get(code);
                 const hasOfficial = (info?.professors.length ?? 0) > 0;
                 const hasSuggestion = (info?.suggestions.length ?? 0) > 0;
@@ -732,9 +1146,9 @@ const CampusScene = memo(function CampusScene({
                     className={`room-tile ${hasOfficial ? "has-official" : hasSuggestion ? "has-suggestion" : ""} ${code === selected ? "selected" : ""}`}
                     style={{
                       left: core.x + 3,
-                      top: block.y + i * h + 2,
+                      top: classrooms.y + i * roomDepth + 2,
                       width: core.w - 6,
-                      height: h - 4,
+                      height: roomDepth - 4,
                       transform: `translateZ(${visibleFloors * floorHeight + 1}px)`,
                     }}
                   >
@@ -748,27 +1162,37 @@ const CampusScene = memo(function CampusScene({
       {[
         { x: 303, y: 812, w: 20, h: 55 },
         { x: 493, y: 812, w: 20, h: 55 },
-        { x: 303, y: 1095, w: 20, h: 51 },
-        { x: 493, y: 1095, w: 20, h: 51 },
       ].map((rect, i) => (
-        <Box key={`wing-${i}`} rect={rect} height={(level === null ? 3 : level + 1) * floorHeight} color="#d2d3cc" roof="#b9756c" />
+        <Box key={`wing-${i}`} rect={rect} height={(level === null ? 3 : level + 1) * floorHeight} color="#b8bdb9" roof="#b9756c" />
       ))}
-      {(level === null ? [1, 2] : level > 0 ? [level] : []).flatMap((floor) =>
-        [545, 780].flatMap((y) =>
-          [
-            { x: 271, y, w: 69, h: 23 },
-            { x: 476, y, w: 89, h: 23 },
-          ].map((rect, i) => <Box key={`${floor}-${y}-${i}`} rect={rect} bottom={floor * floorHeight - 3} height={7} color="#a4b0af" roof="#d7ddd6" />),
-        ),
-      )}
+      {southCornerAnnexes.map((annex) => (
+        <SouthCornerAnnex key={annex.id} annex={annex} visibleFloors={visibleFloors} level={level} />
+      ))}
+      {[...connections, ...crossPassages].map((rect) => (
+        <Ground key={`path-${rect.x}-${rect.y}`} rect={rect} className="walkway building-passage" />
+      ))}
+      {crossPassages.map((rect) => (
+        <Box key={`${rect.x}-${rect.y}`} rect={rect} bottom={totalHeight - 3} height={3}
+          color="#c6ccc5" roof={visibleFloors === levels.length ? "#b9756c" : "#e6e8df"} className="cross-passage-cover" />
+      ))}
+      {Array.from({ length: visibleFloors - 1 }, (_, i) => i + 1).map((floor) => (
+        <div key={floor} className="model-group">
+          {crossPassages.map((rect) => (
+            <Box key={`${rect.x}-${rect.y}`} rect={rect} bottom={floor * floorHeight} height={3} color="#c6ccc5" roof="#e6e8df" />
+          ))}
+          {(floor === 1 ? [...governmentBridges, ...connections] : connections).map((rect) => (
+            <Bridge key={`${rect.x}-${rect.y}`} rect={rect} floor={floor} />
+          ))}
+        </div>
+      ))}
       {level === null && <Ground rect={{ x: 359, y: 672, w: 100, h: 90 }} className="solar" />}
       {level === null && (
         <>
           {[
             { label: "Edificio 1 (clic para ver Planta Baja)", code: "1001", rect: { x: 183, y: 304, w: 88, h: 540 } },
             { label: "Edificio 2 (clic para ver Planta Baja)", code: "2001", rect: { x: 565, y: 304, w: 88, h: 540 } },
-            { label: "Edificio 3 (clic para ver Planta Baja)", code: "3004", rect: { x: 323, y: 500, w: 85, h: 646 } },
-            { label: "Edificio 4 (clic para ver Planta Baja)", code: "4004", rect: { x: 408, y: 500, w: 85, h: 646 } },
+            { label: "Edificio 3 (clic para ver Planta Baja)", code: "3001", rect: { x: 323, y: 500, w: 85, h: 646 } },
+            { label: "Edificio 4 (clic para ver Planta Baja)", code: "4001", rect: { x: 408, y: 500, w: 85, h: 646 } },
           ].map((b) => (
             <button
               key={b.code}
@@ -917,18 +1341,7 @@ const ROOM_PICKER_GROUPS: Array<{ label: string; rooms: Array<{ code: string; la
       label: `${sp.code} · ${sp.shortLabel} (${sp.floor === 0 ? "Planta baja" : `Piso ${sp.floor}`})`,
     })),
   },
-  ...[1, 2, 3, 4].map((b) => ({
-    label: `Edificio ${b}`,
-    rooms: [0, 1, 2].flatMap((lvl) =>
-      Array.from({ length: b < 3 ? 13 : 10 }, (_, i) => {
-        const code = `${b}${lvl}${String(i + (b < 3 ? 1 : 4)).padStart(2, "0")}`;
-        return {
-          code,
-          label: `${code} · Edificio ${b} · ${levels[lvl]}`,
-        };
-      }),
-    ),
-  })),
+  ...buildingRoomGroups,
 ];
 
 function FormalSuggestionDialog({
@@ -1309,7 +1722,7 @@ export function CampusMap({
     for (const b of blocks) {
       for (let lvl = 0; lvl <= 2; lvl += 1) {
         for (let num = b.start; num <= b.end; num += 1) {
-          const code = `${b.id}${lvl}${String(num).padStart(2, "0")}`;
+          const code = classroomCode(b.id, lvl, num);
           if (!byCode.has(code)) {
             byCode.set(code, {
               code,
@@ -1775,6 +2188,7 @@ export function CampusMap({
               >
                 {[
                   { label: "Todo 3D", value: null },
+                  { label: "Sótano", value: -1 },
                   { label: "Planta baja", value: 0 },
                   { label: "Piso 1", value: 1 },
                   { label: "Piso 2", value: 2 },
@@ -1790,6 +2204,7 @@ export function CampusMap({
                         resetFullCampus();
                       } else {
                         setLevel(item.value);
+                        if (item.value === -1) setSelected("");
                       }
                     }}
                     className={`min-h-9 rounded-sm px-3 text-xs font-extrabold transition ${

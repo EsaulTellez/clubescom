@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isValidRoomCode } from "@/lib/campus-rooms";
 import { audit, getSession } from "@/lib/auth";
 import { pool } from "@/lib/db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -12,13 +13,6 @@ function canManageMapRooms(user: Awaited<ReturnType<typeof getSession>>) {
   return Boolean(
     user && (user.role === "admin" || (user.role === "moderador" && user.area === "prefectura")),
   );
-}
-
-function isValidRoomCode(code: string) {
-  if (/^G[0-1]0[0-9]$/.test(code)) return true;
-  if (!/^[1-4][0-2](0[1-9]|1[0-3])$/.test(code)) return false;
-  if (Number(code[0]) >= 3 && Number(code.slice(2)) < 4) return false;
-  return true;
 }
 
 export async function saveRoom(

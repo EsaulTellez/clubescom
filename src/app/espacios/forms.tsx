@@ -1,5 +1,6 @@
 "use client";
 
+import { buildingRoomGroups } from "@/lib/campus-rooms";
 import { useRouter } from "next/navigation";
 import { useActionState, useState } from "react";
 import { SubmitButton } from "@/components/loading-ui";
@@ -28,19 +29,6 @@ const GOBIERNO_ROOM_OPTIONS = [
   { code: "G103", label: "G103 · Edificio de Gobierno · Piso 1 (Becas / SSEIS / CATT)" },
   { code: "G104", label: "G104 · Edificio de Gobierno · Piso 1 (Subdirección Administrativa)" },
 ];
-
-const BUILDING_ROOM_GROUPS = [1, 2, 3, 4].map((b) => ({
-  label: `Edificio ${b}`,
-  rooms: [0, 1, 2].flatMap((lvl) =>
-    Array.from({ length: b < 3 ? 13 : 10 }, (_, i) => {
-      const code = `${b}${lvl}${String(i + (b < 3 ? 1 : 4)).padStart(2, "0")}`;
-      return {
-        code,
-        label: `${code} · Edificio ${b} · ${lvl === 0 ? "Planta baja" : `Piso ${lvl}`}`,
-      };
-    }),
-  ),
-}));
 
 export function CubicleForm({
   cubicle,
@@ -107,7 +95,7 @@ export function CubicleForm({
               </option>
             ))}
           </optgroup>
-          {BUILDING_ROOM_GROUPS.map((group) => (
+          {buildingRoomGroups.map((group) => (
             <optgroup key={group.label} label={group.label}>
               {group.rooms.map((room) => (
                 <option key={room.code} value={room.code}>

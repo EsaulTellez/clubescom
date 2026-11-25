@@ -52,6 +52,18 @@ Un caso del índice no trae pasos en el texto extraído: CU-33.
 
 ## Cambios
 
+- 2026-11-24. CU-25 sigue `parcial`. Las puertas de `3x01` y `4x01` abren al pasillo `01–02` mirando hacia `3x02` y `4x02`; junto a los baños del `3013` y `4013` se agregaron Papelería (izquierda) y Cafetería (derecha) solo en planta baja, dejando esos cuadros como pasillo abierto con barda gris en pisos 1 y 2; y los puentes de Gobierno en piso 1 se bajaron al borde sur de Gobierno (altura de `1102`/`2102`) en línea con su pasillo de barda gris hacia la Explanada.
+
+- 2026-11-24. CU-25 sigue `parcial`. Los edificios 1 a 4 usan paredes grises sin rayas azules, con puertas cafés en cada salón mirando a los barandales y ventanas en la cara opuesta de los edificios 1 y 2; se agregaron `3x01` y `4x01` con el pasillo 01–02 alineado al puente 07–08 (`20261124000400_map_classroom_01.sql`), y en los edificios 1 y 2 los baños quedan Hombres a la izquierda (oeste) y Mujeres a la derecha (este) viendo al norte.
+
+- 2026-11-24. CU-25 sigue `parcial`. El mapa muestra el techo del elevador, la escalera al estacionamiento bajo los edificios 3 y 4 y la capa Sótano. Los puentes elevados llevan bardas, Gobierno conecta con 1101 y 2101 solo en el piso 1 y en planta baja solo quedan las bardas laterales de los edificios 3 y 4.
+
+- 2026-11-24. CU-25 sigue `parcial`. Las puertas de los baños son anchas y los pasillos exteriores llevan bardas grises en los tres niveles. Entre los baños del 3x13 y 4x13 se modelaron el elevador y una escalera en U que parte del lado del edificio 4 y desemboca en la galería del edificio 3.
+
+- 2026-11-24. CU-25 sigue `parcial`. Los pasillos 07–08 llevan techo. En los tres niveles, los baños junto al 13 abren con puertas café claro al pasillo sur de cada edificio. Los edificios 1 y 2 tienen ambos baños, el 3 tiene el de hombres y el 4 el de mujeres.
+
+- 2026-11-24. CU-25 sigue `parcial`. El mapa incluye los salones 02–07 en los edificios 3 y 4, los pasillos y baños entre 07 y 08, y los baños junto al 13 en los cuatro edificios y sus tres niveles. Las conexiones entre edificios son pasillos en planta baja y puentes en los pisos superiores.
+
 - 2026-11-24. CU-15 conserva el estado `parcial`. Se corrigió la carga de `/moderacion` para administración y moderación de área. El historial consulta la boleta según los permisos de la sesión y el enlace del foro preselecciona la cuenta por su identificador.
 
 - 2026-11-24. CU-17, CU-18, CU-19 y CU-20 conservan el estado `parcial`. Se corrigieron las lecturas de contactos que bloqueaban el panel del área, el detalle de clubes, los expedientes y la notificación de citas. Se verificaron el directorio, un club activo y una propuesta con cinco perfiles en Supabase local.

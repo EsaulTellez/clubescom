@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isValidRoomCode } from "@/lib/campus-rooms";
 import { audit, getSession } from "@/lib/auth";
 import { parseMxLocalDate } from "@/lib/datetime";
 import { pool } from "@/lib/db";
@@ -28,12 +29,7 @@ export async function saveCubicle(_prev: FormState, form: FormData): Promise<For
   }
 
   const roomCodeRaw = text(form, "room_code").toUpperCase();
-  if (
-    roomCodeRaw &&
-    !/^G[01]0[0-9]$/.test(roomCodeRaw) &&
-    (!/^[1-4][0-2](0[1-9]|1[0-3])$/.test(roomCodeRaw) ||
-      (Number(roomCodeRaw[0]) >= 3 && Number(roomCodeRaw.slice(2)) < 4))
-  ) {
+  if (roomCodeRaw && !isValidRoomCode(roomCodeRaw)) {
     return { error: "El código de espacio en el mapa no es válido." };
   }
   const roomCode = roomCodeRaw || null;

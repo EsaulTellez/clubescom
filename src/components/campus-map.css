@@ -49,42 +49,28 @@
 .model-front, .model-back { left: 0; top: 0; width: 100%; transform-origin: top; }
 .model-left, .model-right { left: 0; top: 0; height: 100%; transform-origin: left; }
 
-/* Fachadas realistas con ventanales repetidos por piso (26px por nivel) */
+/* Paredes grises de los edificios escolares (sin textura de rayas azules) */
 .school-block .model-front,
-.school-block .model-back,
+.school-block .model-back {
+  background-color: #aeb3af !important;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(80, 86, 84, 0.24) 0px,
+    rgba(80, 86, 84, 0.24) 2px,
+    transparent 2px,
+    transparent 26px
+  ) !important;
+}
 .school-block .model-left,
 .school-block .model-right {
-  background-color: #dde2da !important;
-  background-image:
-    repeating-linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.45) 0px,
-      rgba(44, 76, 94, 0.38) 5px,
-      rgba(44, 76, 94, 0.38) 15px,
-      rgba(210, 216, 208, 0.92) 16px,
-      rgba(210, 216, 208, 0.92) 26px
-    ),
-    repeating-linear-gradient(90deg, rgba(120, 135, 130, 0.45) 0 3px, rgba(186, 212, 222, 0.55) 3px 16px) !important;
-}
-
-/* Barandales y columnas exteriores de pasillos dibujados en CSS sin nodos extra */
-.corridor-rail-wall .model-left,
-.corridor-rail-wall .model-right {
-  background-color: transparent !important;
-  border-color: transparent !important;
-  background-image:
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0px,
-      transparent 16px,
-      rgba(217, 222, 214, 0.95) 16px,
-      rgba(217, 222, 214, 0.95) 26px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      rgba(213, 217, 209, 0.95) 0 4px,
-      transparent 4px 76px
-    ) !important;
+  background-color: #bdc2be !important;
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(80, 86, 84, 0.24) 0px,
+    rgba(80, 86, 84, 0.24) 2px,
+    transparent 2px,
+    transparent 26px
+  ) !important;
 }
 
 /* Base del campus con textura de césped realista y bordes de banqueta */
@@ -97,6 +83,16 @@
   border-radius: 18px;
   box-shadow: 0 22px 38px rgba(48, 76, 68, 0.42), 0 4px 0 #8a9b8e;
 }
+
+.garage-deck .model-top::before, .garage-deck .model-top::after {
+  content: "";
+  position: absolute;
+  inset: 5px auto 5px 4px;
+  width: 26%;
+  border-inline-start: 1px solid #d4d7cb;
+  background: repeating-linear-gradient(0deg, #d4d7cb 0 1px, transparent 1px 22px);
+}
+.garage-deck .model-top::after { left: auto; right: 4px; transform: rotate(180deg); }
 
 .parking {
   background:
@@ -139,6 +135,97 @@
 .walkway {
   background: repeating-linear-gradient(90deg, #ccc8bb 0 18px, #c2beb0 18px 20px);
   border: 1px solid #dcd8cb;
+}
+.building-passage { transform: translateZ(1px); }
+.restroom-sign {
+  pointer-events: auto;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  color: #164d48;
+  font: 700 8px/1.1 system-ui, sans-serif;
+}
+.restroom-sign b { font-size: 10px; }
+.restroom-door, .elevator-door {
+  position: absolute;
+  transform-origin: center top;
+  pointer-events: none;
+  height: 19px;
+}
+.restroom-door {
+  width: 27px;
+  border: 1px solid #815c40;
+  background: radial-gradient(circle at 80% 49%, #61452f 0 1px, transparent 1.4px), #cea578;
+}
+.classroom-door,
+.classroom-window {
+  position: absolute;
+  transform-origin: left top;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+.classroom-door {
+  height: 19px;
+  border: 1px solid #4e2f1b;
+  background:
+    radial-gradient(circle at 78% 50%, #d8b589 0 1px, transparent 1.5px),
+    linear-gradient(90deg, #6e4429, #855434 45%, #73472b);
+  box-shadow: inset 0 0 0 1px rgba(255, 224, 190, 0.16);
+}
+.classroom-window {
+  height: 11px;
+  border: 1px solid #596366;
+  background:
+    linear-gradient(90deg, transparent 32%, #596366 32% 36%, transparent 36% 64%, #596366 64% 68%, transparent 68%),
+    linear-gradient(180deg, #7d9aa7 0%, #a5c0cc 100%);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.35);
+}
+.kiosk-sign {
+  pointer-events: auto;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: #4a351f;
+  font: 800 8px/1 system-ui, sans-serif;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.kiosk-door,
+.kiosk-window {
+  position: absolute;
+  transform-origin: left top;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+.kiosk-door {
+  height: 19px;
+  border: 1px solid #4e2f1b;
+  background:
+    radial-gradient(circle at 78% 50%, #d8b589 0 1px, transparent 1.5px),
+    linear-gradient(90deg, #6e4429, #855434 45%, #73472b);
+}
+.kiosk-window {
+  height: 10px;
+  border: 1px solid #5a4431;
+  background:
+    linear-gradient(90deg, transparent 48%, #5a4431 48% 52%, transparent 52%),
+    linear-gradient(180deg, #c29b70 0 22%, #8fb1bf 22% 100%);
+}
+.elevator-door {
+  width: 16px;
+  border: 1px solid #465356;
+  background: linear-gradient(90deg, #a8b4b6, #e4e9e7 46%, #596669 48% 53%, #c5cdcd 55%, #97a5a7);
+}
+.stair-tread .model-top {
+  border: 0;
+  border-bottom: 1px solid #999e94;
+  box-shadow: none;
 }
 .court {
   background: linear-gradient(135deg, #6fa080, #5c8e6e);
