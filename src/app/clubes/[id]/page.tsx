@@ -212,12 +212,8 @@ export default async function ClubPage({ params }: { params: Promise<{ id: strin
           : Promise.resolve({ rows: [] as RawEventRow[] }),
         isAreaStaff
           ? pool.query<DirectoryUserOption>(
-              `select u.id::text as id, u.name, u.role::text as role, p.boleta, p.email
-               from public.users u
-               left join private.user_private p on p.user_id = u.id
-               where u.is_active and u.role in ('alumno', 'profesor')
-               order by u.name
-               limit 100`,
+              `select id, name, role from public.users where id = any($1::uuid[])`,
+              [[club.leader_id, club.advisor_id]],
             )
           : Promise.resolve({ rows: [] as DirectoryUserOption[] }),
       ]);

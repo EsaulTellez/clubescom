@@ -29,6 +29,8 @@ import {
 import { canModerateClubKind, clubOfficeLabel, interestLabel, isUuid, kindLabel, safeHttpUrl, statusLabel } from "../../format";
 import { ProposalDossierViewer, type DossierRosterPerson } from "./dossier-viewer";
 
+import { getProposalContacts } from "../../proposal-contacts";
+
 export const dynamic = "force-dynamic";
 
 type Proposal = {
@@ -204,17 +206,9 @@ export default async function PropuestaPage({ params }: { params: Promise<{ id: 
           roster = rosterRpc.data as RosterRow[];
         }
         if (canReview || user.id === proposal.proposer_id || isAdvisorOrInvited) {
-          const contactIds = [proposal.proposer_id, proposal.advisor_id].filter((v): v is string => Boolean(v));
-          if (contactIds.length > 0) {
-            const cRes = await pool.query<{ user_id: string; email: string }>(
-              `select user_id, email from private.user_private where user_id = any($1::uuid[])`,
-              [contactIds],
-            );
-            proposerContactEmail = cRes.rows.find((r) => r.user_id === proposal!.proposer_id)?.email ?? null;
-            advisorContactEmail = proposal.advisor_id
-              ? (cRes.rows.find((r) => r.user_id === proposal!.advisor_id)?.email ?? null)
-              : null;
-          }
+          const contacts = await getProposalContacts(id);
+          proposerContactEmail = contacts.find((person) => person.id === proposal?.proposer_id)?.email ?? null;
+          advisorContactEmail = contacts.find((person) => person.id === proposal?.advisor_id)?.email ?? null;
         }
       }
     }

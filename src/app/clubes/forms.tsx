@@ -461,14 +461,11 @@ export function DirectClubForm({
       <SubmitButton
         className={btn}
         pending={pending}
-        disabled={!students.length || !professors.length || execUploading || rosterUploading}
+        disabled={execUploading || rosterUploading}
         pendingText="Registrando…"
       >
         Registrar club con expediente completo
       </SubmitButton>
-      {(!students.length || !professors.length) && (
-        <p className="text-sm text-[#667085]">Se necesita al menos una cuenta activa de alumno y una de profesor.</p>
-      )}
     </form>
   );
 }

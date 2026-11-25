@@ -211,12 +211,8 @@ export default async function ClubesPage() {
     if (canCreateDirect) {
       const [peopleResult, kpiResult, stageResult, pendingReqResult, delegatesResult] = await Promise.all([
         pool.query<DirectoryUserOption>(
-          `select u.id::text as id, u.name, u.role::text as role, u.area, p.boleta, p.email
-           from public.users u
-           left join private.user_private p on p.user_id = u.id
-           where u.is_active and u.role in ('alumno', 'profesor', 'moderador')
-           order by u.name
-           limit 120`,
+          `select id, name, role, area, boleta, email
+           from public.search_directory_users('', array['alumno', 'profesor', 'moderador'], 50)`,
         ),
         pool.query<ClubKpiRow>(
           `select c.id,
@@ -257,21 +253,7 @@ export default async function ClubesPage() {
           [allowedKinds],
         ),
         sseisTitular
-          ? pool
-              .query<SseisDelegateRow>(
-                `select d.user_id::text as user_id,
-                        u.name,
-                        u.role::text as role,
-                        p.boleta,
-                        p.email,
-                        d.note
-                 from public.club_area_delegates d
-                 join public.users u on u.id = d.user_id
-                 left join private.user_private p on p.user_id = u.id
-                 where d.active = true and d.area_group = 'cultural_deportivo'
-                 order by u.name`,
-              )
-              .catch(() => ({ rows: [] as SseisDelegateRow[] }))
+          ? pool.query<SseisDelegateRow>("select * from public.get_sseis_club_delegates()")
           : Promise.resolve({ rows: [] as SseisDelegateRow[] }),
       ]);
 

@@ -10,6 +10,7 @@ import { clubEventVenueArea } from "../espacios/shared";
 import { sendMail } from "@/lib/mailer";
 import { resolvePreuploadedPrivatePath, resolveUploadedPublicImage } from "@/lib/resolve-upload";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getProposalContacts } from "./proposal-contacts";
 import {
   canManageAnyClubs,
   canModerateClubKind,
@@ -1124,6 +1125,7 @@ export async function decideClubAppointment(_prev: ClubState, form: FormData): P
   const meetingLocation = meetingLocationRaw || defaultPlace;
   const finalNote = notes ? `${meetingLocation} · ${notes}` : meetingLocation;
 
+  const recipientUsers = await getProposalContacts(proposalId);
   const updated = await pool.query(
     `update club_appointments
      set status = 'confirmada',
@@ -1150,14 +1152,6 @@ export async function decideClubAppointment(_prev: ClubState, form: FormData): P
   const supabase = await createSupabaseServerClient();
   const recipients = [prop.proposer_id, prop.advisor_id].filter((v): v is string => Boolean(v));
 
-  const recipientUsers = await pool.query<{ id: string; name: string; email: string }>(
-    `select u.id, u.name, up.email
-       from public.users u
-       join private.user_private up on up.user_id = u.id
-      where u.id = any($1::uuid[])`,
-    [recipients],
-  );
-
   await Promise.all([
     ...recipients.map((uid) =>
       supabase.rpc("notify_user_event", {
@@ -1168,7 +1162,7 @@ export async function decideClubAppointment(_prev: ClubState, form: FormData): P
         p_href: `/clubes/propuestas/${proposalId}`,
       }),
     ),
-    ...recipientUsers.rows.map((person) =>
+    ...recipientUsers.map((person) =>
       sendMail({
         toEmail: person.email,
         toName: person.name,
