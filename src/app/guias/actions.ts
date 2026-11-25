@@ -99,7 +99,7 @@ export async function parseGuideDocumentDraft(form: FormData): Promise<{
     return await generateDraft(bytes, name);
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
-    if (/^(Usa un PDF|El archivo Word|Divide el PDF|No se distingue|No pudimos leer)/.test(message)) return { error: message };
+    if (/^(Usa un PDF|El archivo Word|Divide el PDF|Divide el instructivo|No se distingue|No pudimos leer)/.test(message)) return { error: message };
     return { error: "No se pudo leer el archivo. Comprueba que abre correctamente o prueba con otra imagen o PDF." };
   }
 }

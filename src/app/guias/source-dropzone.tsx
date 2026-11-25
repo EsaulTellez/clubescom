@@ -138,10 +138,10 @@ export function GuideSourceDropzone({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-sm font-semibold text-[#173142]">
-            Generar borrador desde imagen, convocatoria o guía oficial (CATT, Becas, Gestión)
+            Generar pasos desde el texto y las figuras del archivo
           </p>
           <p className="text-xs text-[#667085]">
-            Suelta aquí una foto/captura JPG/PNG/WEBP, PDF (digital o escaneado), Word (.docx) o texto (máx. {MAX_SOURCE_MB} MB).
+            Suelta aquí un PDF digital o escaneado, Word (.docx), archivo de texto o imagen JPG, PNG o WebP (máx. {MAX_SOURCE_MB} MB).
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
